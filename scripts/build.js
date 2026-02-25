@@ -15,27 +15,44 @@ import { join, resolve } from "path";
 import { fileURLToPath } from "url";
 
 const ROOT    = resolve(fileURLToPath(new URL(".", import.meta.url)), "..");
-const PUBLIC  = join(ROOT, "public");   // ← 静态资源根目录，按需修改
+const PUBLIC  = join(ROOT, "public");
 const OUT     = join(PUBLIC, "index.html");
 
-// ── 自定义每个子站点的标题 / 描述 / 图标 ────────────────────────────────────
-// key = 子目录名，未配置的目录自动生成
+// ── 子站点特定配置 ──────────────────────────────────────────────────────────
 const SITES = {
-  // "docs":  { title: "文档中心",  desc: "API 参考与使用指南",  icon: "📖" },
-  // "blog":  { title: "技术博客",  desc: "研究笔记与技术分享",  icon: "✍️"  },
-  // "demo":  { title: "在线演示",  desc: "交互式 Demo",         icon: "🚀" },
+  "codewiki-docs": { 
+    title: "CodeWiki Engine", 
+    desc: "全自动代码分析与知识图谱生成引擎文档，深入理解系统架构与依赖关系。", 
+    icon: "🧬",
+    color: "#6366f1" 
+  },
+  "loki-mode-docs": { 
+    title: "Loki Mode", 
+    desc: "自治代理启动系统：从 PRD 到部署的端到端自动化，AI 驱动的开发新范式。", 
+    icon: "🔥",
+    color: "#f43f5e" 
+  },
+  "deer-flow-docs": { 
+    title: "Deer Flow", 
+    desc: "轻量级工作流编排与任务调度系统，支持复杂任务的有向无环图 (DAG) 编排。", 
+    icon: "🦌",
+    color: "#10b981" 
+  },
+  "zeptoclaw-docs": { 
+    title: "ZeptoClaw", 
+    desc: "高性能分布式爬虫与数据采集框架，极致的抓取效率与灵活的管道处理。", 
+    icon: "🦀",
+    color: "#f59e0b" 
+  }
 };
 
-// ── 首页标题 ─────────────────────────────────────────────────────────────────
 const META = {
-  title:    "项目导航",
-  subtitle: "选择一个子站点开始浏览",
+  title: "Code Wiki Hub",
+  subtitle: "探索代码深处的知识图谱，构建结构化的技术洞察。",
 };
 
-// ── 默认图标池（自动分配） ───────────────────────────────────────────────────
-const ICONS = ["🗂️","📦","🔧","🌐","📊","🎯","💡","🛠️","📡","🔬","🧩","🖥️"];
+const ICONS = ["📚", "🛠️", "🌐", "🔍", "⚙️", "🧪"];
 
-// ── 扫描目录 ─────────────────────────────────────────────────────────────────
 function scan() {
   const dirs = readdirSync(PUBLIC, { withFileTypes: true })
     .filter(e =>
@@ -51,14 +68,14 @@ function scan() {
     const cfg = SITES[name] || {};
     return {
       path:  name,
-      title: cfg.title || name.charAt(0).toUpperCase() + name.slice(1),
-      desc:  cfg.desc  || `/${name}/`,
+      title: cfg.title || name.split('-').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join(' '),
+      desc:  cfg.desc  || `Technical documentation for ${name}. Explore modules, dependencies, and API references.`,
       icon:  cfg.icon  || ICONS[i % ICONS.length],
+      color: cfg.color || "#6366f1"
     };
   });
 }
 
-// ── 生成 HTML ─────────────────────────────────────────────────────────────────
 function esc(s) {
   return String(s).replace(/[&<>"']/g, c =>
     ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c])
@@ -66,21 +83,23 @@ function esc(s) {
 }
 
 function render(subsites) {
-  const cards = subsites.map(({ path, title, desc, icon }, i) => `
-        <a class="card" href="/${esc(path)}/" style="animation-delay:${0.06 * i}s">
-          <div class="icon">${icon}</div>
-          <div class="body">
-            <h2>${esc(title)}</h2>
-            <p>${esc(desc)}</p>
-          </div>
-          <span class="arrow">→</span>
-        </a>`).join("");
-
-  const empty = `
-        <div class="empty">
-          <div style="font-size:3rem;margin-bottom:16px">📂</div>
-          <p>public/ 下暂无含 index.html 的子目录</p>
-        </div>`;
+  const cards = subsites.map(({ path, title, desc, icon, color }, i) => `
+    <a class="card" href="/${esc(path)}/" style="--accent: ${color}; animation-delay: ${i * 0.1}s">
+      <div class="card-glow"></div>
+      <div class="card-content">
+        <div class="icon-wrapper">
+          <span class="icon">${icon}</span>
+        </div>
+        <div class="text">
+          <h2>${esc(title)}</h2>
+          <p>${esc(desc)}</p>
+        </div>
+        <div class="footer-link">
+          <span>阅读文档</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+        </div>
+      </div>
+    </a>`).join("");
 
   return `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -90,48 +109,242 @@ function render(subsites) {
   <title>${esc(META.title)}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono&display=swap" rel="stylesheet"/>
   <style>
-    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-    :root{--bg:#0d0f14;--surface:#13161e;--border:#1e2330;--accent:#5b8bff;--text:#e8eaf0;--muted:#6b7280}
-    body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden}
-    body::before{content:'';position:fixed;inset:0;pointer-events:none;
-      background:radial-gradient(ellipse 80% 60% at 20% -10%,rgba(91,139,255,.15),transparent 60%),
-                 radial-gradient(ellipse 60% 50% at 80% 110%,rgba(255,107,107,.10),transparent 55%)}
-    .wrap{position:relative;z-index:1;max-width:880px;margin:0 auto;padding:0 24px;flex:1}
-    header{padding:72px 0 48px;text-align:center}
-    .badge{display:inline-block;padding:4px 14px;margin-bottom:20px;background:rgba(91,139,255,.15);border:1px solid rgba(91,139,255,.3);border-radius:999px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);font-family:'Syne',sans-serif}
-    h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(1.8rem,5vw,3rem);line-height:1.1;letter-spacing:-.02em;background:linear-gradient(135deg,#fff 30%,var(--accent) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:12px}
-    .sub{color:var(--muted);font-size:1rem;font-weight:300}
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:14px;padding-bottom:72px}
-    .card{display:flex;align-items:center;gap:14px;padding:20px 18px;background:var(--surface);border:1px solid var(--border);border-radius:14px;text-decoration:none;color:inherit;position:relative;overflow:hidden;transition:border-color .2s,transform .2s,box-shadow .2s;animation:up .4s ease both}
-    .card:hover{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 10px 36px rgba(91,139,255,.15)}
-    .card::after{content:'';position:absolute;inset:0;background:linear-gradient(135deg,rgba(91,139,255,.05),transparent 60%);opacity:0;transition:opacity .2s}
-    .card:hover::after{opacity:1}
-    .icon{font-size:1.8rem;flex-shrink:0;width:48px;height:48px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.04);border-radius:10px}
-    .body{flex:1;min-width:0}
-    .body h2{font-family:'Syne',sans-serif;font-size:.95rem;font-weight:700;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .body p{font-size:.8rem;color:var(--muted);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-    .arrow{color:var(--muted);flex-shrink:0;transition:color .2s,transform .2s}
-    .card:hover .arrow{color:var(--accent);transform:translateX(4px)}
-    .empty{text-align:center;padding:72px 0;color:var(--muted)}
-    footer{position:relative;z-index:1;text-align:center;padding:20px;border-top:1px solid var(--border);font-size:.78rem;color:var(--muted)}
-    @keyframes up{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-    @media(max-width:480px){header{padding:48px 0 32px}.grid{grid-template-columns:1fr}}
+    :root {
+      --bg: #020617;
+      --card-bg: rgba(15, 23, 42, 0.6);
+      --card-hover: rgba(30, 41, 59, 0.8);
+      --border: rgba(255, 255, 255, 0.05);
+      --border-hover: rgba(255, 255, 255, 0.15);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      background-color: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.12) 0px, transparent 45%),
+        radial-gradient(at 100% 0%, rgba(244, 63, 94, 0.08) 0px, transparent 40%),
+        radial-gradient(at 50% 100%, rgba(16, 185, 129, 0.05) 0px, transparent 50%);
+      color: var(--text-main);
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .container {
+      max-width: 1300px;
+      margin: 0 auto;
+      padding: 100px 32px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 100px;
+    }
+
+    .brand-tag {
+      display: inline-block;
+      padding: 8px 20px;
+      background: linear-gradient(90deg, rgba(99, 102, 241, 0.15), rgba(168, 85, 247, 0.15));
+      border: 1px solid rgba(168, 85, 247, 0.2);
+      border-radius: 100px;
+      color: #a5b4fc;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 32px;
+    }
+
+    h1 {
+      font-size: clamp(2.8rem, 8vw, 4.5rem);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      margin-bottom: 24px;
+      background: linear-gradient(to bottom, #fff, #94a3b8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+    }
+
+    header p {
+      color: var(--text-muted);
+      font-size: 1.25rem;
+      max-width: 650px;
+      margin: 0 auto;
+      font-weight: 400;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+      gap: 32px;
+    }
+
+    .card {
+      position: relative;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 48px 40px;
+      text-decoration: none;
+      color: inherit;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(20px);
+      animation: fadeIn 0.8s ease backwards;
+      min-height: 320px;
+    }
+
+    .card:hover {
+      transform: translateY(-12px) scale(1.02);
+      border-color: var(--border-hover);
+      background: var(--card-hover);
+      box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.6);
+    }
+
+    .card-glow {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--accent), transparent 100%);
+      opacity: 0;
+      transition: opacity 0.6s;
+      pointer-events: none;
+      filter: blur(80px);
+    }
+
+    .card:hover .card-glow { opacity: 0.2; }
+
+    .icon-wrapper {
+      width: 64px;
+      height: 64px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 32px;
+      font-size: 32px;
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.3);
+    }
+
+    .card:hover .icon-wrapper {
+      transform: scale(1.15) rotate(-8deg);
+      background: var(--accent);
+      border-color: transparent;
+      box-shadow: 0 20px 40px -10px var(--accent);
+      color: white;
+    }
+
+    .text h2 {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-bottom: 16px;
+      color: #fff;
+      letter-spacing: -0.02em;
+    }
+
+    .text p {
+      color: var(--text-muted);
+      font-size: 1rem;
+      line-height: 1.7;
+      margin-bottom: 32px;
+    }
+
+    .footer-link {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      font-size: 15px;
+      color: var(--text-main);
+      letter-spacing: 0.02em;
+    }
+
+    .footer-link span {
+      position: relative;
+    }
+
+    .footer-link span::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 0;
+      width: 0;
+      height: 2px;
+      background: var(--accent);
+      transition: width 0.3s;
+    }
+
+    .card:hover .footer-link span::after {
+      width: 100%;
+    }
+
+    .footer-link svg {
+      transition: transform 0.3s;
+      color: var(--accent);
+    }
+
+    .card:hover .footer-link svg {
+      transform: translateX(6px);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    footer {
+      text-align: center;
+      padding: 60px 24px;
+      color: var(--text-muted);
+      font-size: 14px;
+      border-top: 1px solid var(--border);
+      margin-top: 80px;
+    }
+
+    @media (max-width: 640px) {
+      .container { padding: 40px 20px; }
+      h1 { font-size: 2.2rem; }
+      .grid { grid-template-columns: 1fr; }
+    }
   </style>
+  <script>
+    document.addEventListener('mousemove', (e) => {
+      document.querySelectorAll('.card').forEach(card => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        card.style.setProperty('--mouse-x', x + 'px');
+        card.style.setProperty('--mouse-y', y + 'px');
+      });
+    });
+  </script>
 </head>
 <body>
-  <div class="wrap">
+  <div class="container">
     <header>
-      <div class="badge">项目导航</div>
+      <div class="brand-tag">Project Portal</div>
       <h1>${esc(META.title)}</h1>
-      <p class="sub">${esc(META.subtitle)}</p>
+      <p>${esc(META.subtitle)}</p>
     </header>
     <main>
-      ${subsites.length ? `<div class="grid">${cards}\n      </div>` : empty}
+      <div class="grid">${cards || '<div style="grid-column:1/-1;text-align:center;color:var(--text-muted)">暂无可用项目</div>'}</div>
     </main>
   </div>
-  <footer>Powered by Cloudflare Pages · ${new Date().getFullYear()}</footer>
+  <footer>
+    &copy; ${new Date().getFullYear()} DengQi. Built with CodeWiki Engine.
+  </footer>
 </body>
 </html>`;
 }

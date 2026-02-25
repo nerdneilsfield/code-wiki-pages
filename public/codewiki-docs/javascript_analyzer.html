@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JavaScript 分析器 (javascript_analyzer)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; CodeWiki</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-26T04:48<br>
+    <b>Components:</b> 219<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/CodeWiki" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/CodeWiki" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="cli_documentation_workflow.html" class="nv">Cli Documentation Workflow</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="backend_documentation_orchestration.html" class="nv">Backend Documentation Orchestration</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="dependency_analysis_engine.html" class="nv">Dependency Analysis Engine</a>
+      <button class="nvcaret" data-nav="dependency_analysis_engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="dependency_analysis_engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="analysis_orchestration.html" class="nv">Analysis Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ast_parsing_and_language_analyzers.html" class="nv">Ast Parsing And Language Analyzers</a>
+        <button class="nvcaret" data-nav="ast_parsing_and_language_analyzers-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ast_parsing_and_language_analyzers-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ast_parsing_orchestration.html" class="nv">Ast Parsing Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="treesitter_language_analyzers.html" class="nv">Treesitter Language Analyzers</a>
+          <button class="nvcaret" data-nav="treesitter_language_analyzers-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="treesitter_language_analyzers-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="c_family_and_build_analyzers.html" class="nv">C Family And Build Analyzers</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="managed_language_analyzers.html" class="nv">Managed Language Analyzers</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="web_scripting_analyzers.html" class="nv">Web Scripting Analyzers</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="systems_and_infra_analyzers.html" class="nv">Systems And Infra Analyzers</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_ast_language_analyzer.html" class="nv">Python Ast Language Analyzer</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="dependency_graph_construction.html" class="nv">Dependency Graph Construction</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_domain_models.html" class="nv">Core Domain Models</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="analysis_domain_models.html" class="nv">Analysis Domain Models</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_application_frontend.html" class="nv">Web Application Frontend</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>JavaScript 分析器 (javascript_analyzer)</h1>
+<h2>1. 概述</h2>
+<p><code>javascript_analyzer</code> 模块是 CodeWiki 项目中负责解析和分析 JavaScript 源代码的核心组件，使用 Tree-sitter 库构建抽象语法树 (AST)，并从中提取代码结构元素和依赖关系。该模块是 <a href="dependency_analysis_engine.html">dependency_analysis_engine</a> 模块的子模块，专门处理 JavaScript 语言的分析。</p>
+<h3>核心功能</h3>
+<ul>
+<li>解析 JavaScript 文件的抽象语法树</li>
+<li>提取类、函数、方法等代码节点</li>
+<li>识别调用关系和继承关系</li>
+<li>解析 JSDoc 注释中的类型依赖</li>
+<li>生成标准化的 Node 和 CallRelationship 对象供上层系统使用</li>
+</ul>
+<h2>2. 架构设计</h2>
+<h3>2.1 核心组件结构</h3>
+<p><code>javascript_analyzer</code> 模块的核心类是 <code>TreeSitterJSAnalyzer</code>，它封装了完整的分析流程：</p>
+<div class="mermaid">classDiagram
+    class TreeSitterJSAnalyzer {
+        -Path file_path
+        -str content
+        -str repo_path
+        -List~Node~ nodes
+        -List~CallRelationship~ call_relationships
+        -Dict top_level_nodes
+        -Set seen_relationships
+        -Parser parser
+        -Language js_language
+        +__init__(file_path, content, repo_path)
+        +analyze()
+        -_extract_functions(node)
+        -_extract_call_relationships(node)
+        -_get_module_path()
+        -_get_component_id(name, class_name, is_method)
+        -_add_relationship(relationship)
+    }
+    
+    class Node {
+        +str id
+        +str name
+        +str component_type
+        +str file_path
+        +str relative_path
+        +str source_code
+        +int start_line
+        +int end_line
+        +List~str~ parameters
+        +str node_type
+        +List~str~ base_classes
+    }
+    
+    class CallRelationship {
+        +str caller
+        +str callee
+        +int call_line
+        +bool is_resolved
+    }
+    
+    TreeSitterJSAnalyzer --> Node : 创建
+    TreeSitterJSAnalyzer --> CallRelationship : 创建
+</div>
+<h3>2.2 模块定位</h3>
+<p><code>javascript_analyzer</code> 位于整体系统的 AST 解析与语言分析层，它为上层的依赖分析和文档生成提供基础数据：</p>
+<div class="mermaid">flowchart TD
+    subgraph CLI层
+        A[CLI 接口]
+    end
+    
+    subgraph 后端协调层
+        B[AgentOrchestrator]
+        C[DocumentationGenerator]
+    end
+    
+    subgraph 依赖分析引擎层
+        D[AnalysisService]
+        E[DependencyParser]
+        F[DependencyGraphBuilder]
+    end
+    
+    subgraph 语言分析器层
+        G[TreeSitterJSAnalyzer]
+        H[其他语言分析器]
+    end
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    E --> G
+    E --> H
+</div>
+<h2>3. 核心组件详解</h2>
+<h3>3.1 TreeSitterJSAnalyzer 类</h3>
+<p><code>TreeSitterJSAnalyzer</code> 是 JavaScript 分析的核心类，它封装了从源代码解析到生成依赖关系的完整流程。</p>
+<h4>初始化</h4>
+<pre><code class="language-python">def __init__(self, file_path: str, content: str, repo_path: str = None):
+    self.file_path = Path(file_path)
+    self.content = content
+    self.repo_path = repo_path or &quot;&quot;
+    self.nodes: List[Node] = []
+    self.call_relationships: List[CallRelationship] = []
+    self.top_level_nodes = {}
+    self.seen_relationships = set()
+    
+    try:
+        language_capsule = tree_sitter_javascript.language()
+        self.js_language = Language(language_capsule)
+        self.parser = Parser(self.js_language)
+    except Exception as e:
+        logger.error(f&quot;Failed to initialize JavaScript parser: {e}&quot;)
+        self.parser = None
+        self.js_language = None
+</code></pre>
+<p><strong>参数说明：</strong></p>
+<ul>
+<li><code>file_path</code>: 待分析的 JavaScript 文件路径</li>
+<li><code>content</code>: 文件内容字符串</li>
+<li><code>repo_path</code>: 仓库根路径（用于计算相对路径）</li>
+</ul>
+<p><strong>初始化步骤：</strong></p>
+<ol>
+<li>设置基本属性和内部存储结构</li>
+<li>初始化 Tree-sitter JavaScript 语言解析器</li>
+<li>如解析器初始化失败，记录错误并设置 <code>parser</code> 为 <code>None</code></li>
+</ol>
+<h4>分析主流程 - analyze()</h4>
+<pre><code class="language-python">def analyze(self) -&gt; None:
+    if self.parser is None:
+        logger.warning(f&quot;Skipping {self.file_path} - parser initialization failed&quot;)
+        return
+
+    try:
+        tree = self.parser.parse(bytes(self.content, &quot;utf8&quot;))
+        root_node = tree.root_node
+
+        logger.debug(f&quot;Parsed AST with root node type: {root_node.type}&quot;)
+
+        self._extract_functions(root_node)
+        self._extract_call_relationships(root_node)
+
+        logger.debug(
+            f&quot;Analysis complete: {len(self.nodes)} nodes, {len(self.call_relationships)} relationships&quot;
+        )
+
+    except Exception as e:
+        logger.error(f&quot;Error analyzing JavaScript file {self.file_path}: {e}&quot;, exc_info=True)
+</code></pre>
+<p><strong>功能说明：</strong></p>
+<ol>
+<li>检查解析器是否可用，不可用时提前返回</li>
+<li>将源代码解析为抽象语法树</li>
+<li>提取函数、类等代码节点</li>
+<li>提取调用关系和依赖关系</li>
+<li>记录分析结果和异常</li>
+</ol>
+<h3>3.2 节点提取功能</h3>
+<h4>_extract_functions 和 _traverse_for_functions</h4>
+<p>这些方法负责从 AST 中提取各种代码结构元素：</p>
+<pre><code class="language-python">def _extract_functions(self, node) -&gt; None:
+    self._traverse_for_functions(node)
+    self.nodes.sort(key=lambda n: n.start_line)
+
+def _traverse_for_functions(self, node) -&gt; None:
+    if node.type in [&quot;class_declaration&quot;, &quot;abstract_class_declaration&quot;, &quot;interface_declaration&quot;]:
+        cls = self._extract_class_declaration(node)
+        if cls:
+            self.nodes.append(cls)
+            self.top_level_nodes[cls.name] = cls
+            self._extract_methods_from_class(node, cls.name)
+            
+    elif node.type == &quot;function_declaration&quot;:
+        # 提取函数声明
+        # ...
+    
+    # 遍历子节点
+    for child in node.children:
+        self._traverse_for_functions(child)
+</code></pre>
+<p><strong>支持的节点类型：</strong></p>
+<table>
+<thead>
+<tr>
+<th>节点类型</th>
+<th>说明</th>
+<th>处理方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>class_declaration</code></td>
+<td>类声明</td>
+<td><code>_extract_class_declaration</code></td>
+</tr>
+<tr>
+<td><code>abstract_class_declaration</code></td>
+<td>抽象类声明</td>
+<td><code>_extract_class_declaration</code></td>
+</tr>
+<tr>
+<td><code>interface_declaration</code></td>
+<td>接口声明</td>
+<td><code>_extract_class_declaration</code></td>
+</tr>
+<tr>
+<td><code>function_declaration</code></td>
+<td>函数声明</td>
+<td><code>_extract_function_declaration</code></td>
+</tr>
+<tr>
+<td><code>generator_function_declaration</code></td>
+<td>生成器函数声明</td>
+<td><code>_extract_function_declaration</code></td>
+</tr>
+<tr>
+<td><code>export_statement</code></td>
+<td>导出语句</td>
+<td><code>_extract_exported_function</code></td>
+</tr>
+<tr>
+<td><code>lexical_declaration</code></td>
+<td>词法声明</td>
+<td><code>_extract_arrow_function_from_declaration</code></td>
+</tr>
+</tbody>
+</table>
+<h4>类提取 - _extract_class_declaration</h4>
+<pre><code class="language-python">def _extract_class_declaration(self, node) -&gt; Optional[Node]:
+    # 提取类名称
+    name_node = self._find_child_by_type(node, &quot;type_identifier&quot;)
+    if not name_node:
+        name_node = self._find_child_by_type(node, &quot;identifier&quot;)
+    if not name_node:
+        return None
+    name = self._get_node_text(name_node)
+    
+    # 提取基本信息和继承关系
+    line_start = node.start_point[0] + 1
+    line_end = node.end_point[0] + 1
+    base_classes = []
+    heritage_node = self._find_child_by_type(node, &quot;class_heritage&quot;)
+    if heritage_node:
+        for child in heritage_node.children:
+            if child.type in [&quot;identifier&quot;, &quot;type_identifier&quot;]:
+                base_classes.append(self._get_node_text(child))
+    
+    # 创建并返回 Node 对象
+    # ...
+</code></pre>
+<h4>方法提取 - _extract_methods_from_class</h4>
+<p>该方法从类定义中提取方法和箭头函数字段：</p>
+<pre><code class="language-python">def _extract_methods_from_class(self, class_node, class_name: str) -&gt; None:
+    class_body = self._find_child_by_type(class_node, &quot;class_body&quot;)
+    if not class_body:
+        return
+        
+    for child in class_body.children:
+        if child.type == &quot;method_definition&quot;:
+            method_name = self._get_method_name(child)
+            if method_name:
+                method_key = f&quot;{self._get_module_path()}.{class_name}.{method_name}&quot;
+                method_node = self._create_method_node(child, method_name, class_name)
+                if method_node:
+                    self.top_level_nodes[method_key] = method_node
+        elif child.type == &quot;field_definition&quot;:
+            # 处理箭头函数字段
+            field_name = self._get_field_name(child)
+            if field_name and self._is_arrow_function_field(child):
+                method_key = f&quot;{self._get_module_path()}.{class_name}.{field_name}&quot;
+                method_node = self._create_method_node(child, field_name, class_name)
+                if method_node:
+                    self.top_level_nodes[method_key] = method_node
+</code></pre>
+<h3>3.3 调用关系提取功能</h3>
+<h4>_extract_call_relationships 和 _traverse_for_calls</h4>
+<p>这些方法负责识别代码中的调用关系：</p>
+<pre><code class="language-python">def _extract_call_relationships(self, node) -&gt; None:
+    current_top_level = None
+    self._traverse_for_calls(node, current_top_level)
+
+def _traverse_for_calls(self, node, current_top_level) -&gt; None:
+    # 处理当前上下文节点
+    if node.type in [&quot;class_declaration&quot;, &quot;abstract_class_declaration&quot;, &quot;interface_declaration&quot;]:
+        # 设置当前类名作为上下文
+        # 处理继承关系
+    elif node.type == &quot;function_declaration&quot;:
+        # 设置当前函数名作为上下文
+    # ...
+    
+    # 提取调用关系
+    if node.type == &quot;call_expression&quot; and current_top_level:
+        call_info = self._extract_call_from_node(node, current_top_level)
+        if call_info:
+            self._add_relationship(call_info)
+    
+    elif node.type == &quot;await_expression&quot; and current_top_level:
+        # 处理 await 后的调用
+    elif node.type == &quot;new_expression&quot; and current_top_level:
+        # 处理 new 表达式
+    
+    # 递归处理子节点
+    for child in node.children:
+        self._traverse_for_calls(child, current_top_level)
+</code></pre>
+<h4>调用关系提取 - _extract_call_from_node</h4>
+<pre><code class="language-python">def _extract_call_from_node(self, node, caller_name: str) -&gt; Optional[CallRelationship]:
+    try:
+        call_line = node.start_point[0] + 1
+        callee_name = self._extract_callee_name(node)
+        
+        if not callee_name:
+            return None
+        
+        call_text = self._get_node_text(node)
+        is_method_call = &quot;this.&quot; in call_text or &quot;super.&quot; in call_text
+        
+        caller_id = f&quot;{self._get_module_path()}.{caller_name}&quot;
+        
+        # 特殊处理方法调用
+        if is_method_call:
+            # 尝试解析为当前类的方法调用
+        
+        callee_id = f&quot;{self._get_module_path()}.{callee_name}&quot;
+        if callee_name in self.top_level_nodes:
+            return CallRelationship(
+                caller=caller_id,
+                callee=callee_id,
+                call_line=call_line,
+                is_resolved=True,
+            )
+        
+        return CallRelationship(
+            caller=caller_id,
+            callee=callee_id,
+            call_line=call_line,
+            is_resolved=False,
+        )
+        
+    except Exception as e:
+        logger.debug(f&quot;Error extracting call relationship: {e}&quot;)
+        return None
+</code></pre>
+<h3>3.4 JSDoc 类型依赖提取</h3>
+<p>该模块还能从 JSDoc 注释中提取类型依赖关系：</p>
+<pre><code class="language-python">def _extract_jsdoc_type_dependencies(self, node, caller_name: str) -&gt; None:
+    try:
+        # 检查节点前的注释
+        if hasattr(node, 'prev_sibling') and node.prev_sibling:
+            prev = node.prev_sibling
+            if prev.type == &quot;comment&quot;:
+                comment_text = self._get_node_text(prev)
+                self._parse_jsdoc_types(comment_text, caller_name, node.start_point[0] + 1)
+        
+        # 检查节点子注释
+        for child in node.children:
+            if child.type == &quot;comment&quot;:
+                comment_text = self._get_node_text(child)
+                self._parse_jsdoc_types(comment_text, caller_name, node.start_point[0] + 1)
+                
+    except Exception as e:
+        logger.debug(f&quot;Error extracting JSDoc dependencies: {e}&quot;)
+</code></pre>
+<p>支持解析的 JSDoc 类型：</p>
+<ul>
+<li><code>@param {Type}</code> - 参数类型</li>
+<li><code>@return {Type}</code> 或 <code>@returns {Type}</code> - 返回值类型</li>
+<li><code>@type {Type}</code> - 变量类型</li>
+<li><code>@typedef {Object} TypeName</code> - 类型定义</li>
+<li><code>@interface InterfaceName</code> - 接口声明</li>
+</ul>
+<h3>3.5 辅助方法</h3>
+<h4>路径和组件ID生成</h4>
+<pre><code class="language-python">def _get_module_path(self) -&gt; str:
+    # 计算相对于仓库的模块路径，移除扩展名并用点分隔
+    if self.repo_path:
+        try:
+            rel_path = os.path.relpath(str(self.file_path), self.repo_path)
+        except ValueError:
+            rel_path = str(self.file_path)
+    else:
+        rel_path = str(self.file_path)
+    
+    for ext in ['.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs']:
+        if rel_path.endswith(ext):
+            rel_path = rel_path[:-len(ext)]
+            break
+    return rel_path.replace('/', '.').replace('\\', '.')
+
+def _get_component_id(self, name: str, class_name: str = None, is_method: bool = False) -&gt; str:
+    # 生成组件唯一标识符
+    module_path = self._get_module_path()
+    
+    if is_method and class_name:
+        return f&quot;{module_path}.{class_name}.{name}&quot;
+    elif class_name and not is_method: 
+        return f&quot;{module_path}.{name}&quot;
+    else:  
+        return f&quot;{module_path}.{name}&quot;
+</code></pre>
+<h4>树遍历和节点操作</h4>
+<pre><code class="language-python">def _find_child_by_type(self, node, node_type: str):
+    &quot;&quot;&quot;查找指定类型的第一个子节点&quot;&quot;&quot;
+    for child in node.children:
+        if child.type == node_type:
+            return child
+    return None
+
+def _get_node_text(self, node) -&gt; str:
+    &quot;&quot;&quot;获取节点对应的源代码文本&quot;&quot;&quot;
+    start_byte = node.start_byte
+    end_byte = node.end_byte
+    return self.content.encode(&quot;utf8&quot;)[start_byte:end_byte].decode(&quot;utf8&quot;)
+</code></pre>
+<h3>3.6 公开函数 - analyze_javascript_file_treesitter</h3>
+<pre><code class="language-python">def analyze_javascript_file_treesitter(
+    file_path: str, content: str, repo_path: str = None
+) -&gt; Tuple[List[Node], List[CallRelationship]]:
+    &quot;&quot;&quot;使用 tree-sitter 分析 JavaScript 文件&quot;&quot;&quot;
+    try:
+        logger.debug(f&quot;Tree-sitter JS analysis for {file_path}&quot;)
+        analyzer = TreeSitterJSAnalyzer(file_path, content, repo_path)
+        analyzer.analyze()
+        logger.debug(
+            f&quot;Found {len(analyzer.nodes)} top-level nodes, {len(analyzer.call_relationships)} calls&quot;
+        )
+        return analyzer.nodes, analyzer.call_relationships
+    except Exception as e:
+        logger.error(f&quot;Error in tree-sitter JS analysis for {file_path}: {e}&quot;, exc_info=True)
+        return [], []
+</code></pre>
+<p>这是模块的公开接口函数，它封装了 <code>TreeSitterJSAnalyzer</code> 类的创建和分析过程，返回提取到的节点和调用关系。</p>
+<h2>4. 使用示例</h2>
+<h3>基本使用</h3>
+<pre><code class="language-python">from codewiki.src.be.dependency_analyzer.analyzers.javascript import analyze_javascript_file_treesitter
+
+# 准备文件内容
+file_path = &quot;/path/to/project/src/utils.js&quot;
+content = &quot;&quot;&quot;
+class Calculator {
+  constructor() {
+    this.value = 0;
+  }
+  
+  add(num) {
+    this.value = this._sum(this.value, num);
+    return this;
+  }
+  
+  _sum(a, b) {
+    return a + b;
+  }
+}
+
+function multiply(a, b) {
+  return a * b;
+}
+
+/**
+ * @param {Calculator} calc
+ * @param {number} value
+ * @returns {Calculator}
+ */
+function calculate(calc, value) {
+  return calc.add(value);
+}
+
+module.exports = { Calculator, multiply, calculate };
+&quot;&quot;&quot;
+
+# 分析文件
+nodes, relationships = analyze_javascript_file_treesitter(file_path, content, &quot;/path/to/project&quot;)
+
+# 输出结果
+print(f&quot;提取到 {len(nodes)} 个节点:&quot;)
+for node in nodes:
+    print(f&quot;  - {node.display_name} ({node.start_line}-{node.end_line})&quot;)
+
+print(f&quot;\n提取到 {len(relationships)} 个调用关系:&quot;)
+for rel in relationships:
+    status = &quot;✓&quot; if rel.is_resolved else &quot;✗&quot;
+    print(f&quot;  {status} {rel.caller} -&gt; {rel.callee} (line {rel.call_line})&quot;)
+</code></pre>
+<h3>预期输出示例</h3>
+<pre><code>提取到 5 个节点:
+  - class Calculator (2-14)
+  - method constructor (3-4)
+  - method add (6-9)
+  - method _sum (11-13)
+  - function multiply (17-18)
+  - function calculate (25-27)
+
+提取到 5 个调用关系:
+  ✓ src.utils.Calculator.add -&gt; src.utils.Calculator._sum (line 7)
+  ✗ src.utils.calculate -&gt; src.utils.Calculator (line 26)
+  ✓ src.utils.calculate -&gt; src.utils.Calculator.add (line 26)
+  ✗ src.utils.calculate -&gt; number (line 26)
+  ✗ src.utils.calculate -&gt; Calculator (line 21)
+</code></pre>
+<h2>5. 数据结构与输出</h2>
+<h3>5.1 Node 对象</h3>
+<p>该模块生成的 <code>Node</code> 对象（见 <a href="dependency_analysis_engine.html">dependency_analysis_engine</a>）包含以下关键字段：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>str</td>
+<td>组件唯一标识符</td>
+</tr>
+<tr>
+<td><code>name</code></td>
+<td>str</td>
+<td>组件名称</td>
+</tr>
+<tr>
+<td><code>component_type</code></td>
+<td>str</td>
+<td>组件类型（class/method/function等）</td>
+</tr>
+<tr>
+<td><code>file_path</code></td>
+<td>str</td>
+<td>完整文件路径</td>
+</tr>
+<tr>
+<td><code>relative_path</code></td>
+<td>str</td>
+<td>相对于仓库的路径</td>
+</tr>
+<tr>
+<td><code>source_code</code></td>
+<td>str</td>
+<td>组件源代码</td>
+</tr>
+<tr>
+<td><code>start_line</code></td>
+<td>int</td>
+<td>起始行号</td>
+</tr>
+<tr>
+<td><code>end_line</code></td>
+<td>int</td>
+<td>结束行号</td>
+</tr>
+<tr>
+<td><code>parameters</code></td>
+<td>List[str]</td>
+<td>参数列表</td>
+</tr>
+<tr>
+<td><code>node_type</code></td>
+<td>str</td>
+<td>节点类型</td>
+</tr>
+<tr>
+<td><code>base_classes</code></td>
+<td>List[str]</td>
+<td>基类列表（针对类）</td>
+</tr>
+<tr>
+<td><code>class_name</code></td>
+<td>str</td>
+<td>所属类名（针对方法）</td>
+</tr>
+<tr>
+<td><code>display_name</code></td>
+<td>str</td>
+<td>显示名称</td>
+</tr>
+</tbody>
+</table>
+<h3>5.2 CallRelationship 对象</h3>
+<p>生成的 <code>CallRelationship</code> 对象（见 <a href="dependency_analysis_engine.html">dependency_analysis_engine</a>）包含：</p>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>caller</code></td>
+<td>str</td>
+<td>调用者组件ID</td>
+</tr>
+<tr>
+<td><code>callee</code></td>
+<td>str</td>
+<td>被调用者组件ID</td>
+</tr>
+<tr>
+<td><code>call_line</code></td>
+<td>int</td>
+<td>调用发生的行号</td>
+</tr>
+<tr>
+<td><code>is_resolved</code></td>
+<td>bool</td>
+<td>是否在当前文件中解析到被调用者</td>
+</tr>
+</tbody>
+</table>
+<h2>6. 限制与注意事项</h2>
+<h3>6.1 已知限制</h3>
+<ol>
+<li>
+<p><strong>动态调用分析限制</strong>：由于 JavaScript 的动态特性，对于使用变量或计算属性名的调用，分析器可能无法准确解析</p>
+<pre><code class="language-javascript">const funcName = Math.random() &gt; 0.5 ? 'foo' : 'bar';
+obj[funcName](); // 无法准确解析调用
+</code></pre>
+</li>
+<li>
+<p><strong>跨文件依赖</strong>：目前版本主要分析单个文件内的依赖关系，不解析跨文件的 import/require 依赖</p>
+</li>
+<li>
+<p><strong>高阶函数和回调</strong>：高阶函数调用和回调函数的解析能力有限</p>
+</li>
+<li>
+<p><strong>复杂的 JSDoc 类型</strong>：对于复杂的 JSDoc 类型表达式，仅支持基本类型和简单的泛型解析</p>
+</li>
+<li>
+<p><strong>部分现代 JavaScript 特性</strong>：一些最新的 JavaScript 语法特性可能未完全支持</p>
+</li>
+</ol>
+<h3>6.2 注意事项</h3>
+<ol>
+<li>
+<p><strong>解析器初始化失败</strong>：如果 Tree-sitter 解析器初始化失败，模块将记录警告并返回空结果，而不是抛出异常</p>
+</li>
+<li>
+<p><strong>路径计算</strong>：正确设置 <code>repo_path</code> 对于生成准确的相对路径和组件 ID 非常重要</p>
+</li>
+<li>
+<p><strong>编码处理</strong>：源代码以 UTF-8 编码处理，对于其他编码的文件可能需要预先转换</p>
+</li>
+<li>
+<p><strong>异常处理</strong>：分析过程中的大部分异常被捕获并记录为调试日志，以确保即使部分解析失败也能继续处理其他部分</p>
+</li>
+</ol>
+<h2>7. 扩展与集成</h2>
+<h3>7.1 与其他模块的关系</h3>
+<p><code>javascript_analyzer</code> 模块与以下模块有密切关系：</p>
+<ul>
+<li><a href="dependency_analysis_engine.html">dependency_analysis_engine</a>：父模块，负责协调整个依赖分析过程</li>
+<li><a href="typescript_analyzer.html">typescript_analyzer</a>：姐妹模块，处理 TypeScript 文件分析</li>
+<li><a href="python_ast_language_analyzer.html">python_ast_language_analyzer</a>：处理 Python 文件的姐妹模块</li>
+</ul>
+<h3>7.2 集成点</h3>
+<p>该模块主要通过 <code>DependencyParser</code> 类（见 <a href="ast_parsing_orchestration.html">ast_parsing_orchestration</a>）集成到更大的系统中：</p>
+<pre><code class="language-python"># 简化的集成示例
+class DependencyParser:
+    def parse(self, file_path, content, repo_path):
+        ext = os.path.splitext(file_path)[1]
+        if ext in ['.js', '.jsx', '.mjs', '.cjs']:
+            return analyze_javascript_file_treesitter(file_path, content, repo_path)
+        # 处理其他语言...
+</code></pre>
+<h2>8. 总结</h2>
+<p><code>javascript_analyzer</code> 模块是 CodeWiki 系统中专门负责 JavaScript 代码分析的组件，它使用 Tree-sitter 解析库构建 AST，从中提取类、函数、方法等代码节点，并识别它们之间的调用关系和继承关系。该模块还支持从 JSDoc 注释中提取类型依赖，为文档生成和依赖分析提供丰富的数据基础。</p>
+<p>该模块的设计遵循单一职责原则，封装了 JavaScript 分析的复杂性，提供简单的接口供上层系统使用，是整个依赖分析引擎中重要的组成部分。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

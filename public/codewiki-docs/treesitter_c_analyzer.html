@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CodeWiki 仓库概述</title>
+<title>TreeSitter C Analyzer 模块文档</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -102,7 +102,7 @@ article img{max-width:100%;border-radius:var(--r);}
     <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/CodeWiki" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/CodeWiki" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
   </div>
   <div class="nav-row">
-    <a href="index.html" class="nv on">Overview</a>
+    <a href="index.html" class="nv">Overview</a>
   </div>
   <div>
     <div class="nav-row" style="padding-left:0px;">
@@ -197,333 +197,216 @@ article img{max-width:100%;border-radius:var(--r);}
   <main class="main">
     <div class="cw">
       <article id="mc">
-<h1>CodeWiki 仓库概述</h1>
-<h2>1. 仓库简介</h2>
-<p>CodeWiki 是一个智能化代码仓库文档自动生成系统，它通过分析代码仓库的依赖关系、调用结构和模块组织，结合大语言模型（LLM）自动生成高质量、结构化的技术文档。该系统支持多种编程语言，能够处理从小型工具库到大型复杂项目的代码仓库，并提供 CLI 和 Web 两种交互方式。</p>
-<h3>核心目标</h3>
+<h1>TreeSitter C Analyzer 模块文档</h1>
+<h2>1. 概述</h2>
+<p><code>treesitter_c_analyzer</code> 模块是 CodeWiki 系统中专门用于分析 C 语言代码文件的组件，其核心类为 <code>TreeSitterCAnalyzer</code>。该模块通过 TreeSitter 解析库构建 C 代码的抽象语法树（AST），并从中提取出重要的代码元素（如函数、结构体和全局变量）以及这些元素之间的调用关系。它位于依赖分析引擎的 <code>ast_parsing_and_language_analyzers</code> 子模块下，是 C 家族语言分析器的重要组成部分。</p>
+<p>该模块的主要设计目的是提供一种可靠且高效的方式来解析 C 语言代码，为整个依赖分析系统提供基础数据支持。通过使用 TreeSitter 库，它能够处理各种 C 代码语法变体，同时保持良好的性能和可维护性。</p>
+<h2>2. 核心组件详解</h2>
+<h3>2.1 TreeSitterCAnalyzer 类</h3>
+<p><code>TreeSitterCAnalyzer</code> 是本模块的核心类，负责执行 C 代码文件的完整分析流程。</p>
+<h4>初始化与基本属性</h4>
+<pre><code class="language-python">def __init__(self, file_path: str, content: str, repo_path: str = None):
+    self.file_path = Path(file_path)
+    self.content = content
+    self.repo_path = repo_path or &quot;&quot;
+    self.nodes: List[Node] = []
+    self.call_relationships: List[CallRelationship] = []
+    self._analyze()
+</code></pre>
+<p><strong>参数说明</strong>：</p>
 <ul>
-<li><strong>自动化文档生成</strong>：将代码仓库自动转换为结构清晰、内容完整的技术文档</li>
-<li><strong>多语言支持</strong>：支持 Python、JavaScript/TypeScript、Java、C#、C/C++、Go、Rust、PHP 等主流编程语言</li>
-<li><strong>智能分析</strong>：通过依赖分析和模块聚类理解代码库的架构和组织</li>
-<li><strong>多端交互</strong>：提供命令行工具和 Web 应用两种使用方式</li>
-<li><strong>可扩展架构</strong>：模块化设计，支持灵活的配置和定制</li>
+<li><code>file_path</code>: 要分析的 C 文件的完整路径</li>
+<li><code>content</code>: 文件的内容字符串</li>
+<li><code>repo_path</code>: 仓库的根目录路径（可选），用于计算相对路径</li>
 </ul>
-<h2>2. 仓库架构</h2>
-<p>CodeWiki 采用分层模块化架构设计，将依赖分析、文档生成编排、CLI 工作流和 Web 前端等功能清晰分离，形成完整的文档生成流水线。</p>
-<h3>系统架构图</h3>
-<div class="mermaid">graph TB
-    subgraph "用户交互层"
-        CLI[cli_documentation_workflow<br/>命令行工作流]
-        Web[web_application_frontend<br/>Web 应用前端]
-    end
-    
-    subgraph "核心编排层"
-        Backend[backend_documentation_orchestration<br/>后端文档编排]
-    end
-    
-    subgraph "基础分析层"
-        Dependency[dependency_analysis_engine<br/>依赖分析引擎]
-    end
-    
-    CLI -->|调用| Backend
-    Web -->|调用| Backend
-    Backend -->|使用| Dependency
-</div>
-<h3>分层说明</h3>
+<p><strong>主要属性</strong>：</p>
+<ul>
+<li><code>nodes</code>: 存储分析过程中提取的所有代码节点（函数、结构体等）</li>
+<li><code>call_relationships</code>: 存储节点之间的调用关系</li>
+</ul>
+<h4>核心分析流程</h4>
+<p>该类的分析过程主要由 <code>_analyze</code> 方法驱动，它执行以下步骤：</p>
 <ol>
-<li>
-<p><strong>用户交互层</strong>：提供用户与系统交互的接口</p>
-<ul>
-<li><code>cli_documentation_workflow</code>：命令行工具，支持配置管理、Git 集成、HTML 生成等功能</li>
-<li><code>web_application_frontend</code>：Web 应用，提供仓库提交、任务监控、文档查看等功能</li>
-</ul>
-</li>
-<li>
-<p><strong>核心编排层</strong>：负责协调整个文档生成流程</p>
-<ul>
-<li><code>backend_documentation_orchestration</code>：核心编排模块，管理 AI 代理、并发处理、模块树管理等</li>
-</ul>
-</li>
-<li>
-<p><strong>基础分析层</strong>：提供代码分析和依赖关系构建能力</p>
-<ul>
-<li><code>dependency_analysis_engine</code>：多语言依赖分析引擎，构建代码调用图和依赖关系</li>
-</ul>
-</li>
+<li>初始化 TreeSitter 解析器并解析代码生成 AST</li>
+<li>通过递归遍历提取顶层节点</li>
+<li>再次遍历 AST 提取节点之间的关系</li>
 </ol>
-<h3>数据流向</h3>
+<h3>2.2 辅助方法与功能</h3>
+<h4>路径处理方法</h4>
+<ul>
+<li><code>_get_module_path()</code>: 计算模块路径，用于生成组件 ID</li>
+<li><code>_get_relative_path()</code>: 计算文件相对于仓库根目录的路径</li>
+<li><code>_get_component_id(name: str)</code>: 生成唯一的组件标识符</li>
+</ul>
+<h4>节点提取方法</h4>
+<ul>
+<li><code>_extract_nodes(node, top_level_nodes, lines)</code>: 递归遍历 AST，提取顶层节点</li>
+<li><code>_is_global_variable(node)</code>: 判断一个声明是否为全局变量</li>
+<li><code>_extract_relationships(node, top_level_nodes)</code>: 提取节点间的关系</li>
+</ul>
+<h4>关系查找方法</h4>
+<ul>
+<li><code>_find_containing_function(node, top_level_nodes)</code>: 查找包含某个节点的函数</li>
+<li><code>_is_system_function(func_name: str)</code>: 判断一个函数是否为系统库函数</li>
+</ul>
+<h3>2.3 analyze_c_file 函数</h3>
+<p>这是模块提供的便捷函数，封装了分析过程，是外部代码使用该模块的主要入口点。</p>
+<pre><code class="language-python">def analyze_c_file(file_path: str, content: str, repo_path: str = None) -&gt; Tuple[List[Node], List[CallRelationship]]:
+    analyzer = TreeSitterCAnalyzer(file_path, content, repo_path)
+    return analyzer.nodes, analyzer.call_relationships
+</code></pre>
+<h2>3. 架构与工作原理</h2>
+<h3>3.1 架构概览</h3>
+<p><code>treesitter_c_analyzer</code> 模块在整个系统中的位置如下图所示：</p>
+<div class="mermaid">graph TD
+    A[dependency_analysis_engine] --> B[ast_parsing_and_language_analyzers]
+    B --> C[treesitter_language_analyzers]
+    C --> D[c_family_and_build_analyzers]
+    D --> E[treesitter_c_analyzer]
+    
+    E --> F[TreeSitterCAnalyzer]
+    F --> G[Node]
+    F --> H[CallRelationship]
+    
+    style E fill:#d4e6f1
+</div>
+<h3>3.2 分析流程</h3>
+<p>以下是该模块的完整分析流程：</p>
 <div class="mermaid">sequenceDiagram
-    participant User as 用户
-    participant Interface as 交互层<br/>(CLI/Web)
-    participant Orchestrator as 编排层<br/>(backend)
-    participant Analyzer as 分析层<br/>(dependency)
-    participant LLM as 大语言模型
+    participant Client as 调用方
+    participant A as analyze_c_file
+    participant T as TreeSitterCAnalyzer
+    participant P as TreeSitter Parser
+    participant N as Node
+    participant R as CallRelationship
     
-    User->>Interface: 提交代码仓库
-    Interface->>Orchestrator: 启动文档生成任务
-    Orchestrator->>Analyzer: 分析代码依赖
-    Analyzer-->>Orchestrator: 返回组件和依赖图
-    Orchestrator->>Orchestrator: 模块聚类和树构建
-    loop 自底向上文档生成
-        Orchestrator->>LLM: 生成模块文档
-        LLM-->>Orchestrator: 返回文档内容
-    end
-    Orchestrator-->>Interface: 返回生成结果
-    Interface-->>User: 展示文档
+    Client->>A: analyze_c_file(file_path, content, repo_path)
+    A->>T: 创建 TreeSitterCAnalyzer 实例
+    T->>P: 解析代码生成 AST
+    T->>T: _extract_nodes (提取顶层节点)
+    T->>T: _extract_relationships (提取关系)
+    T->>N: 创建 Node 对象
+    T->>R: 创建 CallRelationship 对象
+    A-->>Client: 返回 nodes 和 call_relationships
 </div>
-<h2>3. 核心模块说明</h2>
-<h3>3.1 cli_documentation_workflow（命令行工作流模块）</h3>
-<p><strong>路径</strong>：<code>codewiki/cli</code></p>
-<p>该模块是 CodeWiki 的命令行接口层，负责将后端文档生成引擎与用户交互连接起来。它提供了完整的命令行工具功能，包括配置管理、Git 仓库操作、文档生成流程协调、进度跟踪以及 HTML 静态站点生成等核心功能。</p>
-<p><strong>核心组件</strong>：</p>
-<ul>
-<li><code>CLIDocumentationGenerator</code>：整个 CLI 工作流的核心协调器</li>
-<li><code>ConfigManager</code>：配置管理器，处理用户设置的持久化和 API 密钥的安全存储</li>
-<li><code>GitManager</code>：Git 仓库操作管理器，处理分支创建、提交和远程仓库检测</li>
-<li><code>HTMLGenerator</code>：动态 HTML 查看器生成器</li>
-<li><code>StaticHTMLGenerator</code>：静态 HTML 预渲染器</li>
-<li><code>ProgressTracker</code>：多阶段进度跟踪器</li>
-<li><code>CLILogger</code>：彩色日志输出器</li>
-</ul>
-<p><strong>详细文档</strong>：<a href="#cli_documentation_workflow-%E6%A8%A1%E5%9D%97%E6%96%87%E6%A1%A3">cli_documentation_workflow 模块文档</a></p>
-<h3>3.2 backend_documentation_orchestration（后端文档编排模块）</h3>
-<p><strong>路径</strong>：<code>codewiki/src/be</code></p>
-<p>该模块是 CodeWiki 系统的核心编排层，负责协调和管理整个文档生成流程。它通过智能代理 orchestration、并发处理和动态规划技术，将代码仓库自动转换为结构化的技术文档。</p>
-<p><strong>核心组件</strong>：</p>
-<ul>
-<li><code>DocumentationGenerator</code>：整个文档生成流程的主控制器</li>
-<li><code>AgentOrchestrator</code>：负责为每个模块创建和配置适当的 AI 代理</li>
-<li><code>ModuleTreeManager</code>：提供线程安全的模块树访问和持久化机制</li>
-<li><code>Config</code>：集中管理 CodeWiki 系统的所有配置项</li>
-<li><code>FileManager</code>：提供统一的文件 I/O 操作接口</li>
-</ul>
-<p><strong>核心设计理念</strong>：</p>
-<ul>
-<li>自底向上的文档生成策略，先处理最底层的叶节点模块</li>
-<li>基于层级的并发处理，提高效率</li>
-<li>线程安全的并发访问，确保数据一致性</li>
-</ul>
-<p><strong>详细文档</strong>：<a href="#backend_documentation_orchestration-%E6%A8%A1%E5%9D%97%E6%96%87%E6%A1%A3">backend_documentation_orchestration 模块文档</a></p>
-<h3>3.3 dependency_analysis_engine（依赖分析引擎模块）</h3>
-<p><strong>路径</strong>：<code>codewiki/src/be/dependency_analyzer</code></p>
-<p>该模块是 CodeWiki 系统的核心分析组件，主要负责解析代码库并构建其内部依赖关系图。它通过多语言源代码解析、抽象语法树（AST）遍历和调用关系分析，为文档生成、代码理解和架构可视化提供基础数据支持。</p>
-<p><strong>核心组件</strong>：</p>
-<ul>
-<li><code>AnalysisService</code>：提供统一的分析 API，协调仓库克隆、结构分析和代码分析</li>
-<li><code>RepoAnalyzer</code>：负责仓库结构分析，构建文件树并应用过滤规则</li>
-<li><code>CallGraphAnalyzer</code>：协调多语言分析器，提取调用关系并构建调用图</li>
-<li><code>DependencyParser</code>：AST 解析编排器，管理多语言解析过程</li>
-<li><code>DependencyGraphBuilder</code>：协调依赖图构建过程，提供持久化功能</li>
-<li>多种语言分析器：支持 Python、JavaScript、TypeScript、Java、C#、C、C++、PHP、Go、Rust 等</li>
-</ul>
-<p><strong>核心功能</strong>：</p>
-<ul>
-<li>多语言源代码解析</li>
-<li>代码实体提取（类、函数、方法、接口等）</li>
-<li>依赖关系发现（调用、继承、实现、引用等）</li>
-<li>结构化数据输出</li>
-<li>叶节点识别</li>
-</ul>
-<p><strong>详细文档</strong>：<a href="#dependency_analysis_engine-%E6%A8%A1%E5%9D%97%E6%96%87%E6%A1%A3">dependency_analysis_engine 模块文档</a></p>
-<h3>3.4 web_application_frontend（Web 应用前端模块）</h3>
-<p><strong>路径</strong>：<code>codewiki/src/fe</code></p>
-<p>该模块是 CodeWiki 系统的用户界层，提供基于 Web 的平台，使用户能够提交 GitHub 仓库进行文档生成、监控任务状态并查看生成的文档。该模块作为用户与 CodeWiki 系统交互的主要入口，抽象了底层文档生成流水线的复杂性。</p>
-<p><strong>核心组件</strong>：</p>
-<ul>
-<li><code>WebRoutes</code>：Web 界面的中央协调器，处理所有 HTTP 请求</li>
-<li><code>BackgroundWorker</code>：管理文档生成任务的异步处理</li>
-<li><code>CacheManager</code>：提供生成文档的智能缓存</li>
-<li><code>GitHubRepoProcessor</code>：处理与 GitHub 仓库的所有交互</li>
-<li><code>WebAppConfig</code>：为 Web 应用提供集中式配置设置</li>
-<li>数据模型：<code>RepositorySubmission</code>、<code>JobStatus</code>、<code>JobStatusResponse</code>、<code>CacheEntry</code></li>
-</ul>
-<p><strong>核心功能</strong>：</p>
-<ul>
-<li>仓库提交和验证</li>
-<li>异步任务处理和状态监控</li>
-<li>智能缓存管理</li>
-<li>文档查看和导航</li>
-<li>GitHub 仓库集成</li>
-</ul>
-<p><strong>详细文档</strong>：<a href="#web_application_frontend-%E6%A8%A1%E5%9D%97%E6%96%87%E6%A1%A3">web_application_frontend 模块文档</a></p>
-<h2>4. 核心功能与工作流程</h2>
-<h3>4.1 完整文档生成流程</h3>
-<p>CodeWiki 的完整文档生成流程包含以下几个主要阶段：</p>
+<p>详细的分析过程说明：</p>
 <ol>
-<li><strong>仓库准备</strong>：接收用户输入的仓库路径或 GitHub URL，准备代码仓库</li>
-<li><strong>依赖分析</strong>：解析代码文件，提取代码实体，构建依赖关系图</li>
-<li><strong>模块聚类</strong>：将相关组件聚合为逻辑模块，形成层次化结构</li>
-<li><strong>文档生成</strong>：采用自底向上的方式，并发生成各模块文档</li>
-<li><strong>结果输出</strong>：生成 Markdown 文档、HTML 查看器或静态网站</li>
+<li><strong>初始化</strong>：创建 <code>TreeSitterCAnalyzer</code> 实例时，会立即启动分析过程。</li>
+<li><strong>语法解析</strong>：使用 TreeSitter 库将源代码解析为抽象语法树。</li>
+<li><strong>节点提取</strong>：
+<ul>
+<li>遍历 AST，识别并提取函数定义</li>
+<li>识别并提取结构体定义（包括 typedef 方式）</li>
+<li>识别并提取全局变量声明</li>
+</ul>
+</li>
+<li><strong>关系提取</strong>：
+<ul>
+<li>查找函数调用关系</li>
+<li>查找函数对全局变量的使用关系</li>
+</ul>
+</li>
+<li><strong>结果构建</strong>：将提取的信息组织成 <code>Node</code> 和 <code>CallRelationship</code> 对象列表</li>
 </ol>
-<h3>4.2 自底向上的文档生成策略</h3>
-<p>CodeWiki 采用自底向上的文档生成策略，确保父模块文档能够基于并子模块的完整内容进行聚合和总结：</p>
-<div class="mermaid">graph BT
-    subgraph "层级 0（叶节点）"
-        Leaf1[组件 A]
-        Leaf2[组件 B]
-        Leaf3[组件 C]
-        Leaf4[组件 D]
-    end
-    
-    subgraph "层级 1"
-        Parent1[模块 X]
-        Parent2[模块 Y]
-    end
-    
-    subgraph "层级 2"
-        Root[仓库概述]
-    end
-    
-    Leaf1 --> Parent1
-    Leaf2 --> Parent1
-    Leaf3 --> Parent2
-    Leaf4 --> Parent2
-    Parent1 --> Root
-    Parent2 --> Root
-</div>
-<p><strong>处理顺序</strong>：</p>
-<ol>
-<li>首先处理层级 0 的叶节点组件</li>
-<li>然后处理层级 1 的模块，聚合其子模块的内容</li>
-<li>最后处理层级 2 的仓库概述，聚合所有模块的内容</li>
-</ol>
-<h3>4.3 并发处理机制</h3>
-<p>对于大型仓库，CodeWiki 采用基于层级的并发处理策略：</p>
-<ol>
-<li><strong>层级计算</strong>：首先计算每个模块的处理级别，叶节点为 0，父节点为子节点最大级别 + 1</li>
-<li><strong>层级顺序处理</strong>：从最低级别开始，逐级向上处理</li>
-<li><strong>同级别并发</strong>：同一级别的模块可以并发处理，提高效率</li>
-<li><strong>锁保护共享资源</strong>：使用 <code>ModuleTreeManager</code> 保护模块树的并发访问</li>
-<li><strong>信号量控制并发度</strong>：使用信号量限制最大并发数，避免资源耗尽</li>
-</ol>
-<h2>5. 技术栈与依赖</h2>
+<h2>4. 支持的代码元素与关系</h2>
+<h3>4.1 提取的代码元素</h3>
 <table>
 <thead>
 <tr>
-<th>类别</th>
-<th>技术/依赖</th>
-<th>用途</th>
+<th>元素类型</th>
+<th>说明</th>
+<th>提取方式</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>编程语言</td>
-<td>Python 3.8+</td>
-<td>主要开发语言</td>
+<td>函数</td>
+<td>C 函数定义</td>
+<td>识别 <code>function_definition</code> 节点并提取标识符</td>
 </tr>
 <tr>
-<td>代码解析</td>
-<td>Tree-sitter</td>
-<td>多语言 AST 解析</td>
+<td>结构体</td>
+<td>命名结构体</td>
+<td>识别 <code>struct_specifier</code> 节点中的名称</td>
 </tr>
 <tr>
-<td>代码解析</td>
-<td>Python AST</td>
-<td>Python 专用解析</td>
+<td>结构体</td>
+<td>typedef 结构体</td>
+<td>识别包含 <code>struct_specifier</code> 的 <code>type_definition</code> 节点</td>
 </tr>
 <tr>
-<td>Web 框架</td>
-<td>FastAPI</td>
-<td>Web 应用后端</td>
-</tr>
-<tr>
-<td>模板引擎</td>
-<td>Jinja2</td>
-<td>HTML 模板渲染</td>
-</tr>
-<tr>
-<td>并发处理</td>
-<td>asyncio</td>
-<td>异步任务处理</td>
-</tr>
-<tr>
-<td>版本控制</td>
-<td>GitPython / subprocess</td>
-<td>Git 仓库操作</td>
-</tr>
-<tr>
-<td>AI 集成</td>
-<td>自定义 LLM 客户端</td>
-<td>文档生成</td>
-</tr>
-<tr>
-<td>配置管理</td>
-<td>JSON / 系统密钥环</td>
-<td>配置和密钥存储</td>
+<td>全局变量</td>
+<td>全局声明的变量</td>
+<td>识别不在函数内部的 <code>declaration</code> 节点</td>
 </tr>
 </tbody>
 </table>
-<h2>6. 安装与使用指南</h2>
-<h3>6.1 基本使用（CLI）</h3>
-<pre><code class="language-python">from pathlib import Path
-from codewiki.cli.config_manager import ConfigManager
-from codewiki.cli.adapters.doc_generator import CLIDocumentationGenerator
+<h3>4.2 提取的关系</h3>
+<table>
+<thead>
+<tr>
+<th>关系类型</th>
+<th>说明</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>函数调用</td>
+<td>函数对函数的调用</td>
+<td>存储调用者和被调用者，标记为未解析（等待跨文件解析）</td>
+</tr>
+<tr>
+<td>变量使用</td>
+<td>函数对全局变量的使用</td>
+<td>存储函数和变量，标记为已解析（同一文件内关系）</td>
+</tr>
+</tbody>
+</table>
+<h2>5. 使用示例</h2>
+<h3>基本使用</h3>
+<pre><code class="language-python">from codewiki.src.be.dependency_analyzer.analyzers.c import analyze_c_file
 
-# 配置设置
-config_manager = ConfigManager()
-config_manager.save(
-    api_key=&quot;your-api-key&quot;,
-    base_url=&quot;https://api.example.com&quot;,
-    main_model=&quot;gpt-4&quot;,
-    cluster_model=&quot;gpt-3.5-turbo&quot;
+# 读取文件内容
+with open(&quot;example.c&quot;, &quot;r&quot;) as f:
+    content = f.read()
+
+# 分析文件
+nodes, relationships = analyze_c_file(
+    file_path=&quot;/path/to/repo/example.c&quot;,
+    content=content,
+    repo_path=&quot;/path/to/repo&quot;
 )
 
-# 文档生成
-generator = CLIDocumentationGenerator(
-    repo_path=Path(&quot;/path/to/repo&quot;),
-    output_dir=Path(&quot;/path/to/output&quot;),
-    config=config,
-    verbose=True,
-    generate_html=True
-)
-job = generator.generate()
+# 处理结果
+for node in nodes:
+    print(f&quot;Found {node.component_type}: {node.name}&quot;)
+
+for rel in relationships:
+    print(f&quot;{rel.caller} calls {rel.callee} at line {rel.call_line}&quot;)
 </code></pre>
-<h3>6.2 Web 应用使用</h3>
+<h2>6. 限制与注意事项</h2>
+<h3>6.1 已知限制</h3>
 <ol>
-<li>启动 Web 服务器</li>
-<li>访问 Web 界面</li>
-<li>提交 GitHub 仓库 URL</li>
-<li>监控任务状态</li>
-<li>查看生成的文档</li>
+<li><strong>系统函数识别</strong>：系统库函数的识别依赖于硬编码的函数列表，可能无法覆盖所有情况。</li>
+<li><strong>复杂语法</strong>：对于某些复杂的 C 语法结构（如复杂的函数指针），可能无法完全准确解析。</li>
+<li><strong>预处理器</strong>：目前不处理 C 预处理器指令，这可能导致某些定义和关系被遗漏。</li>
+<li><strong>跨文件解析</strong>：函数之间的跨文件调用关系需要在更上层的 <a href="analysis_orchestration.html">CallGraphAnalyzer</a> 中进行解析。</li>
 </ol>
-<h2>7. 配置与定制</h2>
-<p>CodeWiki 提供了丰富的配置选项，可以根据需要进行定制：</p>
-<h3>LLM 配置</h3>
+<h3>6.2 系统函数列表</h3>
+<p>该模块目前内置识别的系统函数包括：</p>
 <ul>
-<li><code>base_url</code>：LLM API 基础 URL</li>
-<li><code>main_model</code>：主要文档生成模型</li>
-<li><code>cluster_model</code>：模块聚类模型</li>
-<li><code>fallback_model</code>：备用模型</li>
-<li><code>max_tokens</code>：LLM 响应最大令牌数</li>
+<li>标准 C 库：<code>printf</code>, <code>scanf</code>, <code>malloc</code>, <code>free</code>, <code>strlen</code>, <code>strcpy</code>, <code>strcmp</code>, <code>memcpy</code>, <code>memset</code>, <code>exit</code>, <code>abort</code>, <code>fopen</code>, <code>fclose</code>, <code>fread</code>, <code>fwrite</code></li>
+<li>SDL 库：<code>SDL_Init</code>, <code>SDL_CreateWindow</code>, <code>SDL_Log</code>, <code>SDL_GetError</code>, <code>SDL_Quit</code></li>
 </ul>
-<h3>生成配置</h3>
-<ul>
-<li><code>max_token_per_module</code>：每个模块的最大令牌数</li>
-<li><code>max_depth</code>：层次分解的最大深度</li>
-<li><code>max_concurrent</code>：最大并发数</li>
-<li><code>output_language</code>：输出语言</li>
-</ul>
-<h3>代理指令定制</h3>
-<ul>
-<li><code>include_patterns</code>：包含的文件模式</li>
-<li><code>exclude_patterns</code>：排除的文件/目录模式</li>
-<li><code>focus_modules</code>：重点关注的模块</li>
-<li><code>doc_type</code>：文档类型（api、architecture、user-guide、developer）</li>
-<li><code>custom_instructions</code>：自定义指令</li>
-</ul>
-<h2>8. 总结与亮点</h2>
-<p>CodeWiki 是一个功能强大、架构清晰的代码文档自动生成系统，其主要亮点包括：</p>
+<p>如需支持更多库函数，需要在 <code>_is_system_function</code> 方法中进行扩展。</p>
+<h2>7. 与其他模块的关系</h2>
+<p><code>treesitter_c_analyzer</code> 模块与以下模块紧密关联：</p>
 <ol>
-<li><strong>多语言支持</strong>：支持多种主流编程语言，能够处理多样化的代码仓库</li>
-<li><strong>智能分析</strong>：通过依赖分析和模块聚类，深入理解代码库的架构</li>
-<li><strong>自底向上生成</strong>：确保文档的一致性和完整性，父模块基于子模块内容聚合</li>
-<li><strong>高效并发处理</strong>：采用基于层级的并发策略，提高大型仓库的处理效率</li>
-<li><strong>多端交互</strong>：提供 CLI 和 Web 两种使用方式，满足不同用户需求</li>
-<li><strong>灵活配置</strong>：丰富的配置选项和代理指令，支持高度定制化</li>
-<li><strong>模块化架构</strong>：清晰的分层设计，易于维护和扩展</li>
+<li><strong><a href="dependency_graph_construction.html">dependency_graph_construction</a></strong>：该模块使用 <code>treesitter_c_analyzer</code> 生成的节点和关系来构建完整的依赖图。</li>
+<li><strong><a href="analysis_orchestration.html">analysis_orchestration</a></strong>：<code>CallGraphAnalyzer</code> 负责解析跨文件的函数调用关系。</li>
+<li><strong>其他语言分析器</strong>：该模块在设计上与其他 TreeSitter 语言分析器（如 <a href="treesitter_cpp_analyzer.html">treesitter_cpp_analyzer</a>、<a href="systems_and_infra_analyzers.html">treesitter_java_analyzer</a> 等）保持一致的接口。</li>
 </ol>
-<p>CodeWiki 通过将代码分析、AI 生成和用户体验有机结合，为代码仓库的文档化提供了一种高效、智能的解决方案。</p>
 
       </article>
       <div class="toc" id="toc">

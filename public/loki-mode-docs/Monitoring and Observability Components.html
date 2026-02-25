@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>监控和可观测性组件模块</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; loki-mode</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-26T04:11<br>
+    <b>Components:</b> 2407<br>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="API Server & Services.html" class="nv">Api Server & Services</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dashboard Backend.html" class="nv">Dashboard Backend</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dashboard Frontend.html" class="nv">Dashboard Frontend</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dashboard UI Components.html" class="nv">Dashboard Ui Components</a>
+      <button class="nvcaret" data-nav="Dashboard-UI-Components-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Dashboard-UI-Components-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Core Theme.html" class="nv">Core Theme</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Unified Styles.html" class="nv">Unified Styles</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Type Definitions.html" class="nv">Type Definitions</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Task and Session Management Components.html" class="nv">Task And Session Management Components</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Monitoring and Observability Components.html" class="nv on">Monitoring And Observability Components</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Memory and Learning Components.html" class="nv">Memory And Learning Components</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Cost and Quality Components.html" class="nv">Cost And Quality Components</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Administration and Infrastructure Components.html" class="nv">Administration And Infrastructure Components</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Memory System.html" class="nv">Memory System</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Swarm Multi-Agent.html" class="nv">Swarm Multi-Agent</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="State Management.html" class="nv">State Management</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Python SDK.html" class="nv">Python Sdk</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="TypeScript SDK.html" class="nv">Typescript Sdk</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="MCP Protocol.html" class="nv">Mcp Protocol</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="A2A Protocol.html" class="nv">A2A Protocol</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Integrations.html" class="nv">Integrations</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Plugin System.html" class="nv">Plugin System</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Policy Engine.html" class="nv">Policy Engine</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Audit.html" class="nv">Audit</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Observability.html" class="nv">Observability</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Collaboration.html" class="nv">Collaboration</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="VSCode Extension.html" class="nv">Vscode Extension</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>监控和可观测性组件模块</h1>
+<h2>概述</h2>
+<p>监控和可观测性组件模块是 Dashboard UI Components 系统的核心子模块，提供了一套完整的实时监控、日志分析和系统状态可视化工具。该模块专为多代理协作系统设计，帮助开发人员和运维人员实时监控系统运行状态、分析日志数据、追踪上下文窗口使用情况，并可视化展示 RARV（Reasoning、Acting、Reflecting、Verifying）执行周期。</p>
+<h3>设计理念</h3>
+<p>该模块遵循以下设计原则：</p>
+<ol>
+<li><strong>实时性优先</strong>：所有组件都支持实时数据更新，通过轮询和事件监听机制确保数据最新</li>
+<li><strong>纯 CSS 可视化</strong>：避免依赖复杂的图表库，使用纯 CSS 实现各种数据可视化效果</li>
+<li><strong>可见性感知</strong>：组件会自动检测页面可见性，在页面不可见时暂停更新以节省资源</li>
+<li><strong>模块化设计</strong>：每个组件都是独立的 Web Component，可以单独使用或组合使用</li>
+<li><strong>主题支持</strong>：完整支持浅色和深色主题，并可与系统主题自动同步</li>
+</ol>
+<h2>架构</h2>
+<p>监控和可观测性组件模块采用分层架构，各组件既相互独立又协同工作：</p>
+<div class="mermaid">graph TB
+    subgraph "监控和可观测性组件"
+        LokiOverview[LokiOverview<br/>系统概览]
+        LokiAppStatus[LokiAppStatus<br/>应用状态]
+        LokiLogStream[LokiLogStream<br/>日志流]
+        LokiContextTracker[LokiContextTracker<br/>上下文追踪]
+        LokiAnalytics[LokiAnalytics<br/>分析面板]
+        LokiRarvTimeline[LokiRarvTimeline<br/>RARV时间线]
+    end
+    
+    subgraph "核心基础设施"
+        LokiElement[LokiElement<br/>基础组件]
+        LokiApiClient[LokiApiClient<br/>API客户端]
+        LokiTheme[LokiTheme<br/>主题系统]
+    end
+    
+    subgraph "后端服务"
+        APIServer[API Server]
+        StateWatcher[State Watcher]
+        EventBus[Event Bus]
+    end
+    
+    LokiOverview --> LokiElement
+    LokiAppStatus --> LokiElement
+    LokiLogStream --> LokiElement
+    LokiContextTracker --> LokiElement
+    LokiAnalytics --> LokiElement
+    LokiRarvTimeline --> LokiElement
+    
+    LokiElement --> LokiTheme
+    LokiOverview --> LokiApiClient
+    LokiAppStatus --> LokiApiClient
+    LokiLogStream --> LokiApiClient
+    LokiContextTracker --> LokiApiClient
+    LokiAnalytics --> LokiApiClient
+    LokiRarvTimeline --> LokiApiClient
+    
+    LokiApiClient --> APIServer
+    APIServer --> StateWatcher
+    APIServer --> EventBus
+</div>
+<h3>组件层次结构</h3>
+<ol>
+<li><strong>基础层</strong>：所有组件继承自 <code>LokiElement</code>，提供统一的主题管理和基础功能</li>
+<li><strong>数据层</strong>：通过 <code>LokiApiClient</code> 与后端 API 通信，支持事件监听和轮询</li>
+<li><strong>组件层</strong>：各个独立的监控组件，负责特定功能的可视化</li>
+<li><strong>集成层</strong>：组件可组合使用，提供完整的监控体验</li>
+</ol>
+<h2>核心功能</h2>
+<h3>1. 系统概览 (LokiOverview)</h3>
+<p>LokiOverview 组件提供系统状态的高级概览，以响应式卡片网格形式展示关键指标。详细信息请参考 <a href="LokiOverview.html">LokiOverview 组件文档</a>。</p>
+<p>主要功能：</p>
+<ul>
+<li>会话状态和当前阶段</li>
+<li>迭代次数和运行中的代理数量</li>
+<li>待处理任务和系统运行时间</li>
+<li>PRD 进度和验证状态</li>
+<li>应用运行器状态和委员会门控状态</li>
+</ul>
+<p>该组件每 5 秒轮询 <code>/api/status</code> 端点，并监听 <code>ApiEvents.STATUS_UPDATE</code> 事件以获取即时更新。</p>
+<h3>2. 应用状态监控 (LokiAppStatus)</h3>
+<p>LokiAppStatus 组件专门监控应用运行器的状态。详细信息请参考 <a href="LokiAppStatus.html">LokiAppStatus 组件文档</a>。</p>
+<p>主要功能：</p>
+<ul>
+<li>实时状态指示器（启动中、运行中、崩溃等）</li>
+<li>检测到的方法、端口和访问 URL</li>
+<li>重启次数和运行时间统计</li>
+<li>应用日志查看器</li>
+<li>重启和停止控制按钮</li>
+</ul>
+<p>该组件每 3 秒轮询 <code>/api/app-runner/status</code> 端点，并具有页面可见性感知能力。</p>
+<h3>3. 实时日志流 (LokiLogStream)</h3>
+<p>LokiLogStream 组件提供终端风格的实时日志查看器。详细信息请参考 <a href="LokiLogStream.html">LokiLogStream 组件文档</a>。</p>
+<p>主要功能：</p>
+<ul>
+<li>多种日志来源（API 轮询、文件轮询、WebSocket 事件）</li>
+<li>日志级别过滤（info、success、warning、error、step、agent、debug）</li>
+<li>文本搜索和过滤</li>
+<li>自动滚动和手动滚动锁定</li>
+<li>日志下载功能</li>
+<li>可配置的日志行数限制</li>
+</ul>
+<p>该组件支持结构化日志格式解析，并提供美观的终端模拟器界面。</p>
+<h3>4. 上下文追踪器 (LokiContextTracker)</h3>
+<p>LokiContextTracker 组件监控上下文窗口使用情况。详细信息请参考 <a href="LokiContextTracker.html">LokiContextTracker 组件文档</a>。</p>
+<p>主要功能：</p>
+<ul>
+<li>圆形仪表盘显示当前上下文使用率</li>
+<li>按迭代次数排列的时间线视图</li>
+<li>令牌类型分解视图（输入、输出、缓存读取、缓存创建）</li>
+<li>压缩事件标记</li>
+<li>总令牌数和成本估算</li>
+</ul>
+<p>该组件每 5 秒轮询 <code>/api/context</code> 端点，并使用纯 CSS 实现数据可视化。</p>
+<h3>5. 分析面板 (LokiAnalytics)</h3>
+<p>LokiAnalytics 组件提供跨提供商的分析功能。详细信息请参考 <a href="LokiAnalytics.html">LokiAnalytics 组件文档</a>。</p>
+<p>主要功能：</p>
+<ul>
+<li>活动热力图（类似 GitHub 贡献图）</li>
+<li>工具使用排行和频率统计</li>
+<li>迭代速度指标和趋势图</li>
+<li>提供商比较（成本、令牌使用、迭代次数）</li>
+<li>可配置的时间范围筛选</li>
+</ul>
+<p>该组件使用客户端数据聚合，不依赖第三方图表库，完全通过纯 CSS 实现可视化。</p>
+<h3>6. RARV 时间线 (LokiRarvTimeline)</h3>
+<p>LokiRarvTimeline 组件可视化 RARV 执行周期。详细信息请参考 <a href="LokiRarvTimeline.html">LokiRarvTimeline 组件文档</a>。</p>
+<p>主要功能：</p>
+<ul>
+<li>水平时间线显示各阶段持续时间</li>
+<li>当前阶段高亮和脉冲动画</li>
+<li>图例显示各阶段颜色和时间</li>
+<li>可配置的运行 ID 属性</li>
+</ul>
+<p>该组件每 5 秒轮询 <code>/api/v2/runs/{runId}/timeline</code> 端点。</p>
+<h2>组件关系</h2>
+<p>各组件之间通过以下方式协同工作：</p>
+<ol>
+<li><strong>共享基础设施</strong>：所有组件使用相同的 <code>LokiElement</code> 基类和 <code>LokiApiClient</code></li>
+<li><strong>事件总线</strong>：通过 <code>ApiEvents</code> 系统共享状态更新事件</li>
+<li><strong>数据互补</strong>：不同组件展示同一数据源的不同方面</li>
+<li><strong>组合使用</strong>：可以在同一页面上部署多个组件，提供完整监控视图</li>
+</ol>
+<h2>使用指南</h2>
+<h3>基本使用</h3>
+<p>所有组件都是标准的 Web Component，可以像使用普通 HTML 元素一样使用：</p>
+<pre><code class="language-html">&lt;!-- 系统概览 --&gt;
+&lt;loki-overview api-url=&quot;http://localhost:57374&quot;&gt;&lt;/loki-overview&gt;
+
+&lt;!-- 日志流 --&gt;
+&lt;loki-log-stream api-url=&quot;http://localhost:57374&quot; max-lines=&quot;1000&quot; auto-scroll&gt;&lt;/loki-log-stream&gt;
+
+&lt;!-- 上下文追踪器 --&gt;
+&lt;loki-context-tracker api-url=&quot;http://localhost:57374&quot;&gt;&lt;/loki-context-tracker&gt;
+</code></pre>
+<h3>配置选项</h3>
+<p>各组件支持的主要属性：</p>
+<p>| 组件 | 属性 | 描述 | 默认值 |
+|------|------|------|--------|
+| 所有组件 | <code>api-url</code> | API 基础 URL | <code>window.location.origin</code> |
+| 所有组件 | <code>theme</code> | 主题设置（light/dark） | 自动检测 |
+| LokiOverview | - | 无额外属性 | - |
+| LokiAppStatus | - | 无额外属性 | - |
+| LokiLogStream | <code>max-lines</code> | 最大保留日志行数 | 500 |
+| LokiLogStream | <code>auto-scroll</code> | 是否自动滚动 | false |
+| LokiLogStream | <code>log-file</code> | 日志文件路径 | - |
+| LokiContextTracker | - | 无额外属性 | - |
+| LokiAnalytics | - | 无额外属性 | - |
+| LokiRarvTimeline | <code>run-id</code> | 要显示的运行 ID | - |</p>
+<h3>主题定制</h3>
+<p>所有组件都支持主题定制，通过 CSS 变量实现：</p>
+<pre><code class="language-css">:root {
+  --loki-accent: #553DE9;
+  --loki-success: #22c55e;
+  --loki-warning: #f59e0b;
+  --loki-error: #ef4444;
+  --loki-text-primary: #201515;
+  --loki-text-secondary: #52525b;
+  --loki-text-muted: #939084;
+  --loki-bg-primary: #ffffff;
+  --loki-bg-secondary: #f4f4f5;
+  --loki-bg-tertiary: #e4e4e7;
+  --loki-border: #e4e4e7;
+}
+</code></pre>
+<h2>与其他模块的关系</h2>
+<p>监控和可观测性组件模块与以下模块紧密协作：</p>
+<ol>
+<li><strong><a href="Dashboard%20UI%20Components.html">Dashboard UI Components</a></strong>：本模块是其核心子模块</li>
+<li><strong><a href="Dashboard%20Frontend.html">Dashboard Frontend</a></strong>：提供 Web Component 包装器和 API 客户端</li>
+<li><strong><a href="Dashboard%20Backend.html">Dashboard Backend</a></strong>：提供 REST API 和 WebSocket 事件源</li>
+<li><strong><a href="Observability.html">Observability</a></strong>：后端可观测性系统的前端展示</li>
+</ol>
+<h2>注意事项</h2>
+<h3>性能考虑</h3>
+<ol>
+<li><strong>轮询频率</strong>：默认轮询频率在 2-5 秒之间，可根据需要调整</li>
+<li><strong>可见性感知</strong>：组件会在页面不可见时暂停轮询，减少资源消耗</li>
+<li><strong>数据限制</strong>：日志组件有最大行数限制，避免内存过度使用</li>
+</ol>
+<h3>错误处理</h3>
+<ol>
+<li><strong>API 失败</strong>：组件会优雅处理 API 失败，显示适当的离线状态</li>
+<li><strong>数据格式</strong>：对后端返回的数据有容错处理，避免格式错误导致组件崩溃</li>
+<li><strong>连接恢复</strong>：组件会自动尝试重新连接，无需手动刷新</li>
+</ol>
+<h3>浏览器兼容性</h3>
+<ul>
+<li>支持所有现代浏览器（Chrome、Firefox、Safari、Edge）</li>
+<li>需要支持 Web Components、Shadow DOM 和 Custom Elements</li>
+<li>不建议在 Internet Explorer 中使用</li>
+</ul>
+<h2>扩展开发</h2>
+<h3>创建新的监控组件</h3>
+<p>要创建新的监控组件，只需继承 <code>LokiElement</code> 并实现相应功能：</p>
+<pre><code class="language-javascript">import { LokiElement } from '../core/loki-theme.js';
+import { getApiClient } from '../core/loki-api-client.js';
+
+export class MyCustomMonitor extends LokiElement {
+  static get observedAttributes() {
+    return ['api-url', 'theme'];
+  }
+
+  constructor() {
+    super();
+    this._api = null;
+    this._data = null;
+  }
+
+  connectedCallback() {
+    super.connectedCallback();
+    this._setupApi();
+    this._loadData();
+    this._startPolling();
+  }
+
+  // 实现具体功能...
+
+  render() {
+    // 渲染组件...
+  }
+}
+
+customElements.define('my-custom-monitor', MyCustomMonitor);
+</code></pre>
+<h2>总结</h2>
+<p>监控和可观测性组件模块提供了一套完整、轻量级、高度可定制的监控工具，专为多代理协作系统设计。通过纯 CSS 可视化、实时数据更新和模块化设计，该模块既可以单独使用，也可以作为完整监控解决方案的一部分，帮助开发人员和运维人员更好地理解和管理系统运行状态。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.textContent=t==='dark'?'☀️':'??';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  if(!sub.querySelector('.nv.on')){sub.style.display='none';}else{c.classList.add('open');}
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid
+mermaid.initialize({startOnLoad:true,theme:'default',themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'}});
+document.addEventListener('DOMContentLoaded',function(){mermaid.init(undefined,document.querySelectorAll('.mermaid'));});
+</script>
+</body>
+</html>

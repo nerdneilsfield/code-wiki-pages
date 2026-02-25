@@ -96,8 +96,9 @@ article img{max-width:100%;border-radius:var(--r);}
   <nav class="sb" id="sb">
   <div class="nav-meta">
     <b>Model:</b> CP-ark-code-latest<br>
-    <b>Generated:</b> 2026-02-26T04:11<br>
+    <b>Generated:</b> 2026-02-26T04:35<br>
     <b>Components:</b> 2407<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/asklokesh/loki-mode" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/asklokesh/loki-mode" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
   </div>
   <div class="nav-row">
     <a href="index.html" class="nv on">Overview</a>
@@ -374,14 +375,40 @@ article img{max-width:100%;border-radius:var(--r);}
 </ul>
 <h2>4. 技术栈</h2>
 <p>Loki Mode 采用多语言技术栈，支持多种部署环境：</p>
-<p>| 层级 | 技术选型 |
-|------|----------|
-| 前端 | React + TypeScript + Web Components |
-| 后端核心 | Python 3.7+ + FastAPI |
-| 协议层 | Node.js 18+ + TypeScript |
-| 存储 | 文件系统 + 向量索引（numpy） |
-| 集成支持 | Jira, Linear, Slack, Microsoft Teams |
-| 开发工具 | VS Code Extension |</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>技术选型</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前端</td>
+<td>React + TypeScript + Web Components</td>
+</tr>
+<tr>
+<td>后端核心</td>
+<td>Python 3.7+ + FastAPI</td>
+</tr>
+<tr>
+<td>协议层</td>
+<td>Node.js 18+ + TypeScript</td>
+</tr>
+<tr>
+<td>存储</td>
+<td>文件系统 + 向量索引（numpy）</td>
+</tr>
+<tr>
+<td>集成支持</td>
+<td>Jira, Linear, Slack, Microsoft Teams</td>
+</tr>
+<tr>
+<td>开发工具</td>
+<td>VS Code Extension</td>
+</tr>
+</tbody>
+</table>
 <h2>5. 快速开始</h2>
 <h3>5.1 基本使用流程</h3>
 <ol>
@@ -438,7 +465,7 @@ article img{max-width:100%;border-radius:var(--r);}
 // Theme
 var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
 function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
-function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.textContent=t==='dark'?'☀️':'??';}
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';}
 setTheme(curTheme());
 themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
 // Sidebar
@@ -453,11 +480,11 @@ document.getElementById('sb-toggle').addEventListener('click',function(){
 });
 ov.addEventListener('click',sbHide);
 window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
-// Nav collapse
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
 document.querySelectorAll('.nvcaret').forEach(function(c){
   var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
   if(!sub)return;
-  if(!sub.querySelector('.nv.on')){sub.style.display='none';}else{c.classList.add('open');}
+  c.classList.add('open');
   c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
 });
 // TOC
@@ -481,9 +508,26 @@ document.querySelectorAll('.nvcaret').forEach(function(c){
 var btt=document.getElementById('btt');
 window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
 btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
-// Mermaid
-mermaid.initialize({startOnLoad:true,theme:'default',themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'}});
-document.addEventListener('DOMContentLoaded',function(){mermaid.init(undefined,document.querySelectorAll('.mermaid'));});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
 </script>
 </body>
 </html>

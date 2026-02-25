@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Memory and Thread Context Module</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; deer-flow</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-26T05:14<br>
+    <b>Components:</b> 769<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/bytedance/deer-flow" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/bytedance/deer-flow" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="agent_memory_and_thread_context.html" class="nv on">Agent Memory And Thread Context</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="agent_execution_middlewares.html" class="nv">Agent Execution Middlewares</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="sandbox_core_runtime.html" class="nv">Sandbox Core Runtime</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="sandbox_aio_community_backend.html" class="nv">Sandbox Aio Community Backend</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="application_and_feature_configuration.html" class="nv">Application And Feature Configuration</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="gateway_api_contracts.html" class="nv">Gateway Api Contracts</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="subagents_and_skills_runtime.html" class="nv">Subagents And Skills Runtime</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="model_and_external_clients.html" class="nv">Model And External Clients</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="backend_operational_utilities.html" class="nv">Backend Operational Utilities</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="sandbox_provisioner_service.html" class="nv">Sandbox Provisioner Service</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="frontend_core_domain_types_and_state.html" class="nv">Frontend Core Domain Types And State</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="frontend_workspace_contexts.html" class="nv">Frontend Workspace Contexts</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Agent Memory and Thread Context Module</h1>
+<h2>1. Overview</h2>
+<p>The <code>agent_memory_and_thread_context</code> module is a core component that provides memory persistence and thread state management for AI agents. This module enables agents to maintain long-term memory of conversations, user preferences, and contextual information, while also managing the execution state of individual threads.</p>
+<h3>Purpose and Design Rationale</h3>
+<p>This module addresses two critical needs in AI agent systems:</p>
+<ol>
+<li><strong>Long-term Memory</strong>: Allows agents to remember user interactions across sessions, enabling more coherent and personalized conversations</li>
+<li><strong>Thread State Management</strong>: Maintains the state of ongoing conversations, including sandbox environments, uploaded files, and task artifacts</li>
+</ol>
+<p>The design emphasizes:</p>
+<ul>
+<li>Asynchronous memory updates with debouncing to avoid overwhelming the system</li>
+<li>Structured memory organization for different types of information</li>
+<li>Thread-safe operations for concurrent access</li>
+<li>Caching mechanisms for efficient memory access</li>
+<li>Seamless integration with agent execution via middleware</li>
+</ul>
+<h2>2. Architecture</h2>
+<p>The module consists of several key components that work together to provide memory and thread state functionality:</p>
+<div class="mermaid">graph TB
+    subgraph "Memory System"
+        MM[MemoryMiddleware]
+        MUQ[MemoryUpdateQueue]
+        MU[MemoryUpdater]
+        MF[(Memory File)]
+    end
+    
+    subgraph "Thread State"
+        TS[ThreadState]
+        SS[SandboxState]
+        TDS[ThreadDataState]
+        VID[ViewedImageData]
+    end
+    
+    subgraph "Configuration"
+        MC[MemoryConfig]
+        AP[AppConfig]
+    end
+    
+    MM -->|queues updates| MUQ
+    MUQ -->|processes| MU
+    MU -->|reads/writes| MF
+    TS -->|includes| SS
+    TS -->|includes| TDS
+    TS -->|uses| VID
+    MUQ -->|uses| MC
+    MU -->|uses| MC
+    MC -.->|part of| AP
+</div>
+<h3>Component Relationships</h3>
+<ol>
+<li><strong>MemoryMiddleware</strong>: Acts as the entry point, hooking into agent execution to queue memory updates</li>
+<li><strong>MemoryUpdateQueue</strong>: Manages asynchronous memory updates with debouncing to batch multiple requests</li>
+<li><strong>MemoryUpdater</strong>: Handles the actual memory update logic using LLM summarization</li>
+<li><strong>ThreadState</strong>: Defines the structure for maintaining conversation thread state</li>
+<li><strong>MemoryConfig</strong>: Provides configuration options for the memory system</li>
+</ol>
+<h2>3. Sub-modules</h2>
+<h3>3.1 Memory Management Sub-module</h3>
+<p>This sub-module handles the collection, processing, and storage of agent memory. It includes:</p>
+<ul>
+<li><strong>MemoryMiddleware</strong>: Integrates memory updates with agent execution flow</li>
+<li><strong>MemoryUpdateQueue</strong>: Manages batching and debouncing of memory updates</li>
+<li><strong>MemoryUpdater</strong>: Performs LLM-based memory summarization and updates</li>
+</ul>
+<p>For detailed information, see the <a href="memory_management.html">memory_management</a> documentation.</p>
+<h3>3.2 Thread State Sub-module</h3>
+<p>This sub-module defines the state structures for managing conversation threads:</p>
+<ul>
+<li><strong>ThreadState</strong>: Main state structure for agent conversations</li>
+<li><strong>SandboxState</strong>: Manages sandbox environment information</li>
+<li><strong>ThreadDataState</strong>: Tracks workspace and file paths</li>
+<li><strong>ViewedImageData</strong>: Stores image viewing data</li>
+</ul>
+<p>For detailed information, see the <a href="thread_state.html">thread_state</a> documentation.</p>
+<h2>4. Core Components</h2>
+<h3>MemoryUpdateQueue</h3>
+<p>The <code>MemoryUpdateQueue</code> class implements a thread-safe queue with debounce mechanism for memory updates. It collects conversation contexts and processes them after a configurable delay, batching multiple updates together to reduce system load.</p>
+<p>Key features:</p>
+<ul>
+<li>Thread-safe operations using locks</li>
+<li>Debounce timer to batch updates</li>
+<li>Automatic replacement of pending updates for the same thread</li>
+<li>Manual flush capability for testing or shutdown</li>
+</ul>
+<h3>MemoryUpdater</h3>
+<p>The <code>MemoryUpdater</code> class handles the actual memory update logic. It uses an LLM to analyze conversation history and update the memory structure accordingly.</p>
+<p>Key features:</p>
+<ul>
+<li>LLM-based memory summarization</li>
+<li>Structured memory organization (user context, history, facts)</li>
+<li>Confidence-based fact filtering</li>
+<li>Atomic file operations for data integrity</li>
+<li>Caching with file modification time checks</li>
+</ul>
+<h3>MemoryMiddleware</h3>
+<p>The <code>MemoryMiddleware</code> class integrates memory updates with the agent execution flow. It hooks into the agent's execution lifecycle to queue memory updates after each agent run.</p>
+<p>Key features:</p>
+<ul>
+<li>Automatic memory update queuing after agent execution</li>
+<li>Message filtering to include only meaningful conversation parts</li>
+<li>Thread ID tracking for memory source attribution</li>
+</ul>
+<h3>ThreadState</h3>
+<p>The <code>ThreadState</code> class extends <code>AgentState</code> to provide a comprehensive structure for maintaining conversation thread state. It includes:</p>
+<ul>
+<li>Sandbox environment information</li>
+<li>Workspace path configuration</li>
+<li>Conversation title</li>
+<li>Artifact tracking</li>
+<li>Todo list management</li>
+<li>Uploaded files tracking</li>
+<li>Viewed images management</li>
+</ul>
+<h2>5. Usage Examples</h2>
+<h3>Basic Memory Configuration</h3>
+<pre><code class="language-python">from src.config.memory_config import get_memory_config
+
+# Enable and configure memory system
+config = get_memory_config()
+config.enabled = True
+config.debounce_seconds = 30
+config.model_name = &quot;gpt-4&quot;
+config.fact_confidence_threshold = 0.7
+config.max_facts = 100
+</code></pre>
+<h3>Using MemoryUpdateQueue Directly</h3>
+<pre><code class="language-python">from src.agents.memory.queue import get_memory_queue
+
+# Get the global queue instance
+queue = get_memory_queue()
+
+# Add a conversation to the queue
+queue.add(
+    thread_id=&quot;thread_123&quot;,
+    messages=conversation_messages
+)
+
+# For testing or shutdown, flush the queue
+queue.flush()
+</code></pre>
+<h3>Working with ThreadState</h3>
+<pre><code class="language-python">from src.agents.thread_state import ThreadState
+from langchain_core.messages import HumanMessage, AIMessage
+
+# Create a thread state
+state = ThreadState(
+    messages=[
+        HumanMessage(content=&quot;Hello!&quot;),
+        AIMessage(content=&quot;Hi there!&quot;)
+    ],
+    thread_data={
+        &quot;workspace_path&quot;: &quot;/workspace/thread_123&quot;,
+        &quot;uploads_path&quot;: &quot;/workspace/thread_123/uploads&quot;
+    },
+    artifacts=[&quot;output.txt&quot;]
+)
+
+# Access state components
+print(state[&quot;thread_data&quot;][&quot;workspace_path&quot;])
+print(state[&quot;artifacts&quot;])
+</code></pre>
+<h2>6. Configuration</h2>
+<h3>Memory Configuration</h3>
+<p>The memory system can be configured using <code>MemoryConfig</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Configuration</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>enabled</td>
+<td>bool</td>
+<td>False</td>
+<td>Whether memory updates are enabled</td>
+</tr>
+<tr>
+<td>debounce_seconds</td>
+<td>int</td>
+<td>30</td>
+<td>Time to wait before processing queued updates</td>
+</tr>
+<tr>
+<td>model_name</td>
+<td>str</td>
+<td>&quot;gpt-4&quot;</td>
+<td>Model to use for memory summarization</td>
+</tr>
+<tr>
+<td>storage_path</td>
+<td>str | None</td>
+<td>None</td>
+<td>Custom path for memory file</td>
+</tr>
+<tr>
+<td>fact_confidence_threshold</td>
+<td>float</td>
+<td>0.7</td>
+<td>Minimum confidence for storing facts</td>
+</tr>
+<tr>
+<td>max_facts</td>
+<td>int</td>
+<td>100</td>
+<td>Maximum number of facts to retain</td>
+</tr>
+</tbody>
+</table>
+<h3>Thread State Configuration</h3>
+<p>Thread state is primarily configured through the data structures provided, with reducers for managing complex state updates:</p>
+<ul>
+<li><code>merge_artifacts</code>: Merges and deduplicates artifact lists</li>
+<li><code>merge_viewed_images</code>: Merges viewed image dictionaries with special clear behavior</li>
+</ul>
+<h2>7. Best Practices</h2>
+<ol>
+<li><strong>Enable Memory Judiciously</strong>: Memory updates consume LLM tokens, so enable only when needed</li>
+<li><strong>Tune Debounce Time</strong>: Adjust <code>debounce_seconds</code> based on your use case - shorter times for more frequent updates, longer times for better batching</li>
+<li><strong>Set Appropriate Confidence Threshold</strong>: Too low and you'll get noisy facts; too high and you might miss important information</li>
+<li><strong>Use ThreadState Consistently</strong>: Always use the provided ThreadState structure to ensure compatibility with middlewares</li>
+<li><strong>Handle Missing Thread IDs</strong>: Ensure thread IDs are available in the runtime context when using MemoryMiddleware</li>
+<li><strong>Flush Queue on Shutdown</strong>: Call <code>queue.flush()</code> during application shutdown to process pending updates</li>
+</ol>
+<h2>8. Limitations and Edge Cases</h2>
+<ol>
+<li><strong>Memory File Conflicts</strong>: If multiple processes access the same memory file, you may encounter race conditions</li>
+<li><strong>LLM Failure Modes</strong>: Memory updates rely on LLM output, which can occasionally be malformed</li>
+<li><strong>Debounce Timer Precision</strong>: The debounce mechanism uses system timers, which may not be perfectly precise</li>
+<li><strong>Memory Size Limits</strong>: Very large memory structures may impact performance</li>
+<li><strong>Thread Safety</strong>: While the MemoryUpdateQueue is thread-safe, other components may not be</li>
+<li><strong>Message Filtering</strong>: The middleware filters out tool messages, which might contain important context in some cases</li>
+</ol>
+<h2>9. Integration with Other Modules</h2>
+<p>This module integrates with several other key modules:</p>
+<ul>
+<li><strong>agent_execution_middlewares</strong>: MemoryMiddleware works alongside other middlewares in the agent execution pipeline</li>
+<li><strong>sandbox_core_runtime</strong>: ThreadState includes SandboxState for managing sandbox environments</li>
+<li><strong>application_and_feature_configuration</strong>: Uses MemoryConfig and AppConfig for configuration</li>
+<li><strong>gateway_api_contracts</strong>: Memory structures align with API contracts for memory endpoints</li>
+</ul>
+<p>For more information on these modules, see their respective documentation.</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

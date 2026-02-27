@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>runner_lifecycle_and_checkpointing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T04:07<br>
+    <b>Components:</b> 2668<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/cloudwego/eino" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/cloudwego/eino" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Core Types.html" class="nv">Schema Core Types</a>
+      <button class="nvcaret" data-nav="Schema-Core-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Schema-Core-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message.html" class="nv">Schema Message</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_tool.html" class="nv">Schema Tool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_document.html" class="nv">Schema Document</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message_parser.html" class="nv">Schema Message Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Stream.html" class="nv">Schema Stream</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Interfaces.html" class="nv">Component Interfaces</a>
+      <button class="nvcaret" data-nav="Component-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_interfaces.html" class="nv">Model Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_interfaces.html" class="nv">Tool Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_interfaces.html" class="nv">Embedding Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_interfaces.html" class="nv">Prompt Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_interfaces.html" class="nv">Document Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="component_types.html" class="nv">Component Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Options and Extras.html" class="nv">Component Options And Extras</a>
+      <button class="nvcaret" data-nav="Component-Options-and-Extras-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Options-and-Extras-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_options_and_callbacks.html" class="nv">Model Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_options_and_utilities.html" class="nv">Tool Options And Utilities</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_options_and_callbacks.html" class="nv">Embedding Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retriever_indexer_options_and_callbacks.html" class="nv">Retriever Indexer Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_options_and_callbacks.html" class="nv">Prompt Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_options_and_callbacks.html" class="nv">Document Options And Callbacks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Callbacks System.html" class="nv">Callbacks System</a>
+      <button class="nvcaret" data-nav="Callbacks-System-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Callbacks-System-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="handler_builder.html" class="nv">Handler Builder</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="interface.html" class="nv">Interface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="manager.html" class="nv">Manager</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="template.html" class="nv">Template</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Graph Engine.html" class="nv">Compose Graph Engine</a>
+      <button class="nvcaret" data-nav="Compose-Graph-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Graph-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_construction_and_compilation.html" class="nv">Graph Construction And Compilation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="node_abstraction_and_options.html" class="nv">Node Abstraction And Options</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runtime_execution_engine.html" class="nv">Runtime Execution Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="channel_and_task_management.html" class="nv">Channel And Task Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="branching_and_field_mapping.html" class="nv">Branching And Field Mapping</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runnable_and_type_system.html" class="nv">Runnable And Type System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="state_and_call_control.html" class="nv">State And Call Control</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Checkpoint.html" class="nv">Compose Checkpoint</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Interrupt.html" class="nv">Compose Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Tool Node.html" class="nv">Compose Tool Node</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Workflow.html" class="nv">Compose Workflow</a>
+      <button class="nvcaret" data-nav="Compose-Workflow-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Workflow-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workflow_core.html" class="nv">Workflow Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chain_branch.html" class="nv">Chain Branch</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parallel_execution.html" class="nv">Parallel Execution</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Lambda Types.html" class="nv">Compose Lambda Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Core.html" class="nv">Internal Core</a>
+      <button class="nvcaret" data-nav="Internal-Core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="地址管理子模块.html" class="nv">地址管理子模块</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="中断管理子模块.html" class="nv">中断管理子模块</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Utilities.html" class="nv">Internal Utilities</a>
+      <button class="nvcaret" data-nav="Internal-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_serialization.html" class="nv">Internal Serialization</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_channel.html" class="nv">Internal Channel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_generic.html" class="nv">Internal Generic</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_safe.html" class="nv">Internal Safe</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Interface.html" class="nv">Adk Agent Interface</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Runner.html" class="nv">Adk Runner</a>
+      <button class="nvcaret" data-nav="ADK-Runner-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Runner-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runner_core.html" class="nv">Runner Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="execution_context.html" class="nv">Execution Context</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_options.html" class="nv">Call Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Interrupt.html" class="nv">Adk Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Tool.html" class="nv">Adk Agent Tool</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK ChatModel Agent.html" class="nv">Adk Chatmodel Agent</a>
+      <button class="nvcaret" data-nav="ADK-ChatModel-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-ChatModel-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_orchestration.html" class="nv">Agent Runtime And Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="builtin_control_tools_and_handoff.html" class="nv">Builtin Control Tools And Handoff</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chatmodel_retry_wrapper.html" class="nv">Chatmodel Retry Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK React Agent.html" class="nv">Adk React Agent</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Workflow Agents.html" class="nv">Adk Workflow Agents</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Flow Agent.html" class="nv">Adk Flow Agent</a>
+      <button class="nvcaret" data-nav="ADK-Flow-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Flow-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agent_orchestration.html" class="nv">Flow Agent Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deterministic_transfer_wrapper.html" class="nv">Deterministic Transfer Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Utils.html" class="nv">Adk Utils</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Filesystem Middleware.html" class="nv">Adk Filesystem Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Filesystem-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Filesystem-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_protocol_and_requests.html" class="nv">Backend Protocol And Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="in_memory_backend_implementation.html" class="nv">In Memory Backend Implementation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_middleware_and_tool_surface.html" class="nv">Filesystem Middleware And Tool Surface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="large_tool_result_offloading_pipeline.html" class="nv">Large Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Reduction Middleware.html" class="nv">Adk Reduction Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Reduction-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Reduction-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="middleware_entrypoint_and_contracts.html" class="nv">Middleware Entrypoint And Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_clearing_policy.html" class="nv">Tool Result Clearing Policy</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_offloading_pipeline.html" class="nv">Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Skill Middleware.html" class="nv">Adk Skill Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Skill-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Skill-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="skill_middleware_core.html" class="nv">Skill Middleware Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend_filesystem.html" class="nv">Local Backend Filesystem</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Plan-Execute.html" class="nv">Adk Prebuilt Plan-Execute</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Plan-Execute-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Plan-Execute-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="plan_execute_orchestration_core.html" class="nv">Plan Execute Orchestration Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_kv_output_wrapper.html" class="nv">Session Kv Output Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Supervisor.html" class="nv">Adk Prebuilt Supervisor</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Deep Research.html" class="nv">Adk Prebuilt Deep Research</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Deep-Research-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Deep-Research-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deep_research_core.html" class="nv">Deep Research Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="task_tool_orchestration.html" class="nv">Task Tool Orchestration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow React Agent.html" class="nv">Flow React Agent</a>
+      <button class="nvcaret" data-nav="Flow-React-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-React-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_graph_runtime_core.html" class="nv">React Graph Runtime Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_runtime_options_and_message_future.html" class="nv">React Runtime Options And Message Future</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_option_bridge.html" class="nv">Agent Option Bridge</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Multi-Agent Host.html" class="nv">Flow Multi-Agent Host</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Retrievers.html" class="nv">Flow Retrievers</a>
+      <button class="nvcaret" data-nav="Flow-Retrievers-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-Retrievers-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Multi Query</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parent</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="router.html" class="nv">Router</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Utils</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Indexers.html" class="nv">Flow Indexers</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Mock Utilities.html" class="nv">Mock Utilities</a>
+      <button class="nvcaret" data-nav="Mock-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Mock-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_agent_mocks.html" class="nv">Adk Agent Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chat_model_mocks.html" class="nv">Chat Model Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_pipeline_mocks.html" class="nv">Document Pipeline Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_retrieval_indexing_mocks.html" class="nv">Embedding Retrieval Indexing Mocks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>runner_lifecycle_and_checkpointing</h1>
+<p><code>runner_lifecycle_and_checkpointing</code>（<code>adk.runner</code>）是 ADK 里“把 Agent 真正跑起来”的入口层：它不关心具体业务推理，而是负责把一次运行的生命周期串起来——<strong>启动、事件转发、中断捕获、检查点持久化、恢复继续执行</strong>。如果把 Agent 看成一台会在中途“请求人工确认/外部输入”的机器，<code>Runner</code> 就像值班调度员：既要保证机器不停摆，也要在停机点留下可恢复的快照，避免“从头再来”。</p>
+<p>很多初看似乎可以“直接 <code>agent.Run()</code> 就行”的实现，在真实系统里会很快失效：一旦出现中断、跨进程恢复、会话值共享、流式输出与错误并行处理，调用方就会被迫自己管理大量脆弱状态。这个模块存在的意义，就是把这些横切复杂度集中封装成一个稳定入口。</p>
+<h2>架构角色与数据流</h2>
+<div class="mermaid">flowchart TD
+    A[Caller] --> B[Runner Run / Query]
+    A --> C[Runner Resume / ResumeWithParams]
+    B --> D[toFlowAgent then Run]
+    C --> E[loadCheckPoint]
+    E --> F[setRunCtx and session merge]
+    F --> G[toFlowAgent then Resume]
+    D --> H[handleIter]
+    G --> H
+    H --> I[saveCheckPoint when interrupted]
+    H --> J[AsyncIterator AgentEvent to caller]
+</div>
+<p>从架构上看，<code>Runner</code> 不是业务执行器，而是<strong>运行编排器（orchestrator）+ 生命周期网关（gateway）</strong>。它位于调用方和具体 <code>Agent</code> 之间，拦截并增强运行过程：</p>
+<ul>
+<li>向下，它依赖 <a href="ADK%20Agent%20Interface.html">ADK Agent Interface</a> 的 <code>Agent</code>/<code>ResumableAgent</code>、<code>AgentInput</code>、<code>AgentEvent</code> 等契约，真正执行仍由 agent 实现。</li>
+<li>向旁路，它依赖 <code>CheckPointStore</code>（别名 <code>core.CheckPointStore</code>）做持久化，依赖中断信号结构（<code>core.InterruptSignal</code>）做可恢复语义桥接。</li>
+<li>向上，它向调用者暴露统一的 <code>Run/Query/Resume/ResumeWithParams</code>，始终返回 <code>*AsyncIterator[*AgentEvent]</code>（或恢复场景返回 <code>(*AsyncIterator[*AgentEvent], error)</code>），让上层只处理事件流而非底层状态机。</li>
+</ul>
+<p>一次典型 <code>Run</code> 的主路径是：构建 <code>AgentInput</code> → 初始化 run context/session → 调用 agent 的 <code>Run</code> → 若启用 checkpoint，则包装迭代器并在 <code>handleIter</code> 中监听中断事件，保存检查点后再把事件发给用户。<code>Resume</code> 路径则先反序列化检查点恢复 <code>runContext</code> 与中断状态，再进入 <code>Agent.Resume</code>，其余流程复用同一套事件处理逻辑。</p>
+<h2>心智模型：把 Runner 当作“录播系统 + 断点续播控制器”</h2>
+<p>理解这个模块最有效的模型是：</p>
+<ul>
+<li><code>Agent</code> 在持续输出事件，像“直播流”；</li>
+<li><code>Interrupt</code> 是直播中插入的“暂停点”；</li>
+<li><code>CheckPointStore</code> 是“录播快照”；</li>
+<li><code>ResumeWithParams</code> 像“指定某些暂停点喂入额外参数后继续播”。</li>
+</ul>
+<p><code>Runner</code> 的关键价值不在“把事件搬运出来”，而在保证以下不变量：</p>
+<ol>
+<li>中断事件对用户可见前，若配置了存储，检查点必须先写入；</li>
+<li>恢复必须在正确的 <code>runContext</code>/session 上继续，而不是新跑一遍；</li>
+<li>中断语义从内部 <code>core.InterruptSignal</code> 转换为外部更稳定的 <code>InterruptInfo</code>/<code>InterruptContexts</code>；</li>
+<li>框架假设一次运行的最终中断动作是一个合并结果（<code>CompositeInterrupt</code>），因此顶层不应出现多个独立中断动作。</li>
+</ol>
+<h2>核心组件深潜</h2>
+<h3><code>RunnerConfig</code></h3>
+<p><code>RunnerConfig</code> 是 <code>Runner</code> 的装配参数，字段非常克制：</p>
+<ul>
+<li><code>Agent Agent</code></li>
+<li><code>EnableStreaming bool</code></li>
+<li><code>CheckPointStore CheckPointStore</code></li>
+</ul>
+<p>这种极简配置体现了设计取舍：<code>Runner</code> 不承载业务参数，只承载生命周期控制参数。好处是边界清晰，坏处是如果未来要引入更多策略（例如 checkpoint 写入策略、重试策略），要么扩展 <code>RunnerConfig</code>，要么通过 <code>AgentRunOption</code> 旁路注入。</p>
+<h3><code>ResumeParams</code></h3>
+<p><code>ResumeParams</code> 当前只有一个字段：<code>Targets map[string]any</code>。它的意义是“<strong>可扩展恢复参数容器</strong>”，而不是临时 map。注释明确写了 extensible：未来新增字段不破坏方法签名。</p>
+<p><code>Targets</code> 的 key 是中断点地址字符串，value 是对应恢复数据。这个设计把恢复动作从“全局继续”升级成“按地址定向继续”。如果你在多 agent / 图执行场景中只想放行某些叶子中断点，这个结构是必要的。</p>
+<h3><code>Runner</code></h3>
+<p><code>Runner</code> 内部状态只有三个：<code>a Agent</code>、<code>enableStreaming bool</code>、<code>store CheckPointStore</code>。这是典型“薄状态编排器”实现：</p>
+<ul>
+<li>不缓存运行结果；</li>
+<li>不维护跨请求复杂状态；</li>
+<li>只在每次调用时通过 context + options 装配运行态。</li>
+</ul>
+<p>这降低了并发下的共享状态复杂度，也让 <code>Runner</code> 更适合作为长生命周期对象复用。</p>
+<h3><code>NewRunner</code></h3>
+<p><code>NewRunner(_ context.Context, conf RunnerConfig) *Runner</code> 当前不使用 <code>context</code>。这在 API 设计上是一个“前向兼容钩子”：保留 ctx 参数，未来如果需要在构造阶段读取 tracing / env / callback manager，不需要改签名。</p>
+<h3><code>Run</code></h3>
+<p><code>Run(ctx, messages, opts...)</code> 的关键流程：</p>
+<ol>
+<li><code>getCommonOptions(nil, opts...)</code> 汇总调用选项；</li>
+<li><code>toFlowAgent(ctx, r.a)</code> 把 <code>Agent</code> 适配到 flow 运行形态；</li>
+<li>构造 <code>AgentInput{Messages, EnableStreaming}</code>；</li>
+<li><code>ctxWithNewRunCtx</code> 初始化新的运行上下文，并按 <code>sharedParentSession</code> 决定会话关系；</li>
+<li><code>AddSessionValues</code> 注入调用级会话值；</li>
+<li>调用 <code>fa.Run(ctx, input, opts...)</code> 得到底层事件迭代器；</li>
+<li>若 <code>store == nil</code> 直接返回；否则通过 <code>NewAsyncIteratorPair</code> + goroutine <code>handleIter</code> 包一层，增加中断持久化语义。</li>
+</ol>
+<p>这里最关键的非显式设计意图是：<strong>checkpoint 逻辑不侵入 agent 实现</strong>。agent 只负责产出事件，<code>Runner</code> 负责在流经边界时做增强。</p>
+<h3><code>Query</code></h3>
+<p><code>Query</code> 只是 <code>Run</code> 的语法糖：把字符串转成 <code>[]Message{schema.UserMessage(query)}</code>。它的价值在于降低最常见“单轮问答”入口成本，但不引入新语义。</p>
+<h3><code>Resume</code> 与 <code>ResumeWithParams</code></h3>
+<p><code>Resume</code> 调用内部 <code>resume(..., nil, ...)</code>，是“隐式全恢复”策略。</p>
+<p><code>ResumeWithParams</code> 调用 <code>resume(..., params.Targets, ...)</code>，是“定向恢复”策略。注释里把行为边界讲得非常清楚：</p>
+<ul>
+<li>在 <code>Targets</code> 中的中断点会收到“这是恢复目标”的语义；</li>
+<li>不在 <code>Targets</code> 中但曾中断的叶子组件应重新中断，以保留状态一致性；</li>
+<li>组合型 agent 通常应继续向下传递恢复流，由子节点决定是否重新中断。</li>
+</ul>
+<p>这是一个很成熟的分层恢复模型：顶层只做路由，叶子负责状态正确性。</p>
+<h3><code>resume</code>（内部实现）</h3>
+<p><code>resume</code> 是真正的恢复路径实现，关键点比 <code>Run</code> 多很多：</p>
+<ul>
+<li>没有 <code>store</code> 直接报错：<code>failed to resume: store is nil</code>。这是硬约束，因为恢复必须依赖持久化状态。</li>
+<li><code>loadCheckPoint</code> 一次性恢复 <code>ctx, runCtx, resumeInfo</code>，失败会包装错误返回。</li>
+<li><code>sharedParentSession</code> 为真时，会把父 session 的 <code>Values</code> 与 <code>valuesMtx</code> 挂到恢复的 <code>runCtx.Session</code>，实现恢复后与父调用共享可变会话。</li>
+<li>随后兜底初始化 <code>valuesMtx</code> 与 <code>Values</code>，避免 nil map / nil mutex。</li>
+<li>若 <code>resumeData</code> 非空，调用 <code>core.BatchResumeWithData(ctx, resumeData)</code> 注入地址到数据的批量映射。</li>
+<li>调用 <code>fa.Resume(ctx, resumeInfo, opts...)</code>，并复用 <code>handleIter</code> 做事件增强。</li>
+</ul>
+<p>值得注意的是它在恢复路径里再次检查 <code>r.store == nil</code> 并直返 <code>aIter</code>。逻辑上该分支几乎不可达（前面已判空返回错误），更像防御式冗余。</p>
+<h3><code>handleIter</code></h3>
+<p><code>handleIter</code> 是整个模块的“关键热路径”。它负责消费底层 <code>aIter</code>，并把增强后的事件推给上层 <code>gen</code>。</p>
+<p>核心机制有三层：</p>
+<p>第一层是健壮性：<code>defer recover</code> 捕获 panic，包装成 <code>safe.NewPanicErr(..., debug.Stack())</code> 后作为 <code>AgentEvent{Err: e}</code> 发送，最后 <code>gen.Close()</code>。这保证调用方不会因内部 panic 永久挂住迭代器。</p>
+<p>第二层是中断语义转换：当检测到 <code>event.Action.internalInterrupted != nil</code>，会把内部中断信号转成用户可消费结构：</p>
+<ul>
+<li><code>core.ToInterruptContexts(interruptSignal, allowedAddressSegmentTypes)</code> 生成结构化中断链；</li>
+<li>重新构造一个 <code>AgentEvent</code>，保留 <code>AgentName/RunPath/Output</code>，并设置 <code>Action.Interrupted</code> 为公开 <code>InterruptInfo</code>。</li>
+</ul>
+<p>第三层是 checkpoint 时序保障：如果有 <code>checkPointID</code>，先 <code>saveCheckPoint(...)</code>，再 <code>gen.Send(event)</code>。也就是说用户“看见”中断事件时，系统承诺已经有可恢复快照。</p>
+<p>另外有一个显式不变量：如果同一次 <code>handleIter</code> 里出现多个中断动作会 <code>panic(&quot;multiple interrupt actions should not happen in Runner&quot;)</code>。这不是偶然，而是顶层对 <code>CompositeInterrupt</code> 合并语义的契约性依赖。</p>
+<h2>依赖与契约分析</h2>
+<p>从调用关系看，这个模块的关键依赖面是四块：</p>
+<p>它调用 agent 侧接口：<code>Agent.Run</code>/<code>ResumableAgent.Resume</code>（经 <code>toFlowAgent</code> 适配），并依赖 <a href="ADK%20Agent%20Interface.html">ADK Agent Interface</a> 中 <code>AgentEvent</code> 可安全修改的约定（代码里会重建 event）。如果下游 agent 破坏“事件可修改/流独占”契约，上层包装可能出现竞态或重复消费问题。</p>
+<p>它调用运行上下文与选项系统（<code>ctxWithNewRunCtx</code>、<code>setRunCtx</code>、<code>getCommonOptions</code>、<code>AddSessionValues</code>），对应 <a href="run_context_session_and_event_lanes.html">run_context_session_and_event_lanes</a> 与 <a href="agent_run_option_system.html">agent_run_option_system</a>。<code>Runner</code> 假设这些 helper 能正确处理 session 共享和 option 过滤。</p>
+<p>它调用中断与检查点底层：<code>core.InterruptSignal</code>、<code>core.BatchResumeWithData</code>、<code>CheckPointStore.Get/Set</code>，并桥接到 ADK 层 <code>InterruptInfo</code>/<code>ResumeInfo</code>。与 <a href="Compose%20Checkpoint.html">Compose Checkpoint</a>、<a href="Compose%20Interrupt.html">Compose Interrupt</a>、<a href="address_and_resume_routing.html">address_and_resume_routing</a> 的契约一致性直接决定恢复正确性。</p>
+<p>它被应用层直接调用（<code>NewRunner</code> + <code>Run/Resume</code>），也常作为各类 agent（如 chatmodel/workflow/flow 族）统一执行入口。上层期望它提供稳定的“可流式、可中断、可恢复”运行语义，而不是裸 agent 调用。</p>
+<h2>关键设计取舍</h2>
+<p>这个模块大量设计都在“把复杂度放在哪一层”上做权衡。</p>
+<p>第一，选择在 <code>Runner</code> 边界做 checkpoint，而不是侵入每个 agent。这样大幅降低 agent 实现负担，统一行为一致性；代价是 <code>Runner</code> 必须理解中断内部结构（<code>internalInterrupted</code>），形成一定层间耦合。</p>
+<p>第二，恢复参数采用 <code>map[string]any</code>（高灵活）而非强类型结构（高安全）。这让不同组件可自定义恢复 payload，但也把类型校验推迟到各中断点，错误更晚暴露。</p>
+<p>第三，显式支持 session 共享（<code>sharedParentSession</code>）并共享同一个 <code>valuesMtx</code>。这让父子运行共享状态变得简单直接，但也意味着你拿到的是可变共享内存模型，必须自行管理键空间冲突与并发语义。</p>
+<p>第四，<code>handleIter</code> 对多中断直接 panic，选择了“尽早暴露框架不变量被破坏”而不是“容错合并”。这偏 correctness over availability：宁可失败也不悄悄产生不可预测恢复语义。</p>
+<h2>使用方式与示例</h2>
+<p>最小运行：</p>
+<pre><code class="language-go">runner := NewRunner(ctx, RunnerConfig{
+    Agent:           myAgent,
+    EnableStreaming: true,
+    CheckPointStore: myStore, // 可为 nil
+})
+
+iter := runner.Query(ctx, &quot;你好&quot;)
+for {
+    ev, ok := iter.Next()
+    if !ok {
+        break
+    }
+    if ev.Err != nil {
+        // handle error
+    }
+    // handle output / action
+}
+</code></pre>
+<p>恢复（隐式全恢复）：</p>
+<pre><code class="language-go">iter, err := runner.Resume(ctx, checkPointID)
+if err != nil {
+    // store nil 或 checkpoint 读取失败等
+}
+_ = iter
+</code></pre>
+<p>恢复（定向恢复）：</p>
+<pre><code class="language-go">params := &amp;ResumeParams{
+    Targets: map[string]any{
+        &quot;agent:root;tool:approval_1&quot;: map[string]any{&quot;approved&quot;: true},
+    },
+}
+
+iter, err := runner.ResumeWithParams(ctx, checkPointID, params)
+if err != nil {
+    // handle
+}
+_ = iter
+</code></pre>
+<h2>新贡献者最该注意的坑</h2>
+<p>最容易踩坑的是把 <code>ResumeWithParams</code> 当成“只恢复这些点，其他点自动忽略”。实际上，未被 target 的叶子中断点通常应重新中断，否则可能丢失原始等待状态。这个行为是跨模块契约，不是 <code>Runner</code> 单点逻辑。</p>
+<p>第二个坑是 checkpoint 时序：<code>handleIter</code> 明确先保存再发中断事件。如果你改动顺序，客户端可能收到“可恢复”提示却找不到 checkpoint，形成严重一致性 bug。</p>
+<p>第三个坑是并发会话：<code>sharedParentSession</code> 下是共享 <code>Values</code> map + 同一把 <code>valuesMtx</code>。如果新代码绕过锁直接读写，race 非常隐蔽。</p>
+<p>第四个坑是中断合并不变量。<code>Runner</code> 假设顶层最多一个中断动作；如果你在上游 agent/graph 层引入新的中断聚合策略，必须同步评估这里的 panic 逻辑。</p>
+<p>最后，<code>handleIter</code> 会重建包含中断的事件对象。若你后续在 <code>AgentEvent</code> 增加新字段，这里可能需要同步透传，否则会出现“字段在中断事件路径丢失”的兼容性问题。</p>
+<h2>相关模块</h2>
+<ul>
+<li><a href="ADK%20Agent%20Interface.html">ADK Agent Interface</a></li>
+<li><a href="run_context_session_and_event_lanes.html">run_context_session_and_event_lanes</a></li>
+<li><a href="agent_run_option_system.html">agent_run_option_system</a></li>
+<li><a href="Compose%20Checkpoint.html">Compose Checkpoint</a></li>
+<li><a href="Compose%20Interrupt.html">Compose Interrupt</a></li>
+<li><a href="address_and_resume_routing.html">address_and_resume_routing</a></li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

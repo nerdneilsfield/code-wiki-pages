@@ -1,35 +1,33 @@
 # VSCode Extension 模块
 
-## 概述
+## 30 秒理解：这个模块为什么存在
 
-VSCode Extension 模块是 Loki Mode 系统的 Visual Studio Code 扩展客户端，它为开发者提供了一个集成的开发环境接口，用于与 Loki Mode 自主开发系统进行交互。该扩展桥接了 VSCode IDE 与 Loki Mode 的后端服务，使开发者能够在熟悉的编辑器环境中管理 AI 辅助开发会话、监控任务执行进度、接收实时日志流，并控制整个开发工作流。
+`VSCode Extension` 模块是 Loki Mode 在 IDE 侧的“控制塔台”。它解决的不是算法问题，而是**工程协同问题**：如何把命令行（CLI）、后端 API、实时事件流和 VS Code 交互体验粘成一个稳定系统。
 
-### 设计目标与核心价值
+如果没有它，开发者需要手动：启动 CLI 服务、轮询接口、解析日志、对齐状态；而且这些步骤在不同机器和工作区会因为配置差异不断出错。这个模块的价值就是把这些重复且脆弱的操作收敛为：
 
-VSCode Extension 的设计源于以下关键需求：
+- 可管理的进程生命周期（`CliExecutor` / `CliExecutorEvents`）
+- 可编译校验的协议契约（`api/types.ts`）
+- 可监听、可更新的工作区配置入口（`Config`）
 
-1. **无缝 IDE 集成**：开发者无需离开 VSCode 即可启动、监控和管理 Loki Mode 会话，消除在终端、浏览器和编辑器之间频繁切换的上下文切换成本。
+---
 
-2. **实时状态可视化**：通过状态栏、侧边栏面板和通知系统，提供会话状态的持续可见性，包括当前执行阶段、活跃任务、待处理任务数量等关键指标。
+## 阅读地图（先看这里）
 
-3. **双向交互能力**：不仅接收来自 Loki Mode 后端的事件流（日志、进度更新、状态变更），还支持向会话发送输入指令，实现真正的人机协作开发模式。
+为了让新同事快速进入“作者心智模型”，建议按以下顺序阅读子文档：
 
-4. **零配置启动**：通过自动检测 Loki CLI 安装位置、智能服务器启动和连接管理，最小化用户的配置负担。
+1. **[api_contracts_and_events.md](api_contracts_and_events.md)**  
+   聚焦 `vscode-extension/src/api/types.ts`：为什么把 API/SSE 事件设计成联合类型、哪些字段是跨模块隐式契约、哪些接口仍处于 planned/deprecated 状态。
 
-5. **多提供商支持**：支持 Claude、Codex、Gemini 等多种 AI 提供商，允许开发者根据任务特性灵活切换模型。
+2. **[cli_process_lifecycle_events.md](cli_process_lifecycle_events.md)**  
+   聚焦 `vscode-extension/src/cli/executor.ts`：CLI 路径探测、服务启动/停止状态机、`server:*` 事件如何驱动 UI 与控制逻辑。
 
-### 在系统中的位置
+3. **[configuration_and_settings_access.md](configuration_and_settings_access.md)**  
+   聚焦 `vscode-extension/src/utils/config.ts`：`loki` 配置命名空间、默认值策略、变更监听与键级变更检测。
 
-VSCode Extension 位于 Loki Mode 架构的最前端，作为用户与系统交互的主要入口之一。它与以下模块紧密协作：
-
-- **[API Server & Services](API Server & Services.md)**：通过 HTTP REST API 进行控制操作（启动、停止、暂停会话），通过 Server-Sent Events (SSE) 接收实时更新
-- **[Dashboard Backend](Dashboard Backend.md)**：共享相同的数据模型和 API 契约，确保状态一致性
-- **[Dashboard Frontend](Dashboard Frontend.md)**：作为替代性用户界面，VSCode Extension 提供轻量级的 IDE 内体验，而 Dashboard 提供更全面的 Web 界面
-- **[Python SDK](Python SDK.md)** / **[TypeScript SDK](TypeScript SDK.md)**：可选的编程接口，VSCode Extension 内部实现了类似的 API 客户端功能
+> 主文档重点回答“架构角色与设计动机”；字段级与函数级细节请看以上子文档。
 
 ## 架构设计
-
-### 整体架构图
 
 ```mermaid
 graph TB
@@ -252,7 +250,7 @@ sequenceDiagram
     participant Ext as VSCode Extension
     participant CFG as Config
     participant CLI as CliExecutor
-    proc as Loki CLI
+    participant Proc as Loki CLI
     participant Server as Loki Server
     participant API as Dashboard API
     

@@ -1,283 +1,194 @@
-# 监控和可观测性组件模块
+# Monitoring and Observability Components
 
-## 概述
+如果把整个 Loki 系统比作一辆正在高速行驶、同时自动修复自己的赛车，这个模块就是驾驶舱里的“六联仪表”：它不负责让车跑起来（那是执行引擎的职责），而是负责让你**知道车现在跑得怎么样、哪里要爆、哪里已经爆了**，并且在部分场景下直接给你“急停/重启”按钮。
 
-监控和可观测性组件模块是 Dashboard UI Components 系统的核心子模块，提供了一套完整的实时监控、日志分析和系统状态可视化工具。该模块专为多代理协作系统设计，帮助开发人员和运维人员实时监控系统运行状态、分析日志数据、追踪上下文窗口使用情况，并可视化展示 RARV（Reasoning、Acting、Reflecting、Verifying）执行周期。
+对新加入的高级工程师来说，最重要的认知是：该模块不是单一图表组件集合，而是一个“前端观测编排层”——把后端多个异构接口（状态、日志、上下文、成本、RARV阶段）汇总为可操作的运行态视图。
 
-### 设计理念
+---
 
-该模块遵循以下设计原则：
+## 1. 为什么这个模块存在（问题空间）
 
-1. **实时性优先**：所有组件都支持实时数据更新，通过轮询和事件监听机制确保数据最新
-2. **纯 CSS 可视化**：避免依赖复杂的图表库，使用纯 CSS 实现各种数据可视化效果
-3. **可见性感知**：组件会自动检测页面可见性，在页面不可见时暂停更新以节省资源
-4. **模块化设计**：每个组件都是独立的 Web Component，可以单独使用或组合使用
-5. **主题支持**：完整支持浅色和深色主题，并可与系统主题自动同步
+在多代理/自治执行系统里，最难的问题往往不是“功能能不能跑”，而是：
 
-## 架构
+- 会话卡住时，你不知道卡在 `Reason/Act/Reflect/Verify` 哪一段；
+- 成本突增时，你不知道是上下文窗口膨胀、工具调用异常，还是某个 provider 模型失衡；
+- 出现故障时，你要在日志、状态、任务、runner 控制之间来回切换，排障路径很长。
 
-监控和可观测性组件模块采用分层架构，各组件既相互独立又协同工作：
+这个模块存在的根本目的：
+
+1. **缩短故障定位路径**（Overview → 下钻到 AppStatus / LogStream / RARV）；
+2. **把“资源信号”变成“可解释信号”**（ContextTracker + Analytics）；
+3. **在 UI 层做弱耦合聚合**，避免后端必须先实现“一个超级观测 API”。
+
+这也是为什么你会在代码中看到多个组件各自轮询、各自容错，而不是强制共享一个统一数据总线：它优先保证“任何一块可用就先显示”，而不是“全量一致后才展示”。
+
+---
+
+## 2. 心智模型：一个“观测塔台”，六个岗位
+
+可以把本模块想象成机场塔台：
+
+- `LokiOverview`：值班总屏（是否可飞、是否拥堵、是否被 gate 阻断）
+- `LokiLogStream`：ATC 实时通话记录（逐条事件）
+- `LokiAppStatus`：跑道与发动机状态 + 控制台（可 Restart/Stop）
+- `LokiContextTracker`：燃料与载重表（context/token/cost）
+- `LokiAnalytics`：历史运营分析（热力、工具效率、provider 对比）
+- `LokiRarvTimeline`：一次飞行的阶段耗时剖面（RARV）
+
+所有岗位都继承 `LokiElement`（统一主题、Shadow DOM、基础交互能力），并通过 `getApiClient()` 接入同一个 API 客户端实例。
+
+---
+
+## 3. 架构总览与数据流
 
 ```mermaid
-graph TB
-    subgraph "监控和可观测性组件"
-        LokiOverview[LokiOverview<br/>系统概览]
-        LokiAppStatus[LokiAppStatus<br/>应用状态]
-        LokiLogStream[LokiLogStream<br/>日志流]
-        LokiContextTracker[LokiContextTracker<br/>上下文追踪]
-        LokiAnalytics[LokiAnalytics<br/>分析面板]
-        LokiRarvTimeline[LokiRarvTimeline<br/>RARV时间线]
-    end
-    
-    subgraph "核心基础设施"
-        LokiElement[LokiElement<br/>基础组件]
-        LokiApiClient[LokiApiClient<br/>API客户端]
-        LokiTheme[LokiTheme<br/>主题系统]
-    end
-    
-    subgraph "后端服务"
-        APIServer[API Server]
-        StateWatcher[State Watcher]
-        EventBus[Event Bus]
-    end
-    
-    LokiOverview --> LokiElement
-    LokiAppStatus --> LokiElement
-    LokiLogStream --> LokiElement
-    LokiContextTracker --> LokiElement
-    LokiAnalytics --> LokiElement
-    LokiRarvTimeline --> LokiElement
-    
-    LokiElement --> LokiTheme
-    LokiOverview --> LokiApiClient
-    LokiAppStatus --> LokiApiClient
-    LokiLogStream --> LokiApiClient
-    LokiContextTracker --> LokiApiClient
-    LokiAnalytics --> LokiApiClient
-    LokiRarvTimeline --> LokiApiClient
-    
-    LokiApiClient --> APIServer
-    APIServer --> StateWatcher
-    APIServer --> EventBus
+flowchart TB
+  subgraph UI[Monitoring and Observability Components]
+    O[LokiOverview]
+    L[LokiLogStream]
+    A[LokiAnalytics]
+    C[LokiContextTracker]
+    R[LokiRarvTimeline]
+    S[LokiAppStatus]
+  end
+
+  Base[LokiElement]
+  API["getApiClient()"]
+
+  O --> Base
+  L --> Base
+  A --> Base
+  C --> Base
+  R --> Base
+  S --> Base
+
+  O --> API
+  L --> API
+  A --> API
+  C --> API
+  R --> API
+  S --> API
+
+  API --> B1[/api/status + checklist + gate + runner + playwright/]
+  API --> B2[/api/logs + LOG_MESSAGE/]
+  API --> B3[/api/activity + tool/cost/context/trends/]
+  API --> B4[/api/context/]
+  API --> B5[/api/v2/runs/:id/timeline/]
+  API --> B6[/api/app-runner/status + logs + restart/stop/]
 ```
 
-### 组件层次结构
+### 3.1 关键端到端路径（按代码真实调用）
 
-1. **基础层**：所有组件继承自 `LokiElement`，提供统一的主题管理和基础功能
-2. **数据层**：通过 `LokiApiClient` 与后端 API 通信，支持事件监听和轮询
-3. **组件层**：各个独立的监控组件，负责特定功能的可视化
-4. **集成层**：组件可组合使用，提供完整的监控体验
+**路径 A：总览信号刷新（`LokiOverview`）**
 
-## 核心功能
+1. `connectedCallback()` 中 `_setupApi()` 注册 `ApiEvents.STATUS_UPDATE / CONNECTED / DISCONNECTED`；
+2. `_loadStatus()` 用 `Promise.allSettled` 并发拉取 `getStatus()`、`getChecklistSummary()`、`getAppRunnerStatus()`、`getPlaywrightResults()`、`getCouncilGate()`；
+3. 状态成功时 `_updateFromStatus()` 合并到 `_data`，失败则降级为 `offline`；
+4. 同时保留 5 秒轮询兜底。
 
-### 1. 系统概览 (LokiOverview)
+> 设计意图：事件驱动保证“快”，轮询保证“稳”。
 
-LokiOverview 组件提供系统状态的高级概览，以响应式卡片网格形式展示关键指标。详细信息请参考 [LokiOverview 组件文档](LokiOverview.md)。
+**路径 B：日志实时流（`LokiLogStream`）**
 
-主要功能：
-- 会话状态和当前阶段
-- 迭代次数和运行中的代理数量
-- 待处理任务和系统运行时间
-- PRD 进度和验证状态
-- 应用运行器状态和委员会门控状态
+1. `_setupApi()` 监听 `ApiEvents.LOG_MESSAGE`，收到消息直接 `_addLog()`；
+2. `_startLogPolling()` 根据 `log-file` 分支：
+   - 有 `log-file`：`_pollLogFile()` 每秒抓文件并增量解析；
+   - 无 `log-file`：`_pollApiLogs()` 每 2 秒拉 `getLogs(200)`；
+3. `_addLog()` 后触发 `log-received` 事件、裁剪 `_maxLines`、按过滤器重绘。
 
-该组件每 5 秒轮询 `/api/status` 端点，并监听 `ApiEvents.STATUS_UPDATE` 事件以获取即时更新。
+> 设计意图：三路输入（事件 / API / 文件）提高部署兼容性。
 
-### 2. 应用状态监控 (LokiAppStatus)
+**路径 C：上下文成本观测（`LokiContextTracker`）**
 
-LokiAppStatus 组件专门监控应用运行器的状态。详细信息请参考 [LokiAppStatus 组件文档](LokiAppStatus.md)。
+1. 每 5 秒 `_loadContext()` 请求 `/api/context`；
+2. 数据进入 `_data` 后在 `gauge / timeline / breakdown` 三个 tab 转换；
+3. timeline 会把 `compactions` 作为分隔标记呈现。
 
-主要功能：
-- 实时状态指示器（启动中、运行中、崩溃等）
-- 检测到的方法、端口和访问 URL
-- 重启次数和运行时间统计
-- 应用日志查看器
-- 重启和停止控制按钮
+> 设计意图：同一份原始数据提供“当前风险 + 演进轨迹 + 结构归因”三种读法。
 
-该组件每 3 秒轮询 `/api/app-runner/status` 端点，并具有页面可见性感知能力。
+**路径 D：分析聚合（`LokiAnalytics`）**
 
-### 3. 实时日志流 (LokiLogStream)
+1. `_loadData()` 用 `Promise.allSettled` 并行请求 `_fetchActivity()`、`getToolEfficiency(50)`、`getCost()`、`getContext()`、`getLearningTrends({timeRange})`；
+2. 对异构返回做前端归一（例如 trends 兼容数组或 `dataPoints`）；
+3. 前端计算热力图、工具排行、迭代速度、provider 对比。
 
-LokiLogStream 组件提供终端风格的实时日志查看器。详细信息请参考 [LokiLogStream 组件文档](LokiLogStream.md)。
+> 设计意图：后端接口保持职责单一，聚合解释放在 UI 层。
 
-主要功能：
-- 多种日志来源（API 轮询、文件轮询、WebSocket 事件）
-- 日志级别过滤（info、success、warning、error、step、agent、debug）
-- 文本搜索和过滤
-- 自动滚动和手动滚动锁定
-- 日志下载功能
-- 可配置的日志行数限制
+---
 
-该组件支持结构化日志格式解析，并提供美观的终端模拟器界面。
+## 4. 非显而易见的设计选择与权衡
 
-### 4. 上下文追踪器 (LokiContextTracker)
+### 4.1 `Promise.allSettled` 而不是 `Promise.all`
 
-LokiContextTracker 组件监控上下文窗口使用情况。详细信息请参考 [LokiContextTracker 组件文档](LokiContextTracker.md)。
+在 `LokiOverview`、`LokiAnalytics` 中都选了 `allSettled`。这是典型的**可用性优先**：某个接口挂了，不阻断整屏展示。
 
-主要功能：
-- 圆形仪表盘显示当前上下文使用率
-- 按迭代次数排列的时间线视图
-- 令牌类型分解视图（输入、输出、缓存读取、缓存创建）
-- 压缩事件标记
-- 总令牌数和成本估算
+- 优点：观测面板“部分可用”；
+- 代价：数据时间点可能不完全一致（弱一致性）。
 
-该组件每 5 秒轮询 `/api/context` 端点，并使用纯 CSS 实现数据可视化。
+### 4.2 事件 + 轮询双通道
 
-### 5. 分析面板 (LokiAnalytics)
+`LokiOverview` 和 `LokiLogStream` 都是“推 + 拉”并存。
 
-LokiAnalytics 组件提供跨提供商的分析功能。详细信息请参考 [LokiAnalytics 组件文档](LokiAnalytics.md)。
+- 事件流快，但依赖连接稳定；
+- 轮询慢一些，但恢复性好。
 
-主要功能：
-- 活动热力图（类似 GitHub 贡献图）
-- 工具使用排行和频率统计
-- 迭代速度指标和趋势图
-- 提供商比较（成本、令牌使用、迭代次数）
-- 可配置的时间范围筛选
+这是**性能 vs 韧性**里偏韧性的选择，适合运维场景。
 
-该组件使用客户端数据聚合，不依赖第三方图表库，完全通过纯 CSS 实现可视化。
+### 4.3 可见性感知暂停
 
-### 6. RARV 时间线 (LokiRarvTimeline)
+`LokiAnalytics`、`LokiAppStatus`、`LokiContextTracker`、`LokiRarvTimeline` 都在 `document.hidden` 时停轮询。
 
-LokiRarvTimeline 组件可视化 RARV 执行周期。详细信息请参考 [LokiRarvTimeline 组件文档](LokiRarvTimeline.md)。
+- 优点：节流、降噪；
+- 代价：切回页面时会有一次“追平延迟”。
 
-主要功能：
-- 水平时间线显示各阶段持续时间
-- 当前阶段高亮和脉冲动画
-- 图例显示各阶段颜色和时间
-- 可配置的运行 ID 属性
+### 4.4 前端计算而非后端预聚合
 
-该组件每 5 秒轮询 `/api/v2/runs/{runId}/timeline` 端点。
+热力图、provider 分类（`classifyProvider`）等在前端做。
 
-## 组件关系
+- 优点：迭代快、可视逻辑可独立演进；
+- 代价：规则（例如模型名到 provider 的映射）需要前端维护，可能与后端语义漂移。
 
-各组件之间通过以下方式协同工作：
+### 4.5 使用 `_api._get`（`LokiRarvTimeline`）
 
-1. **共享基础设施**：所有组件使用相同的 `LokiElement` 基类和 `LokiApiClient`
-2. **事件总线**：通过 `ApiEvents` 系统共享状态更新事件
-3. **数据互补**：不同组件展示同一数据源的不同方面
-4. **组合使用**：可以在同一页面上部署多个组件，提供完整监控视图
+`LokiRarvTimeline` 直接调用 `_api._get('/api/v2/runs/${runId}/timeline')`，说明该端点尚未被提升为稳定公共方法。
 
-## 使用指南
+- 优点：先用起来，交付快；
+- 风险：依赖客户端“私有接口”命名约定，后续重构易破。
 
-### 基本使用
+---
 
-所有组件都是标准的 Web Component，可以像使用普通 HTML 元素一样使用：
+## 5. 子模块导航（已拆分文档）
 
-```html
-<!-- 系统概览 -->
-<loki-overview api-url="http://localhost:57374"></loki-overview>
+- [analytics_and_cross_provider_insights.md](analytics_and_cross_provider_insights.md) —— `LokiAnalytics`
+- [runtime_log_streaming_and_terminal_view.md](runtime_log_streaming_and_terminal_view.md) —— `LokiLogStream`
+- [app_runner_health_and_control.md](app_runner_health_and_control.md) —— `LokiAppStatus`
+- [context_window_and_token_observability.md](context_window_and_token_observability.md) —— `LokiContextTracker`
+- [rarv_phase_timeline_observability.md](rarv_phase_timeline_observability.md) —— `LokiRarvTimeline`
+- [session_overview_and_gate_signals.md](session_overview_and_gate_signals.md) —— `LokiOverview`
 
-<!-- 日志流 -->
-<loki-log-stream api-url="http://localhost:57374" max-lines="1000" auto-scroll></loki-log-stream>
+---
 
-<!-- 上下文追踪器 -->
-<loki-context-tracker api-url="http://localhost:57374"></loki-context-tracker>
-```
+## 6. 与其他模块的耦合关系（跨模块依赖）
 
-### 配置选项
+- 与 **[Core Theme](Core Theme.md)**、**[Unified Styles](Unified Styles.md)**：通过 `LokiElement` 共享主题令牌与基础样式。
+- 与 **[Dashboard Backend](Dashboard Backend.md)** / **[api_surface_and_transport](api_surface_and_transport.md)**：消费状态、日志、runner、timeline 等 API。
+- 与 **[API Server & Services](API Server & Services.md)**：前端展示的数据最终来自服务层状态与事件流。
+- 与 **[Observability](Observability.md)**：该模块是观测信号在 UI 的消费与解释层，而非指标采集层。
+- 与 **[Dashboard Frontend](Dashboard Frontend.md)**：在前端应用中被包装、编排并与其他业务视图协同。
 
-各组件支持的主要属性：
+---
 
-| 组件 | 属性 | 描述 | 默认值 |
-|------|------|------|--------|
-| 所有组件 | `api-url` | API 基础 URL | `window.location.origin` |
-| 所有组件 | `theme` | 主题设置（light/dark） | 自动检测 |
-| LokiOverview | - | 无额外属性 | - |
-| LokiAppStatus | - | 无额外属性 | - |
-| LokiLogStream | `max-lines` | 最大保留日志行数 | 500 |
-| LokiLogStream | `auto-scroll` | 是否自动滚动 | false |
-| LokiLogStream | `log-file` | 日志文件路径 | - |
-| LokiContextTracker | - | 无额外属性 | - |
-| LokiAnalytics | - | 无额外属性 | - |
-| LokiRarvTimeline | `run-id` | 要显示的运行 ID | - |
+## 7. 新贡献者最该注意的坑
 
-### 主题定制
+1. **轮询生命周期必须成对管理**：`connectedCallback` 启动，`disconnectedCallback` 必停，否则内存和请求泄漏。
+2. **不要假设后端响应形状恒定**：已有代码大量做了 `||` 和多字段回退，新增逻辑要保持这种容错风格。
+3. **日志量控制很关键**：`LokiLogStream` 依赖 `_maxLines` 裁剪，改大默认值前先评估 DOM 与内存。
+4. **避免在 render 中无界绑定事件**：当前组件每次 render 都会重新绑定，需要保持“重绘即重绑”习惯并控制节点数量。
+5. **注意 XSS 防护一致性**：组件里普遍有 `_escapeHtml/_esc`，新增文本输出必须走转义。
+6. **跨组件状态不做强一致承诺**：Overview 显示 “running” 但 AppStatus 刚切到 “stale” 在短窗口内是可能的；这是架构上接受的现实。
 
-所有组件都支持主题定制，通过 CSS 变量实现：
+---
 
-```css
-:root {
-  --loki-accent: #553DE9;
-  --loki-success: #22c55e;
-  --loki-warning: #f59e0b;
-  --loki-error: #ef4444;
-  --loki-text-primary: #201515;
-  --loki-text-secondary: #52525b;
-  --loki-text-muted: #939084;
-  --loki-bg-primary: #ffffff;
-  --loki-bg-secondary: #f4f4f5;
-  --loki-bg-tertiary: #e4e4e7;
-  --loki-border: #e4e4e7;
-}
-```
+## 8. 一句话总结
 
-## 与其他模块的关系
-
-监控和可观测性组件模块与以下模块紧密协作：
-
-1. **[Dashboard UI Components](Dashboard UI Components.md)**：本模块是其核心子模块
-2. **[Dashboard Frontend](Dashboard Frontend.md)**：提供 Web Component 包装器和 API 客户端
-3. **[Dashboard Backend](Dashboard Backend.md)**：提供 REST API 和 WebSocket 事件源
-4. **[Observability](Observability.md)**：后端可观测性系统的前端展示
-
-## 注意事项
-
-### 性能考虑
-
-1. **轮询频率**：默认轮询频率在 2-5 秒之间，可根据需要调整
-2. **可见性感知**：组件会在页面不可见时暂停轮询，减少资源消耗
-3. **数据限制**：日志组件有最大行数限制，避免内存过度使用
-
-### 错误处理
-
-1. **API 失败**：组件会优雅处理 API 失败，显示适当的离线状态
-2. **数据格式**：对后端返回的数据有容错处理，避免格式错误导致组件崩溃
-3. **连接恢复**：组件会自动尝试重新连接，无需手动刷新
-
-### 浏览器兼容性
-
-- 支持所有现代浏览器（Chrome、Firefox、Safari、Edge）
-- 需要支持 Web Components、Shadow DOM 和 Custom Elements
-- 不建议在 Internet Explorer 中使用
-
-## 扩展开发
-
-### 创建新的监控组件
-
-要创建新的监控组件，只需继承 `LokiElement` 并实现相应功能：
-
-```javascript
-import { LokiElement } from '../core/loki-theme.js';
-import { getApiClient } from '../core/loki-api-client.js';
-
-export class MyCustomMonitor extends LokiElement {
-  static get observedAttributes() {
-    return ['api-url', 'theme'];
-  }
-
-  constructor() {
-    super();
-    this._api = null;
-    this._data = null;
-  }
-
-  connectedCallback() {
-    super.connectedCallback();
-    this._setupApi();
-    this._loadData();
-    this._startPolling();
-  }
-
-  // 实现具体功能...
-
-  render() {
-    // 渲染组件...
-  }
-}
-
-customElements.define('my-custom-monitor', MyCustomMonitor);
-```
-
-## 总结
-
-监控和可观测性组件模块提供了一套完整、轻量级、高度可定制的监控工具，专为多代理协作系统设计。通过纯 CSS 可视化、实时数据更新和模块化设计，该模块既可以单独使用，也可以作为完整监控解决方案的一部分，帮助开发人员和运维人员更好地理解和管理系统运行状态。
+`Monitoring and Observability Components` 的本质是：**把“系统正在发生什么”变成“人可以快速决策什么”**。它以松耦合、部分可用、实时优先为核心取舍，服务的是排障效率和运行可解释性，而不是追求一个绝对一致的单点真相面板。

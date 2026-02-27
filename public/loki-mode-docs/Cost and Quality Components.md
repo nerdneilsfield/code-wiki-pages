@@ -1,209 +1,203 @@
 # Cost and Quality Components 模块文档
 
-## 概述
+## 1. 模块定位与设计目标
 
-Cost and Quality Components 模块是 Dashboard UI Components 的核心子模块，提供了一套完整的成本监控和质量评估组件，帮助用户实时跟踪 AI 系统的运行成本和代码质量指标。该模块包含三个主要组件：LokiCostDashboard、LokiQualityGates 和 LokiQualityScore，分别负责成本监控、质量门禁和质量评分功能。
+`Cost and Quality Components` 是 Dashboard UI 中专门承载“成本治理 + 质量治理”可视化的组件组，核心由三个 Web Components 组成：
 
-### 设计理念
+- `LokiCostDashboard`
+- `LokiQualityGates`
+- `LokiQualityScore`
 
-该模块的设计遵循以下原则：
-- **实时性**：通过定时轮询机制确保数据的实时更新
-- **可视化**：采用直观的图表和卡片式设计，便于快速理解关键指标
-- **模块化**：每个组件独立封装，可单独使用或组合使用
-- **可扩展**：支持自定义 API 接口和主题配置
+这个模块存在的根本原因，是把运行系统中最容易被割裂的三类信号统一到同一操作视图中：**资源消耗（token / USD）**、**放行状态（quality gates）**、**质量趋势（score + findings）**。如果只有成本，没有质量，团队容易“省钱但降质”；如果只有质量，没有成本，团队容易“质量提高但预算失控”。该模块通过并列展示三个维度，帮助开发者、平台工程师和运营角色进行平衡决策。
 
-## 架构概览
+从设计上，它采用了 Dashboard UI 体系里一致的实现范式：继承 `LokiElement` 获得主题与样式能力，使用统一 API client 拉取后端数据，组件内部自行轮询并在卸载时清理资源。这一范式使其可以稳定嵌入 Overview 页面、运维页面或租户控制台，并与其它 UI 模块保持一致行为。
+
+---
+
+## 2. 架构总览
 
 ```mermaid
 graph TB
-    subgraph "Cost and Quality Components"
-        A[LokiCostDashboard] --> B[成本监控]
-        C[LokiQualityGates] --> D[质量门禁]
-        E[LokiQualityScore] --> F[质量评分]
-    end
-    
-    subgraph "依赖组件"
-        G[LokiElement] --> H[UI 基础组件]
-        I[API Client] --> J[API 通信]
-    end
-    
-    A --> G
-    A --> I
-    C --> G
-    C --> I
-    E --> G
-    E --> I
+  subgraph UI[Dashboard UI - Cost and Quality Components]
+    C1[LokiCostDashboard]
+    C2[LokiQualityGates]
+    C3[LokiQualityScore]
+  end
+
+  subgraph Base[Shared UI Foundations]
+    B1[LokiElement / Core Theme]
+    B2[Unified Styles]
+    B3[getApiClient]
+  end
+
+  subgraph Backend[Dashboard Backend APIs]
+    A1["GET /api/cost"]
+    A2["GET /api/pricing"]
+    A3["GET /api/council/gate"]
+    A4["GET /api/quality-score"]
+    A5["GET /api/quality-score/history"]
+    A6["POST /api/quality-scan"]
+  end
+
+  C1 --> B1
+  C2 --> B1
+  C3 --> B1
+  C1 --> B3
+  C2 --> B3
+  C3 --> B3
+
+  C1 --> A1
+  C1 --> A2
+  C2 --> A3
+  C3 --> A4
+  C3 --> A5
+  C3 --> A6
 ```
 
-### 组件关系
+该架构体现了一个重要边界：**前端组件只负责拉取与展示，不负责业务计算**。成本估算、门禁判断、质量分析都由后端完成，前端通过统一契约消费结果。这样既降低前端复杂度，也减少“前后端规则不一致”的风险。
 
-Cost and Quality Components 模块的三个核心组件都继承自 LokiElement 基类，并使用统一的 API 客户端进行数据通信。每个组件都有独立的数据获取和渲染逻辑，但共享相同的主题系统和错误处理机制。
+### 2.1 组件交互与数据流
 
-## 核心组件
+```mermaid
+flowchart LR
+  P[Policy Engine / Quality Rules] --> G["GET /api/council/gate"]
+  Q[Quality Analyzer] --> S["GET /api/quality-score"]
+  Q --> H["GET /api/quality-score/history"]
+  R[Cost Controller / Usage Metering] --> K["GET /api/cost"]
+  R --> PR["GET /api/pricing"]
 
-### LokiCostDashboard
+  K --> C1[LokiCostDashboard]
+  PR --> C1
+  G --> C2[LokiQualityGates]
+  S --> C3[LokiQualityScore]
+  H --> C3
+  C3 --> T["POST /api/quality-scan"]
+```
 
-LokiCostDashboard 是一个成本监控组件，提供了全面的 AI 系统使用成本追踪功能。它显示代币使用量、按模型和阶段划分的成本估计、预算跟踪以及实时更新的 API 定价参考网格。
+在实际运行中，`LokiQualityScore` 还能通过 `Run Scan` 主动触发扫描（`POST /api/quality-scan`），因此它不仅是“读数据组件”，也是“轻控制组件”。
 
-**主要功能：**
-- 实时显示总代币使用量和成本估计
-- 按模型和阶段统计成本分布
-- 预算监控和进度条可视化
-- API 定价参考表
-- 自动轮询更新（每 5 秒）
+---
 
-**使用示例：**
+## 3. 子模块职责总览（含交叉引用）
+
+### 3.1 成本仪表：`LokiCostDashboard`
+
+该组件负责 token 与成本观测的全链路展示，包括总量卡片、按模型/阶段分解、预算进度条和定价参考。它每 5 秒轮询成本数据，并在页面不可见时暂停轮询以降低资源占用。组件对 `/api/pricing` 失败有默认价格回退策略，保证面板在部分后端降级时仍可工作。
+
+详细文档：[`cost_dashboard_component.md`](cost_dashboard_component.md)
+
+### 3.2 门禁看板：`LokiQualityGates`
+
+该组件将 gate 状态映射为 pass/fail/pending 三色卡片，并提供聚合摘要（通过/失败/待定数量）。它每 30 秒刷新一次，并通过 `JSON.stringify` 快照比较避免无变化时重复重绘。该组件适合“是否允许继续执行/合并/发布”的即时判断场景。
+
+详细文档：[`quality_gates.md`](quality_gates.md)
+
+### 3.3 质量评分：`LokiQualityScore`
+
+该组件展示质量总分、A-F 等级、分类评分条、严重级别 findings 和历史趋势 sparkline。它并发拉取当前分与历史分，使用 `Promise.allSettled` 降低单接口失败对整体展示的影响，并支持用户手动触发扫描。若后端未提供 Rigour 能力，会进入“未安装引擎”提示分支。
+
+详细文档：[`quality_score.md`](quality_score.md)
+
+---
+
+## 4. 运行机制与生命周期
+
+```mermaid
+sequenceDiagram
+  participant Host as Dashboard Page
+  participant Comp as Cost/Quality Component
+  participant API as API Client
+  participant BE as Backend
+
+  Host->>Comp: connectedCallback()
+  Comp->>Comp: 初始化状态 + setupApi
+  Comp->>API: 请求初始数据
+  API->>BE: HTTP GET/POST
+  BE-->>API: payload
+  API-->>Comp: data/error
+  Comp->>Comp: 状态更新 + render
+
+  loop polling
+    Comp->>API: 周期请求
+    API->>BE: GET
+    BE-->>Comp: 最新数据
+  end
+
+  Host->>Comp: disconnectedCallback()
+  Comp->>Comp: 清理 interval / 监听器
+```
+
+三个组件都遵循“挂载即拉取、轮询更新、卸载清理”的模式，但轮询间隔不同（5s/30s/60s），反映了成本、门禁、评分三类信号的时效性差异。
+
+---
+
+## 5. 使用与配置指引
+
+### 5.1 最小接入示例
+
 ```html
 <loki-cost-dashboard api-url="http://localhost:57374" theme="dark"></loki-cost-dashboard>
-```
-
-详细信息请参考 [LokiCostDashboard 文档](LokiCostDashboard.md)。
-
-### LokiQualityGates
-
-LokiQualityGates 组件提供了质量门禁状态的可视化展示，以彩色编码卡片的形式显示所有质量门禁的状态。绿色表示通过，红色表示失败，黄色表示待处理。
-
-**主要功能：**
-- 显示所有质量门禁的状态
-- 状态摘要统计
-- 自动刷新（每 30 秒）
-- 支持自定义 API 接口
-
-**使用示例：**
-```html
 <loki-quality-gates api-url="http://localhost:57374" theme="dark"></loki-quality-gates>
+<loki-quality-score api-url="http://localhost:57374" theme="dark"></loki-quality-score>
 ```
 
-详细信息请参考 [LokiQualityGates 文档](LokiQualityGates.md)。
+### 5.2 通用属性
 
-### LokiQualityScore
+- `api-url`：后端 API 基地址（默认 `window.location.origin`）
+- `theme`：主题模式（典型值 `light` / `dark`）
 
-LokiQualityScore 组件展示了质量评分趋势，包括类别细分、严重性发现和迷你折线图可视化。它通过轮询获取当前质量评分和历史数据。
+### 5.3 运维建议
 
-**主要功能：**
-- 显示当前质量评分和等级（A-F）
-- 类别细分评分（安全性、代码质量、合规性、最佳实践）
-- 严重性发现统计
-- 历史趋势迷你折线图
-- 手动触发质量扫描
-- 自动轮询更新（每分钟）
+建议在同一页面统一设置 `api-url`，避免跨组件指向不同后端导致观测口径不一致。对于大屏或长时间运行页面，建议配合后端缓存策略与限流策略，防止高频轮询在大规模租户下造成额外压力。
 
-**使用示例：**
-```html
-<loki-quality-score api-url="http://localhost:57374"></loki-quality-score>
-```
+---
 
-详细信息请参考 [LokiQualityScore 文档](LokiQualityScore.md)。
+## 6. 与其他模块的关系（避免重复说明）
 
-## API 接口要求
+本模块本身不实现成本控制策略或质量判定策略，而是消费其他模块的结果。理解整体链路时建议配套阅读：
 
-### 成本监控 API
+- UI 基础能力：[`Core Theme.md`](Core Theme.md), [`Unified Styles.md`](Unified Styles.md)
+- 后端 API 面与契约：[`Dashboard Backend.md`](Dashboard Backend.md)
+- 策略与门控来源：[`Policy Engine.md`](Policy Engine.md), [`Policy Engine - Approval Gate.md`](Policy Engine - Approval Gate.md)
+- UI 组件总览：[`Dashboard UI Components.md`](Dashboard UI Components.md)
 
-LokiCostDashboard 组件需要以下 API 接口：
+---
 
-1. **GET /api/cost** - 获取成本数据
-   - 返回：包含总代币数、成本估计、按模型和阶段的成本数据等
+## 7. 错误处理、边界条件与限制
 
-2. **GET /api/pricing** - 获取定价信息
-   - 返回：包含模型定价、更新时间、提供商等信息
+该模块整体采用“可用优先”的降级思路：接口失败时尽可能展示已有信息或空状态，而不是抛异常中断页面。常见行为包括：
 
-### 质量门禁 API
+- 成本接口不可用时，`LokiCostDashboard` 显示连接提示。
+- 定价接口失败时，`LokiCostDashboard` 回退默认价格。
+- 门禁接口失败时，`LokiQualityGates` 展示错误横幅并保留已有数据。
+- 评分接口 404 或 not installed 时，`LokiQualityScore` 显示 Rigour 未安装提示。
 
-LokiQualityGates 组件需要以下 API 接口：
+已知限制主要有三类：
 
-1. **GET /api/council/gate** - 获取质量门禁状态
-   - 返回：包含门禁列表、状态、描述、最后检查时间等
+1. 轮询频率当前主要在组件内部硬编码，外部可调能力有限。  
+2. 某些组件采用 `innerHTML` 全量重绘，极高刷新密度下可能有额外重排成本。  
+3. 门禁和评分的字段兼容虽有兜底，但若后端契约发生较大漂移，前端只能降级显示默认值。
 
-### 质量评分 API
+---
 
-LokiQualityScore 组件需要以下 API 接口：
+## 8. 扩展建议
 
-1. **GET /api/quality-score** - 获取当前质量评分
-   - 返回：包含总分、类别评分、发现统计等
+若要扩展 `Cost and Quality Components`，推荐沿用现有的“单组件单职责”边界：
 
-2. **GET /api/quality-score/history** - 获取历史评分数据
-   - 返回：包含历史评分数组
+- 在成本组件中增加筛选/导出，不引入策略计算；
+- 在门禁组件中增加详情跳转，不把 gate 判定迁入前端；
+- 在评分组件中增加时间窗与比较视图，不复制后端评分引擎逻辑。
 
-3. **POST /api/quality-scan** - 触发质量扫描
-   - 请求：空对象
-   - 返回：扫描结果
+这样可以保持模块稳定性，减少与后端治理逻辑的耦合，并让前后端职责继续清晰分离。
 
-## 配置选项
+---
 
-### 通用属性
+## 9. 文档导航
 
-所有组件都支持以下属性：
+- 主模块文档（本文件）：`Cost and Quality Components.md`
+- 子模块细化文档（由生成流程产出并与本文件保持交叉引用）：
+  - [`cost_dashboard_component.md`](cost_dashboard_component.md)
+  - [`quality_gates_component.md`](quality_gates_component.md)
+  - [`quality_score_component.md`](quality_score_component.md)
 
-- **api-url**：API 基础 URL（默认：window.location.origin）
-- **theme**：主题设置，可选 "light" 或 "dark"（默认：自动检测）
-
-### 组件特定配置
-
-每个组件都有自己的内部配置，如轮询间隔、默认定价等，但这些通常不需要用户直接配置。
-
-## 主题系统
-
-Cost and Quality Components 模块使用 Loki 主题系统，支持自定义 CSS 变量：
-
-- **--loki-bg-card**：卡片背景色
-- **--loki-border**：边框颜色
-- **--loki-text-primary**：主要文本颜色
-- **--loki-text-muted**：次要文本颜色
-- **--loki-accent**：强调色
-- **--loki-success**：成功状态颜色（绿色）
-- **--loki-warning**：警告状态颜色（黄色）
-- **--loki-error**：错误状态颜色（红色）
-
-## 错误处理和限制
-
-### 错误处理
-
-所有组件都内置了错误处理机制：
-- API 请求失败时会显示友好的错误信息
-- 保持组件可用，不会导致整个页面崩溃
-- 自动重试机制（通过轮询）
-
-### 已知限制
-
-1. **LokiQualityScore 依赖 Rigour 分析引擎**：如果未安装 Rigour，组件将显示安装提示
-2. **API 可用性**：组件依赖后端 API，API 不可用时会显示离线状态
-3. **数据格式**：API 返回的数据格式需要符合组件预期格式
-
-## 与其他模块的关系
-
-Cost and Quality Components 模块与以下模块有紧密关系：
-
-- **Dashboard UI Components - Core Theme**：提供主题系统和基础组件
-- **Dashboard Backend**：提供 API 接口和数据服务
-- **Policy Engine**：质量门禁和成本控制可能与策略引擎相关联
-
-更多信息请参考相关模块的文档：
-- [Dashboard UI Components](Dashboard UI Components.md)
-- [Dashboard Backend](Dashboard Backend.md)
-- [Policy Engine](Policy Engine.md)
-
-### 子模块文档
-
-本模块包含以下详细的子模块文档：
-
-- [LokiCostDashboard 文档](LokiCostDashboard.md)：成本监控组件的详细说明和使用指南
-- [LokiQualityGates 文档](LokiQualityGates.md)：质量门禁组件的详细说明和使用指南
-- [LokiQualityScore 文档](LokiQualityScore.md)：质量评分组件的详细说明和使用指南
-
-## 扩展和自定义
-
-### 自定义 API 客户端
-
-组件使用 `getApiClient()` 函数获取 API 客户端，可以通过替换该函数来实现自定义 API 通信逻辑。
-
-### 自定义样式
-
-组件使用 Shadow DOM 封装样式，但可以通过 CSS 变量和主题系统进行自定义。
-
-### 添加新组件
-
-可以基于 LokiElement 基类创建新的成本和质量相关组件，遵循现有组件的设计模式。
-
-## 总结
-
-Cost and Quality Components 模块提供了一套完整的成本监控和质量评估解决方案，帮助用户实时跟踪 AI 系统的运行成本和代码质量。通过直观的可视化界面和实时数据更新，用户可以快速了解系统状态，及时发现和解决问题。
+如果你是第一次接触该模块，建议先读本文件的架构与边界，再按上述三个子文档逐个深入实现细节。

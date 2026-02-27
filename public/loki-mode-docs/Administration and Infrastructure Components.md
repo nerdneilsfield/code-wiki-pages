@@ -1,195 +1,158 @@
-# 管理和基础设施组件
+# Administration and Infrastructure Components
 
-## 概述
+`Administration and Infrastructure Components` 是整个 Dashboard UI 里的“控制塔”：它不负责执行任务本身，而是负责回答平台治理最关键的几个问题——**谁能访问（API Keys）、谁在做什么（Audit）、当前在谁的租户上下文（Tenant）、系统是否在报警（Notifications）、多智能体是否收敛（Council）、迁移是否可控（Migration）**。如果把任务系统比作工厂产线，这个模块就是监控室+安保室+值班室。
 
-管理和基础设施组件是 Dashboard UI Components 模块中的一个子模块，专门负责提供系统管理、监控和基础设施相关的用户界面组件。该模块包含六个核心组件，涵盖 API 密钥管理、审计日志查看、租户切换、通知中心、委员会仪表板和迁移仪表板等关键功能。
+---
 
-这些组件共同构成了一个完整的管理界面生态系统，使管理员和用户能够有效地管理系统资源、监控系统状态、查看审计信息、处理通知以及管理多租户环境。
+## 1) 这个模块解决什么问题（先讲问题空间）
 
-## 架构
+当系统从“单人开发工具”演进为“多租户、多人协作、持续运行的平台”后，核心痛点会从“能不能跑起来”变成“能不能安全、可追责、可运营地跑”。具体表现为：
 
-管理和基础设施组件采用模块化设计，每个组件都是独立的 Web Component，基于 LokiElement 基类构建。这种设计使得组件可以独立使用，也可以组合在一起形成完整的管理界面。
+- **安全面**：API Key 要创建、轮换、删除，还要避免明文泄露。
+- **合规面**：管理员需要按条件查询审计日志，并验证日志链完整性。
+- **租户面**：同一控制台要快速切换租户上下文，驱动其他组件联动。
+- **运行面**：通知要可确认、规则要可开关、告警状态要可见。
+- **治理面**：Council 决策、agent 生命周期和收敛趋势要可视化且可干预。
+- **变更面**：迁移状态、phase 进度、checkpoint 要可追踪。
+
+这个模块存在的本质，是把这些“平台治理能力”统一前端化，避免团队把运维动作散落在 CLI、日志平台、临时脚本和多个后台页面里。
+
+---
+
+## 2) 心智模型：把它当成“前端控制平面”
+
+可以用一个简单类比来理解：
+
+- `LokiApiKeys` = 门禁卡管理台
+- `LokiAuditViewer` = 监控回放与取证屏
+- `LokiTenantSwitcher` = 楼层切换器（切换观察范围）
+- `LokiNotificationCenter` = 告警值班台
+- `LokiCouncilDashboard` = 调度委员会观察台
+- `LokiMigrationDashboard` = 改造工程进度墙
+
+它们共享同一套基础设施：都继承 `LokiElement`，都遵循“状态驱动 render”的模式；大多数通过 `getApiClient` 调后端（`LokiNotificationCenter` 当前直接用 `fetch`）。
+
+---
+
+## 3) 架构总览与数据流
 
 ```mermaid
-graph TB
-    subgraph "管理和基础设施组件"
-        A[LokiApiKeys] --> B[LokiElement]
-        C[LokiAuditViewer] --> B
-        D[LokiTenantSwitcher] --> B
-        E[LokiNotificationCenter] --> B
-        F[LokiCouncilDashboard] --> B
-        G[LokiMigrationDashboard] --> B
-    end
-    
-    B --> H[Web Component]
-    A --> I[API 客户端]
-    C --> I
-    D --> I
-    E --> I
-    F --> I
-    G --> I
+graph TD
+  A[Admin & Infra UI] --> K[LokiApiKeys]
+  A --> U[LokiAuditViewer]
+  A --> T[LokiTenantSwitcher]
+  A --> N[LokiNotificationCenter]
+  A --> C[LokiCouncilDashboard]
+  A --> M[LokiMigrationDashboard]
+
+  K --> B1["/api/v2/api-keys 及子路径"]
+  U --> B2["/api/v2/audit 及子路径"]
+  T --> B3["/api/v2/tenants"]
+  N --> B4["/api/notifications 及子路径"]
+  C --> B5["/api/council + /api/agents 相关路径"]
+  M --> B6["/api/migration 相关路径"]
 ```
 
-### 组件关系
+### 关键操作端到端路径
 
-- **基础层**: 所有组件都继承自 `LokiElement`，提供主题支持和基础功能
-- **通信层**: 所有组件都使用 API 客户端与后端服务进行通信
-- **功能层**: 每个组件专注于特定的管理功能领域
+#### A. API Key 轮换
+1. 用户在 `LokiApiKeys` 点击 Rotate。  
+2. 组件读取宽限期输入，调用 `_rotateKey(keyId)`。  
+3. 发起 `POST /api/v2/api-keys/{keyId}/rotate`，body 含 `grace_period_hours`。  
+4. 响应中 token 存到 `_newToken`，只在 banner 中展示一次。  
+5. 调 `_loadData()` 重新拉取 `/api/v2/api-keys`，避免本地状态漂移。
 
-## 核心组件
+#### B. 审计筛选 + 完整性验证
+1. 用户改过滤条件，`LokiAuditViewer._onFilterChange` 更新 `_filters` 并触发 `_loadData()`。  
+2. `buildAuditQuery(filters)` 组 query，`GET /api/v2/audit?...`。  
+3. 表格渲染 `timestamp/action/resource(user)/status`。  
+4. 用户点 `Verify Integrity`，执行 `_verifyIntegrity()` -> `GET /api/v2/audit/verify`。  
+5. 用 `_verifyResult` 渲染 valid / invalid 横幅。
 
-### 1. API 密钥管理 (LokiApiKeys)
+#### C. 租户切换联动
+1. `LokiTenantSwitcher` 拉取 `/api/v2/tenants`。  
+2. 用户选中 tenant，调用 `_selectTenant(tenantId, tenantName)`。  
+3. 派发 `tenant-changed`（`bubbles: true`, `composed: true`）。  
+4. 宿主页面监听该事件，更新其它组件上下文（例如切换 API 网关前缀）。
 
-`LokiApiKeys` 组件提供了完整的 API 密钥生命周期管理功能，包括创建、查看、轮换和删除 API 密钥。该组件确保了密钥的安全性，仅在创建时显示完整密钥，并支持密钥轮换以提高安全性。
+#### D. Council 治理操作
+1. `LokiCouncilDashboard` 每 3 秒 `_loadData()`，并发拉：
+   - `/api/council/state`
+   - `/api/council/verdicts`
+   - `/api/council/convergence`
+   - `/api/agents`
+2. 使用 `Promise.allSettled` 合并部分成功结果。  
+3. 通过数据哈希 (`_lastDataHash`) 判断是否跳过重渲染。  
+4. 用户触发 `Force Review` / `pause|resume|kill agent`，发 POST 后刷新。
 
-主要功能：
-- 显示 API 密钥列表，包括名称、角色、创建时间、最后使用时间和状态
-- 创建新的 API 密钥，支持设置名称、角色和可选的过期时间
-- 密钥轮换功能，支持设置宽限期
-- 删除 API 密钥，带有确认机制
+#### E. 迁移看板
+1. `LokiMigrationDashboard` 首先 `GET /api/migration/list`。  
+2. 若发现 active/in_progress，继续 `GET /api/migration/{id}/status`。  
+3. 每 15 秒轮询当前 active migration 状态，渲染 phase、feature、step、seam、checkpoint。
 
-详细信息请参考 [API 密钥管理组件文档](loki-api-keys.md)。
+---
 
-### 2. 审计日志查看器 (LokiAuditViewer)
+## 4) 关键设计选择与权衡
 
-`LokiAuditViewer` 组件提供了审计日志的浏览和筛选功能，支持按操作类型、资源类型和日期范围进行筛选。此外，该组件还提供了完整性验证功能，确保审计日志未被篡改。
+### 4.1 选择“轮询”而非实时流
+- **现状**：`LokiNotificationCenter`(5s)、`LokiCouncilDashboard`(3s)、`LokiMigrationDashboard`(15s) 都用 polling。  
+- **好处**：实现简单、失败恢复直接、对后端协议要求低。  
+- **代价**：有时间窗延迟；请求频率受组件数量叠加影响。
 
-主要功能：
-- 显示审计日志条目列表
-- 多维度筛选功能
-- 审计链完整性验证
-- 时间戳格式化显示
+### 4.2 选择“全量 render + 重新绑定事件”
+- **现状**：多个组件在 `render()` 后调用 `_attachEventListeners/_bindEvents`。  
+- **好处**：状态模型直观，开发心智负担低。  
+- **代价**：高频更新下有性能成本；事件重复绑定风险需要谨慎。
 
-详细信息请参考 [审计日志查看器组件文档](loki-audit-viewer.md)。
+### 4.3 选择“后端契约宽容解析”
+- **现状**：大量字段兜底（如 `id || key_id`、`resource || resource_type`、`token || key`）。  
+- **好处**：兼容后端演进，降低发布耦合。  
+- **代价**：容易掩盖契约漂移；错误可能被“静默吞掉”。
 
-### 3. 租户切换器 (LokiTenantSwitcher)
+### 4.4 Council 用 `Promise.allSettled` 而不是全有或全无
+- **好处**：部分接口失败时仍能展示其他面板，实用性高。  
+- **代价**：页面可能出现“部分新、部分旧”数据，需要用户理解这是降级行为。
 
-`LokiTenantSwitcher` 组件为多租户环境提供了租户上下文切换功能。用户可以通过下拉菜单选择不同的租户，组件会触发 `tenant-changed` 事件通知应用程序租户已更改。
+### 4.5 Notification Center 直接 `fetch` 而非 `getApiClient`
+- **好处**：代码独立，快速接入。  
+- **代价**：与其他组件的请求行为不一致（超时、错误封装、拦截策略无法统一）。
 
-主要功能：
-- 显示可用租户列表
-- 支持"所有租户"选项
-- 租户切换事件通知
-- 外部点击关闭下拉菜单
+---
 
-详细信息请参考 [租户切换器组件文档](loki-tenant-switcher.md)。
+## 5) 子模块导读（已拆分页面）
 
-### 4. 通知中心 (LokiNotificationCenter)
+### 5.1 安全管理（`security_management`）
+涵盖 `LokiApiKeys` 与 `LokiTenantSwitcher`。前者关注密钥生命周期与一次性 token 展示，后者关注租户上下文广播。两者共同构成“访问控制入口 + 作用域切换入口”。  
+详见：[security_management.md](security_management.md)
 
-`LokiNotificationCenter` 组件提供了系统通知的查看和管理功能，包括通知列表和触发器配置两个标签页。组件会定期轮询通知 API 以获取最新通知。
+### 5.2 审计与合规（`audit_compliance`）
+核心是 `LokiAuditViewer`：过滤查询、状态呈现、完整性校验触发。它是治理链路中“可追责证据面板”的前端承载。  
+详见：[audit_compliance.md](audit_compliance.md)
 
-主要功能：
-- 显示通知列表，按严重程度分类
-- 通知确认功能
-- 通知触发器管理
-- 摘要统计显示
+### 5.3 系统监控与治理（`system_monitoring`）
+覆盖 `LokiNotificationCenter`、`LokiCouncilDashboard`、`LokiMigrationDashboard`，分别对应通知运营、协同治理、迁移可观测。  
+详见：[system_monitoring.md](system_monitoring.md)
 
-详细信息请参考 [通知中心组件文档](loki-notification-center.md)。
+---
 
-### 5. 委员会仪表板 (LokiCouncilDashboard)
+## 6) 新贡献者最该注意的坑（高价值）
 
-`LokiCouncilDashboard` 组件提供了完成委员会的监控和管理界面，包括概览、决策日志、收敛跟踪和代理管理四个标签页。组件支持可见性感知的轮询，在组件不可见时暂停轮询以节省资源。
+1. **清理资源**：有 `setInterval` 或全局监听的组件，必须在 `disconnectedCallback` 清理（本模块多数已做到）。  
+2. **输入转义**：保持 `_escapeHtml/_escapeHTML` 路径，别在渲染字符串时绕过。  
+3. **请求竞态**：连续属性变化或快速筛选可能导致“后返回的旧请求覆盖新状态”。目前多数组件未做 abort 控制。  
+4. **契约一致性**：前后端参数命名要对齐，尤其审计筛选字段；否则 UI 看起来“可操作”，实际过滤不生效。  
+5. **大数据量性能**：`LokiCouncilDashboard` 的数据哈希比对依赖 `JSON.stringify`；数据过大时要注意 CPU 开销。  
+6. **批量操作成本**：`LokiNotificationCenter._acknowledgeAll()` 是逐条请求，通知量大时会慢。  
+7. **多活跃迁移场景**：`LokiMigrationDashboard` 当前只跟踪首个 active migration，产品语义上要提前确认是否接受。
 
-主要功能：
-- 委员会状态概览
-- 决策历史记录
-- 收敛趋势可视化
-- 代理生命周期管理
+---
 
-详细信息请参考 [委员会仪表板组件文档](loki-council-dashboard.md)。
+## 7) 与其他模块的依赖关系（阅读顺序建议）
 
-### 6. 迁移仪表板 (LokiMigrationDashboard)
+- 后端 API 与数据模型：[`Dashboard Backend.md`](Dashboard%20Backend.md)
+- UI 总体架构：[`Dashboard UI Components.md`](Dashboard%20UI%20Components.md)
+- 前端 API/实时客户端：[`Dashboard Frontend.md`](Dashboard%20Frontend.md)
+- 运行时通知与状态：[`API Server & Services.md`](API%20Server%20&%20Services.md)
+- 审计链后端实现：[`Audit.md`](Audit.md)
 
-`LokiMigrationDashboard` 组件提供了迁移过程的监控和管理界面，显示迁移状态、阶段进度、功能跟踪、接缝摘要和迁移历史。组件会定期轮询迁移 API 以获取最新状态。
-
-主要功能：
-- 迁移状态显示
-- 阶段进度可视化
-- 功能跟踪统计
-- 迁移历史记录
-
-详细信息请参考 [迁移仪表板组件文档](loki-migration-dashboard.md)。
-
-## 使用指南
-
-### 基本使用
-
-所有组件都可以作为独立的 Web Component 使用，只需在 HTML 中引入相应的组件文件，然后使用自定义标签即可：
-
-```html
-<!-- API 密钥管理 -->
-<loki-api-keys api-url="http://localhost:57374" theme="dark"></loki-api-keys>
-
-<!-- 审计日志查看器 -->
-<loki-audit-viewer api-url="http://localhost:57374" limit="100" theme="dark"></loki-audit-viewer>
-
-<!-- 租户切换器 -->
-<loki-tenant-switcher api-url="http://localhost:57374" theme="dark"></loki-tenant-switcher>
-
-<!-- 通知中心 -->
-<loki-notification-center api-url="http://localhost:57374" theme="dark"></loki-notification-center>
-
-<!-- 委员会仪表板 -->
-<loki-council-dashboard api-url="http://localhost:57374" theme="dark"></loki-council-dashboard>
-
-<!-- 迁移仪表板 -->
-<loki-migration-dashboard api-url="http://localhost:57374" theme="dark"></loki-migration-dashboard>
-```
-
-### 事件处理
-
-部分组件会触发自定义事件，应用程序可以监听这些事件以响应组件状态变化：
-
-```javascript
-// 监听租户切换事件
-document.querySelector('loki-tenant-switcher').addEventListener('tenant-changed', (event) => {
-  console.log('Tenant changed:', event.detail);
-  // 处理租户切换逻辑
-});
-
-// 监听委员会操作事件
-document.querySelector('loki-council-dashboard').addEventListener('council-action', (event) => {
-  console.log('Council action:', event.detail);
-  // 处理委员会操作逻辑
-});
-```
-
-## 主题定制
-
-所有组件都支持主题定制，可以通过 CSS 变量来调整组件的外观：
-
-```css
-:root {
-  --loki-font-family: 'Inter', -apple-system, sans-serif;
-  --loki-text-primary: #201515;
-  --loki-text-secondary: #36342E;
-  --loki-text-muted: #939084;
-  --loki-accent: #553DE9;
-  --loki-accent-muted: rgba(139, 92, 246, 0.15);
-  --loki-bg-card: #ffffff;
-  --loki-bg-secondary: #f8f9fa;
-  --loki-bg-tertiary: #ECEAE3;
-  --loki-bg-hover: #1f1f23;
-  --loki-border: #ECEAE3;
-  --loki-border-light: #C5C0B1;
-  --loki-success: #22c55e;
-  --loki-success-muted: rgba(34, 197, 94, 0.15);
-  --loki-warning: #eab308;
-  --loki-warning-muted: rgba(234, 179, 8, 0.15);
-  --loki-error: #ef4444;
-  --loki-error-muted: rgba(239, 68, 68, 0.15);
-}
-```
-
-## 与其他模块的关系
-
-管理和基础设施组件模块与以下模块密切相关：
-
-- **Dashboard UI Components**: 本模块是 Dashboard UI Components 的子模块，共享相同的基础组件和主题系统
-- **Dashboard Backend**: 本模块的组件通过 API 与 Dashboard Backend 进行通信
-- **Dashboard Frontend**: 本模块的组件通常在 Dashboard Frontend 中使用
-
-更多信息请参考相关模块的文档：
-- [Dashboard UI Components](Dashboard UI Components.md)
-- [Dashboard Backend](Dashboard Backend.md)
-- [Dashboard Frontend](Dashboard Frontend.md)
+> 建议阅读路径：先看本文（整体心智）→ 再看三个子模块文档（组件细节）→ 最后回到 Backend/Audit 文档（契约与真实性能边界）。

@@ -2,238 +2,123 @@
 
 ## 概述
 
-任务与会话管理组件模块是 Dashboard UI Components 系统的核心部分，提供了一套完整的 Web 组件，用于管理和可视化任务流程、会话生命周期、运行记录、检查点以及 PRD 检查清单。这些组件设计为可重用、自包含的 Web Components，可轻松集成到任何前端应用中。
+把这个模块想象成**自动化系统的“值班控制台”**：
+- `LokiTaskBoard` 像调度室白板，告诉你“任务在哪一站”；
+- `LokiSessionControl` 像总闸控制面板，决定系统是继续跑、暂停还是停机；
+- `LokiRunManager` 像航班运行列表，显示每次执行实例的状态与可重放性；
+- `LokiChecklistViewer` + `LokiCheckpointViewer` 则像“质量门禁 + 现场快照回退”。
 
-本模块的主要目的是为用户提供直观的界面来监控和控制自动化任务执行过程，包括任务看板、会话控制、运行管理、检查点管理和 PRD 检查清单等功能。所有组件都支持浅色/深色主题切换，并遵循统一的设计语言。
+它存在的根本原因不是“把数据画出来”，而是把**持续运行的自治流程**变成可干预、可审计、可回退的人机协作系统：当自动流程偏离预期时，操作者可以在 UI 上快速看见问题、做出动作，并且把风险控制在可恢复范围内。
 
-## 架构
+## 这个模块解决的核心问题（Why）
 
-任务与会话管理组件采用模块化的 Web Components 架构，每个组件都是独立的自定义元素，继承自基础的 `LokiElement` 类。这种设计使得组件可以单独使用，也可以组合在一起形成更复杂的界面。
+如果只有后端 API，没有这层组件，团队会遇到三个典型痛点：
+
+1. **状态碎片化**：任务状态、会话状态、运行状态分散在不同接口，操作者很难形成统一心智。
+2. **控制与可见性脱节**：能看到状态不代表能立刻采取动作（pause/resume/rollback），反之亦然。
+3. **缺少安全刹车**：没有质量门禁和检查点时，错误可能沿着任务链扩散。
+
+本模块的设计意图是把这些痛点收敛成一条闭环：
+**任务推进 → 会话控制 → 变化理解 → 质量判定 → 必要时回滚**。
+
+## 架构总览
 
 ```mermaid
-graph TB
-    A[LokiElement] --> B[LokiTaskBoard]
+graph TD
+    A[LokiElement 基类] --> B[LokiTaskBoard]
     A --> C[LokiSessionControl]
     A --> D[LokiSessionDiff]
     A --> E[LokiRunManager]
     A --> F[LokiChecklistViewer]
     A --> G[LokiCheckpointViewer]
-    
-    H[LokiApiClient] --> B
+
+    H[getApiClient] --> B
     H --> C
     H --> D
     H --> E
     H --> F
     H --> G
-    
-    I[LokiState] --> B
+
+    I[getState] --> B
     I --> C
-    
-    style A fill:#e1e1e1
-    style H fill:#e1e1e1
-    style I fill:#e1e1e1
 ```
 
-### 核心组件关系
+### 架构角色解读
 
-1. **基础层**：所有组件都继承自 `LokiElement`，提供了统一的主题管理、样式处理和生命周期管理。
-2. **API 层**：通过 `LokiApiClient` 与后端服务通信，获取数据并执行操作。
-3. **状态层**：部分组件使用 `LokiState` 来管理本地状态和缓存。
-4. **组件层**：各个功能组件独立实现特定的用户界面和交互逻辑。
+- **`LokiElement`**：统一壳层（主题、基础样式、生命周期）。它让各组件在视觉和生命周期行为上保持一致，减少“每个组件都重新发明一套 UI 基础设施”。
+- **`getApiClient`**：统一远程访问入口。六个组件都经由它调用后端（如 `listTasks`、`getStatus`、`_get('/api/session-diff')`、`_post('/api/v2/runs/:id/cancel')` 等）。
+- **`getState`（仅两处）**：用于“本地态补偿”。`LokiTaskBoard` 用于本地任务合并/缓存，`LokiSessionControl` 用于会话同步（`updateSession`）。
 
-## 核心组件
+这表明该模块在系统里扮演的是**前端编排层（orchestration UI）**，而不是业务规则引擎：它强调“可操作可观察”，并把强业务规则尽量放在后端 API 侧。
+## 核心能力分层与子模块导航
 
-### 1. LokiTaskBoard
+为避免在主文档重复实现细节，本模块按职责拆分为三个子模块文档。主文档聚焦“整体设计、组件协作、接入与运维建议”；方法级实现、参数语义、边界条件和代码片段请进入对应子文档。
 
-LokiTaskBoard 是一个看板式任务管理组件，提供了直观的任务可视化和拖拽排序功能。它将任务分为四个状态列：待处理、进行中、审核中和已完成。
+### A. 任务与运行操作面（执行层）
 
-**主要功能：**
-- 拖拽任务在不同状态列之间移动
-- 键盘导航支持
-- 本地任务和服务器任务的合并显示
-- 任务优先级可视化
-- 响应式布局，支持不同屏幕尺寸
+该层包含任务状态流转与运行实例控制，面向“正在做什么、做到哪一步、是否可中断/重放”的问题。`LokiTaskBoard` 负责任务看板与拖拽迁移，`LokiRunManager` 负责运行记录、取消与重放。两者共同构成执行面的核心入口。
 
-**使用示例：**
-```html
-<loki-task-board api-url="http://localhost:57374" project-id="1" theme="dark"></loki-task-board>
+- 子模块文档：[`task_board_and_run_operations.md`](task_board_and_run_operations.md)
+- 适用场景：任务编排控制台、运行追踪面板、项目级执行复盘
+
+### B. 会话生命周期与可见性（控制层）
+
+该层包含会话生命周期控制与恢复摘要可视化。`LokiSessionControl` 提供 pause/resume/stop 控制与实时状态显示，`LokiSessionDiff` 提供“上次会话以来发生了什么”的变化摘要，帮助操作者快速恢复上下文。
+
+- 子模块文档：[`session_lifecycle_visibility.md`](session_lifecycle_visibility.md)
+- 适用场景：值班台、长时任务接管、跨班次协作交接
+
+### C. 质量门禁与检查点恢复（保障层）
+
+该层包含 PRD 检查清单门禁与检查点回滚。`LokiChecklistViewer` 负责质量判定和 waiver 操作，`LokiCheckpointViewer` 负责创建恢复点与确认式回滚。它们共同形成“先判定，再恢复”的风险闭环。
+
+- 子模块文档：[`quality_gate_and_checkpoint_recovery.md`](quality_gate_and_checkpoint_recovery.md)
+- 适用场景：上线前验收、退化处理、故障快速回退
+
+## 组件协作与端到端流程
+
+```mermaid
+flowchart TD
+  T[TaskBoard: 任务迁移] --> R[RunManager: 运行观察/重放]
+  R --> S[SessionControl: 生命周期控制]
+  S --> D[SessionDiff: 变更摘要]
+  D --> Q[ChecklistViewer: 质量门禁]
+  Q -->|风险阻塞或退化| C[CheckpointViewer: 回滚恢复]
+  C --> T
 ```
 
-详细信息请参考 [LokiTaskBoard 组件文档](LokiTaskBoard.md)。
+该闭环说明本模块并不是 6 个孤立组件的集合，而是一条可组合操作链：执行层产生活动，控制层暴露状态，保障层给出“是否可继续”与“如何安全回退”的决策支持。实际接入时，建议在宿主容器中统一监听关键事件（如 `task-moved`、`session-stop`、`checkpoint-action`），以实现跨面板联动刷新和审计记录。
 
-### 2. LokiSessionControl
+## 接入与配置建议
 
-LokiSessionControl 是一个会话生命周期管理组件，提供了启动、暂停、恢复和停止会话的控制按钮。它还显示会话的实时状态信息，包括连接状态、版本信息、代理数量和待处理任务数。
-
-**主要功能：**
-- 会话控制按钮（启动、暂停、恢复、停止）
-- 实时状态显示
-- 简洁和完整两种布局模式
-- 连接状态监控
-- 运行统计信息展示
-
-**使用示例：**
-```html
-<loki-session-control api-url="http://localhost:57374" theme="dark" compact></loki-session-control>
-```
-
-详细信息请参考 [LokiSessionControl 组件文档](LokiSessionControl.md)。
-
-### 3. LokiSessionDiff
-
-LokiSessionDiff 组件显示自上次会话以来的更改内容，包括任务创建、完成、阻塞和错误数量的统计，以及重要亮点和决策记录。
-
-**主要功能：**
-- 会话期间变更摘要
-- 可折叠的决策详情
-- 定时轮询更新
-- 时间段显示
-
-**使用示例：**
-```html
-<loki-session-diff api-url="http://localhost:57374"></loki-session-diff>
-```
-
-详细信息请参考 [LokiSessionDiff 组件文档](LokiSessionDiff.md)。
-
-### 4. LokiRunManager
-
-LokiRunManager 是一个运行记录管理组件，以表格形式显示所有运行记录，提供取消和重放运行的功能。
-
-**主要功能：**
-- 运行记录表格展示
-- 取消正在运行的任务
-- 重放已完成或失败的任务
-- 运行状态可视化
-- 可见性感知的轮询机制
-
-**使用示例：**
-```html
-<loki-run-manager api-url="http://localhost:57374" project-id="5" theme="dark"></loki-run-manager>
-```
-
-详细信息请参考 [LokiRunManager 组件文档](LokiRunManager.md)。
-
-### 5. LokiChecklistViewer
-
-LokiChecklistViewer 是一个 PRD 检查清单查看器，显示需求验证状态、进度条和分类折叠面板。支持对关键项目的豁免功能。
-
-**主要功能：**
-- 检查清单分类展示
-- 验证状态可视化
-- 进度条显示
-- 项目豁免功能
-- 委员会门控状态显示
-
-**使用示例：**
-```html
-<loki-checklist-viewer api-url="http://localhost:57374" theme="dark"></loki-checklist-viewer>
-```
-
-详细信息请参考 [LokiChecklistViewer 组件文档](LokiChecklistViewer.md)。
-
-### 6. LokiCheckpointViewer
-
-LokiCheckpointViewer 是一个检查点管理组件，显示检查点历史记录，支持创建新检查点和回滚到历史检查点。
-
-**主要功能：**
-- 检查点历史列表
-- 创建新检查点
-- 回滚到历史检查点
-- 确认对话框防止误操作
-- 可见性感知的轮询机制
-
-**使用示例：**
-```html
-<loki-checkpoint-viewer api-url="http://localhost:57374" theme="dark"></loki-checkpoint-viewer>
-```
-
-详细信息请参考 [LokiCheckpointViewer 组件文档](LokiCheckpointViewer.md)。
-
-## 使用指南
-
-### 基本使用
-
-所有组件都可以作为自定义 HTML 元素直接使用，只需设置必要的属性即可：
+在页面中可按需组合组件，而不必一次性全部加载。常见最小组合是：`LokiTaskBoard + LokiSessionControl + LokiRunManager`；当进入质量验收或高风险阶段时，再加入 `LokiChecklistViewer + LokiCheckpointViewer`。
 
 ```html
-<!DOCTYPE html>
-<html>
-<head>
-  <title>Task and Session Management</title>
-</head>
-<body>
-  <!-- 任务看板 -->
-  <loki-task-board api-url="http://localhost:57374" project-id="1"></loki-task-board>
-  
-  <!-- 会话控制 -->
-  <loki-session-control api-url="http://localhost:57374"></loki-session-control>
-  
-  <!-- 运行管理 -->
-  <loki-run-manager api-url="http://localhost:57374"></loki-run-manager>
-  
-  <script type="module">
-    // 导入组件
-    import 'dashboard-ui/components/loki-task-board.js';
-    import 'dashboard-ui/components/loki-session-control.js';
-    import 'dashboard-ui/components/loki-run-manager.js';
-  </script>
-</body>
-</html>
+<loki-task-board api-url="http://localhost:57374" project-id="1"></loki-task-board>
+<loki-session-control api-url="http://localhost:57374" compact></loki-session-control>
+<loki-run-manager api-url="http://localhost:57374" project-id="1"></loki-run-manager>
 ```
 
-### 事件处理
+统一配置建议：
 
-组件会触发各种自定义事件，可以通过标准的事件监听机制来处理：
+- `api-url` 必须指向同一后端网关，避免跨组件读写不同数据源。
+- 若存在项目隔离需求，`project-id` 应在 TaskBoard 与 RunManager 上保持一致。
+- 在只读审计场景，为 TaskBoard 打开 `readonly`，避免误拖拽。
 
-```javascript
-const taskBoard = document.querySelector('loki-task-board');
+## 运行注意事项（边界与限制）
 
-// 监听任务移动事件
-taskBoard.addEventListener('task-moved', (e) => {
-  console.log('Task moved:', e.detail);
-});
+1. 组件普遍依赖轮询；虽已实现页面可见性暂停，但多组件同屏仍会叠加请求量。
+2. 多数列表使用哈希去重（`JSON.stringify`），当后端字段顺序不稳定时可能触发额外重绘。
+3. SessionControl 的 `session-start` 接口存在，但默认模板未提供 start 按钮入口；如需启用应在宿主层补充。
+4. Checklist 的 waiver 依赖 `window.prompt`，在受限容器中可能不可用，建议改为内联表单扩展。
+5. Checkpoint 创建输入前端限制长度可能小于后端限制，属 UI 约束而非 API 能力上限。
 
-// 监听任务点击事件
-taskBoard.addEventListener('task-click', (e) => {
-  console.log('Task clicked:', e.detail.task);
-});
+## 与其他模块文档的关系
 
-// 监听添加任务事件
-taskBoard.addEventListener('add-task', (e) => {
-  console.log('Add task for status:', e.detail.status);
-});
-```
+- 后端契约与数据模型：见 [Dashboard Backend.md](Dashboard Backend.md)
+- API 服务与事件流：见 [API Server & Services.md](API Server & Services.md)
+- UI 基类与主题机制：见 [Core Theme.md](Core Theme.md)、[Unified Styles.md](Unified Styles.md)
+- API 客户端行为：见 [API 客户端.md](API 客户端.md)
+- 模块总览：见 [Dashboard UI Components.md](Dashboard UI Components.md)
 
-### 主题配置
-
-所有组件都支持 `theme` 属性，可以设置为 `light` 或 `dark`：
-
-```html
-<loki-task-board theme="dark"></loki-task-board>
-<loki-session-control theme="light"></loki-session-control>
-```
-
-如果未设置主题，组件会自动检测系统的主题偏好。
-
-## 与其他模块的关系
-
-任务与会话管理组件模块与以下模块密切相关：
-
-- **Dashboard Backend**：提供 API 服务，组件通过 API 客户端与后端通信。
-- **Dashboard Frontend**：这些组件是前端应用的核心构建块。
-- **Dashboard UI Components - Core Theme**：提供主题系统和基础组件类。
-- **Memory and Learning Components**：某些组件可能会显示与记忆系统相关的信息。
-
-更多信息请参考相关模块的文档：
-- [Dashboard Backend](Dashboard Backend.md)
-- [Dashboard Frontend](Dashboard Frontend.md)
-- [Core Theme Components](Core Theme Components.md)
-
-## 注意事项和限制
-
-1. **API 依赖**：所有组件都需要与后端 API 通信，确保 `api-url` 属性正确设置。
-2. **浏览器兼容性**：组件使用现代 Web 技术，建议在最新版本的 Chrome、Firefox、Safari 或 Edge 浏览器中使用。
-3. **轮询机制**：许多组件使用定时轮询来更新数据，这可能会产生一定的网络流量。
-4. **本地状态**：某些组件支持本地任务，但这些任务在页面刷新后会丢失。
-5. **权限要求**：某些操作（如创建检查点、豁免检查项）可能需要特定的用户权限。
+通过以上文档分层阅读，开发者可以先理解全局协作，再进入子模块掌握具体实现与扩展策略。

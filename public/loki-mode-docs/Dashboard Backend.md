@@ -1,326 +1,222 @@
-# Dashboard Backend 模块文档
+# Dashboard Backend.md
 
-## 概述
+## 这块后端到底在解决什么问题？
 
-Dashboard Backend 是 Loki Mode 系统的核心后端服务，提供完整的项目管理、任务跟踪、会话控制和数据分析功能。该模块采用 FastAPI 构建，提供 RESTful API 和 WebSocket 实时通信，支持多租户隔离、企业级安全特性和丰富的集成能力。
+如果把 Loki Mode 想象成一条“自动化生产线”，那 **Dashboard Backend** 就是这条线的“中控室 + 记账系统 + 监管台”。
 
-### 设计理念
+它存在的根本原因不是“提供几个 CRUD 接口”，而是要同时解决三类冲突目标：
 
-Dashboard Backend 的设计遵循以下核心原则：
+1. **运行态控制**：会话（session）要能 start/stop/pause/resume，且要看得到实时状态；
+2. **业务态管理**：项目、任务、租户、run、API key、策略、审计这些治理对象要可管理；
+3. **可观测与可恢复**：系统大量状态并不都在数据库里，还在 `.loki/` 文件中，后端必须把“文件事实”与“数据库事实”拼成一个可操作视图。
 
-1. **分层架构**：清晰分离 API 层、业务逻辑层和数据访问层
-2. **异步优先**：采用异步 I/O 模型提高并发性能
-3. **文件与数据库混合存储**：结合文件系统的实时性和数据库的结构化查询能力
-4. **可扩展性**：模块化设计支持功能的渐进式增强
-5. **企业级安全**：内置认证、授权、审计和多租户支持
+换句话说，这个模块是一个 **control-plane backend**：它本身不负责执行 AI 任务，而是负责让执行过程“可控、可见、可追责”。
 
-## 架构概览
+---
+
+## 心智模型：把它看成“双账本中枢”
+
+理解这个模块最有效的方式，是记住它有两套状态来源：
+
+- **结构化账本（SQLAlchemy + DB）**：`Tenant/Project/Task/Run/...` 等长期实体；
+- **运行时账本（.loki 文件树）**：`dashboard-state.json`、`events.jsonl`、`PAUSE/STOP`、`metrics/*` 等瞬时状态与信号。
+
+`dashboard.server` 做的核心工作是：
+- 对外暴露统一 API；
+- 在请求路径里选择“该读 DB 还是读文件”；
+- 在修改动作后广播（`ConnectionManager.broadcast`）并写审计（`audit.log_event`）。
+
+可以把它类比为机场塔台：
+- DB 是飞行计划系统（结构化、可审计），
+- `.loki` 文件是雷达与实时航迹（高频、近实时），
+- Dashboard Backend 是塔台调度员，把两边信息整合给前端和 SDK。
+
+---
+
+## 架构总览
 
 ```mermaid
-graph TB
-    subgraph "API 层"
-        REST[REST API]
-        WS[WebSocket]
-        V2[API V2 路由]
-    end
-    
-    subgraph "业务逻辑层"
-        Control[会话控制]
-        Projects[项目管理]
-        Tasks[任务管理]
-        Tenants[租户管理]
-        Runs[运行管理]
-        Migration[迁移引擎]
-        Learning[学习分析]
-        Notifications[通知系统]
-    end
-    
-    subgraph "数据层"
-        Models[SQLAlchemy 模型]
-        Files[文件系统存储]
-        DB[(异步数据库)]
-    end
-    
-    subgraph "集成层"
-        Auth[认证系统]
-        Audit[审计日志]
-        Metrics[指标收集]
-        GitHub[GitHub 集成]
-        Council[完成委员会]
-    end
-    
-    REST --> Control
-    REST --> Projects
-    REST --> Tasks
-    REST --> Tenants
-    REST --> Runs
-    REST --> Migration
-    REST --> Learning
-    REST --> Notifications
-    
-    WS --> Notifications
-    
-    V2 --> Tenants
-    V2 --> Runs
-    
-    Control --> Files
-    Projects --> Models
-    Tasks --> Models
-    Tenants --> Models
-    Runs --> Models
-    Migration --> Files
-    Learning --> Files
-    
-    Models --> DB
-    Files --> Filesystem[(文件系统)]
-    
-    Auth --> REST
-    Audit --> REST
-    Metrics --> REST
-    GitHub --> REST
-    Council --> REST
+graph LR
+    UI[Dashboard Frontend / SDK] --> S[dashboard.server]
+    UI --> C[dashboard.control]
+    S --> V2[dashboard.api_v2]
+    V2 --> T[dashboard.tenants]
+    V2 --> R[dashboard.runs]
+    V2 --> K[dashboard.api_keys]
+    S --> M[(dashboard.models + DB)]
+    S --> F[.loki 文件状态]
+    S --> A[auth / audit / registry]
 ```
 
-### 核心组件说明
+### 图解（按请求路径）
 
-#### 1. API 服务器 (server.py)
-API 服务器是整个 Dashboard Backend 的入口点，提供：
-- RESTful API 端点用于项目、任务、会话等管理
-- WebSocket 连接用于实时更新
-- 静态文件服务用于前端界面
-- 健康检查和指标端点
+- **主入口**是 `dashboard.server`：大部分 `/api/*` 路由在这里，WebSocket 也在这里；
+- **治理型 API**聚合在 `dashboard.api_v2`，但它并不重复实现业务，而是调用 `tenants.py` / `runs.py` / `api_keys.py`；
+- **会话控制**有独立应用 `dashboard.control`，强调进程与文件信号控制；
+- **数据落点**有两类：
+  - DB（通过 `dashboard.models` + `get_db`），
+  - `.loki` 文件（运行时状态、日志、指标、checkpoint、通知等）。
 
-关键特性包括速率限制、CORS 配置、TLS 支持和企业级认证集成。
+这种设计不是“混乱”，而是有意折中：执行系统本来就是文件驱动，Dashboard 需要尊重这个事实，而不是强行把一切塞进数据库。
 
-#### 2. 会话控制 (control.py)
-会话控制模块负责 Loki Mode 会话的生命周期管理：
-- 启动、停止、暂停和恢复会话
-- 实时状态监控和事件流
-- 进程管理和信号处理
-- 日志收集和流式传输
+---
 
-该模块直接与文件系统交互，读取和写入 `.loki/` 目录下的状态文件。
+## 关键数据流（端到端）
 
-#### 3. 数据模型 (models.py)
-数据模型定义了系统的核心实体结构：
-- **Tenant**: 多租户隔离的根实体
-- **Project**: 代表一个 Loki Mode 项目
-- **Task**: 项目内的任务，支持看板式管理
-- **Session**: 执行会话，包含代理和运行
-- **Agent**: AI 代理实例
-- **Run**: RARV 执行运行，带时间线事件
+### 1) Run 创建到审计：`POST /api/v2/runs`
 
-所有模型使用 SQLAlchemy 2.0 异步风格定义。
+路径：
+1. `dashboard.api_v2.create_run` 做 scope 校验（`auth.require_scope("control")`）；
+2. 调用 `runs_mod.create_run`（即 `dashboard.runs.create_run`）；
+3. `runs.create_run` 创建 `Run` ORM，`flush` 后用 `selectinload(Run.events)` 回读；
+4. 转成 `RunResponse` 返回；
+5. `api_v2` 同步调用 `audit.log_event` 记录 `resource_type="run"`。
 
-#### 4. 多租户支持 (tenants.py)
-多租户模块提供租户级别的项目隔离：
-- 租户创建、更新和删除
-- 自动生成 URL 安全的 slug
-- 租户配置管理
-- 租户与项目的关联
+设计意图：
+- 业务写入与审计记录同路发生，降低“有操作无审计”的概率；
+- `selectinload` 避免 async 环境下 lazy-load 陷阱。
 
-#### 5. 运行管理 (runs.py)
-运行管理模块处理 RARV 执行运行的生命周期：
-- 运行创建和查询
-- 运行取消和重放
-- 时间线事件跟踪
-- 运行状态更新
+### 2) API Key 轮换：`POST /api/v2/api-keys/{identifier}/rotate`
 
-#### 6. API 密钥管理 (api_keys.py)
-API 密钥模块提供企业级密钥管理：
-- 密钥创建和撤销
-- 密钥轮换，支持宽限期
-- 使用统计和元数据管理
-- 过期密钥清理
+路径：
+1. `api_v2.rotate_api_key` 接收 `ApiKeyRotateRequest`；
+2. 调用 `api_keys.rotate_key`；
+3. `rotate_key` 先 `_find_token_entry`，校验 revoked / 已轮换状态；
+4. 先给旧 key 打 `rotation_expires_at` 并临时改名 `__rotating`，再 `auth.generate_token` 生成新 key；
+5. 成功后写 `rotating_from`，拷贝 `description/allowed_ips/rate_limit` 元数据；
+6. 失败则回滚旧 key 名称与 rotation 标记。
 
-#### 7. API V2 (api_v2.py)
-API V2 模块提供新一代 REST API 端点：
-- 租户管理端点
-- 运行管理端点
-- API 密钥管理端点
-- 策略管理端点
-- 审计日志端点
+设计意图：
+- 这是“热切换”而不是“断电换件”：旧 key 在宽限期继续可用，保证客户端平滑迁移；
+- 用“先标记旧 key，再生成新 key”的顺序，避免重名约束冲突。
 
-#### 8. 迁移引擎 (migration_engine.py)
-迁移引擎是企业级代码转换功能的核心：
-- 迁移管道管理
-- 阶段门控和检查点
-- 功能跟踪和验证
-- 成本估算和计划生成
+### 3) 会话控制：`POST /api/control/stop`（control.py）
 
-## 子模块文档
+路径：
+1. 写 `.loki/STOP`（文件信号，runner 可感知）；
+2. 尝试读取 `.loki/loki.pid` 并发 `SIGTERM`；
+3. 若 `session.json` 存在，写 `status=stopped`，使用 `atomic_write_json`；
+4. `emit_event("session_stop", ...)` 到 `events.jsonl`。
 
-Dashboard Backend 包含以下子模块，详细文档请参考各自的文件：
+设计意图：
+- 采用“文件信号 + 进程信号”双保险；
+- `atomic_write_json` + lock 是为了降低并发状态写损坏风险。
 
-- [API 密钥管理](API Keys.md) - API 密钥的创建、轮换和使用跟踪
-- [API V2](API V2.md) - 新一代 REST API 端点
-- [会话控制](Session Control.md) - Loki Mode 会话的生命周期管理
-- [迁移引擎](Migration Engine.md) - 企业级代码转换功能
-- [数据模型](Data Models.md) - SQLAlchemy 模型定义和关系
-- [运行管理](Run Management.md) - RARV 执行运行的管理
-- [多租户支持](Multi-Tenancy.md) - 租户级别的项目隔离
+### 4) WebSocket 实时广播
 
-## 与其他模块的关系
+- 前端连接 `/ws`，由 `ConnectionManager.connect` 管理；
+- 项目/任务变化后，REST handler 调用 `manager.broadcast({...})`；
+- `broadcast` 对失败连接做摘除，避免连接泄漏。
 
-Dashboard Backend 在整个 Loki Mode 系统中扮演核心枢纽角色：
+隐含契约：
+- 广播消息是轻量事件，不保证强一致补偿；前端需把它当“增量提示”，必要时回源 REST。
 
-- **与 Dashboard Frontend 的交互**：提供 REST API 和 WebSocket 连接，供前端界面调用
-- **与 API Server & Services 的协作**：利用 EventBus、StateWatcher 等服务
-- **与 Memory System 的集成**：提供内存系统的查询和管理端点
-- **与 Swarm Multi-Agent 的通信**：监控和管理代理集群
-- **与 Python SDK / TypeScript SDK 的对接**：为 SDK 提供后端 API 支持
+---
 
-## 快速开始
+## 非显而易见的设计取舍
 
-### 配置
+### 取舍 1：为什么不全量数据库化？
 
-Dashboard Backend 支持以下环境变量配置：
+**已选方案**：DB + 文件混合。  
+**替代方案**：所有状态入库。
 
-| 环境变量 | 描述 | 默认值 |
-|---------|------|--------|
-| `LOKI_DIR` | Loki 数据目录 | `.loki` |
-| `LOKI_DASHBOARD_HOST` | 服务器监听地址 | `127.0.0.1` |
-| `LOKI_DASHBOARD_PORT` | 服务器监听端口 | `57374` |
-| `LOKI_DASHBOARD_CORS` | CORS 允许的源 | `http://localhost:57374,http://127.0.0.1:57374` |
-| `LOKI_TLS_CERT` | TLS 证书路径 | 未设置 |
-| `LOKI_TLS_KEY` | TLS 私钥路径 | 未设置 |
-| `LOKI_ENTERPRISE_AUTH` | 启用企业认证 | `false` |
-| `LOKI_AUDIT_DISABLED` | 禁用审计日志 | `false` |
+权衡：
+- 全量入库更整洁，但会与现有执行器（`run.sh`、信号文件、jsonl 事件）脱节；
+- 混合模式让运行态信息能“无阻塞落地”，代价是读取逻辑分散、数据一致性更依赖约定。
 
-### 启动服务器
+### 取舍 2：为什么 `api_v2` 不是独立服务？
 
-使用 Python 直接启动：
+**已选方案**：在 `server.py` 中 `app.include_router(api_v2_router)`。  
+**替代方案**：拆成单独进程。
 
-```python
-from dashboard.server import run_server
+权衡：
+- 单进程共用 `auth/audit/get_db` 依赖，减少运维与部署复杂度；
+- 代价是路由规模膨胀，`server.py` 变大，模块边界需要文档与约定维持。
 
-run_server(host="0.0.0.0", port=57374)
-```
+### 取舍 3：为什么内存限流（`_RateLimiter`）？
 
-或使用 uvicorn：
+**已选方案**：进程内 `defaultdict(list)`。  
+**替代方案**：Redis/网关级限流。
 
-```bash
-uvicorn dashboard.server:app --host 0.0.0.0 --port 57374
-```
+权衡：
+- 当前实现零外部依赖，足够本地/单实例；
+- 多副本部署时不共享计数，不是严格全局限流。
 
-或使用 Loki CLI：
+### 取舍 4：Run 查询为何普遍 `selectinload(Run.events)`？
 
-```bash
-loki dashboard start
-```
+**已选方案**：显式 eager loading。  
+**替代方案**：按需 lazy load。
 
-### 基本使用示例
+权衡：
+- 在 async SQLAlchemy 场景中，lazy load 常导致上下文错误或隐式 IO；
+- eager 稍增查询成本，但行为更可预测，接口稳定性更高。
 
-#### 1. 创建项目
+---
 
-```python
-import requests
+## 新同学最该注意的隐式契约与坑
 
-response = requests.post(
-    "http://localhost:57374/api/projects",
-    json={
-        "name": "My Project",
-        "description": "A sample Loki Mode project",
-        "prd_path": "./prd.md"
-    }
-)
-project = response.json()
-```
+1. **状态来源不唯一**：`/api/status` 与 `Project/Task` 接口并非都来自同一存储，调试要先分清“文件态 vs DB 态”。
+2. **取消/重放语义要看实现**：`runs.cancel_run` 对终态 run 返回 `None`；`api_v2.cancel_run` 会映射成 404（语义上更像“不可取消”而非“未找到”）。
+3. **`tenants.update_tenant` 会重算 slug**：更新 name 会改 slug，若外部把 slug 当稳定标识，需要额外约束。
+4. **WebSocket token 在 query 参数**：`/ws?token=...` 是浏览器限制下的折中，生产环境要处理日志脱敏。
+5. **文件写入原子性不等于事务一致性**：`atomic_write_json` 保护单文件，但跨文件更新仍可能部分成功。
+6. **策略评估是轻量实现**：`api_v2.evaluate_policy` 是基于 `rules` 的简单匹配，不等同于完整策略引擎语义。
+7. **迁移引擎有严格 phase gate**：`MigrationPipeline.advance_phase` 会检查门禁条件，跳阶段会失败。
 
-#### 2. 启动会话
+---
 
-```python
-response = requests.post(
-    "http://localhost:57374/api/control/start",
-    json={
-        "provider": "claude",
-        "parallel": True,
-        "background": True
-    }
-)
-```
+## 子模块导读（深入阅读顺序）
 
-#### 3. WebSocket 实时更新
+1. **API 边界与传输层**：`[api_surface_and_transport.md](api_surface_and_transport.md)`  
+   聚焦 `dashboard.server`：REST/WebSocket、连接管理、限流、静态资源、系统观测与控制 API。
 
-```javascript
-const ws = new WebSocket("ws://localhost:57374/ws");
-ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    console.log("Received update:", data);
-};
-```
+2. **V2 治理 API**：`[v2_admin_and_governance_api.md](v2_admin_and_governance_api.md)`  
+   解释 `dashboard.api_v2` 如何把 tenants/runs/api_keys/policies/audit 编排为统一治理面。
 
-## 安全考虑
+3. **API Key 生命周期**：`[api_key_management.md](api_key_management.md)`  
+   重点看 `rotate_key` 的宽限期与回滚逻辑。
 
-Dashboard Backend 包含多层安全机制：
+4. **会话运行时控制**：`[session_control_runtime.md](session_control_runtime.md)`  
+   关注 `StartRequest` 校验、文件信号协议与 SSE。
 
-1. **认证**：支持 API 密钥、企业令牌和 OIDC/SSO
-2. **授权**：基于范围的访问控制
-3. **审计**：完整的操作审计日志
-4. **多租户**：租户级数据隔离
-5. **速率限制**：防止 API 滥用
-6. **CORS**：严格的跨域控制
+5. **迁移编排内核**：`[migration_orchestration.md](migration_orchestration.md)`  
+   重点是 `MigrationPipeline` 的 manifest、phase gate、checkpoint。
 
-生产环境部署时，建议：
-- 启用 TLS
-- 配置企业认证
-- 限制网络访问
-- 定期轮换 API 密钥
-- 监控审计日志
+6. **领域模型与持久化**：`[domain_models_and_persistence.md](domain_models_and_persistence.md)`  
+   了解枚举状态、关系、级联策略与数据边界。
 
-## 性能考虑
+7. **Run 生命周期**：`[run_lifecycle_management.md](run_lifecycle_management.md)`  
+   看 `Run/RunEvent` 的 JSON 编解码、时间线与状态机。
 
-Dashboard Backend 采用多种优化技术：
+8. **租户上下文**：`[tenant_context_management.md](tenant_context_management.md)`  
+   看 slug 规则、settings 序列化、tenant-project 查询路径。
 
-1. **异步 I/O**：使用 asyncio 和异步数据库驱动
-2. **连接池**：数据库和 WebSocket 连接管理
-3. **缓存**：内存缓存常用数据
-4. **流式响应**：大文件和日志的流式传输
-5. **增量读取**：事件和日志的增量处理
+---
 
-高负载场景下，可以：
-- 调整工作进程数
-- 配置数据库连接池大小
-- 启用响应压缩
-- 使用 CDN 服务静态资源
+## 与其他模块的耦合关系（按依赖强弱）
 
-## 监控和可观测性
+- **强耦合**
+  - [Dashboard Frontend](Dashboard Frontend.md)：大量 REST + `/ws` 事件协议直接消费；
+  - [Python SDK](Python SDK.md)、[TypeScript SDK](TypeScript SDK.md)：类型契约与状态语义需要保持兼容。
 
-Dashboard Backend 提供丰富的监控端点：
+- **中等耦合**
+  - [Audit](Audit.md)：几乎所有治理动作通过 `audit.log_event` 留痕；
+  - [Policy Engine](Policy Engine.md)：`/api/v2/policies` 与 `/policies/evaluate` 提供策略配置与轻评估入口。
 
-- `/health` - 健康检查
-- `/metrics` - Prometheus 格式指标
-- `/api/status` - 系统状态
-- `/api/health/processes` - 进程健康状态
-- `/api/enterprise/audit` - 审计日志查询
+- **文件契约耦合**
+  - [Memory System](Memory System.md)：`/api/memory/*` 读取 `.loki/memory/*` 文件；
+  - [Swarm Multi-Agent](Swarm Multi-Agent.md)：`/api/agents`、`/api/status` 通过 `.loki/state` 与 `dashboard-state.json` 观察代理运行态。
 
-关键监控指标包括：
-- 会话状态和迭代数
-- 任务分布和完成率
-- 代理活跃数和状态
-- API 调用速率和延迟
-- 成本估算和预算使用
+这意味着：只要上游模块改动 `.loki` 文件结构，Dashboard Backend 即使“代码没报错”，语义也可能悄悄漂移。
 
-## 扩展和定制
+---
 
-Dashboard Backend 设计为可扩展的系统：
+## 给新贡献者的实操建议
 
-1. **添加 API 端点**：在 server.py 或 api_v2.py 中添加新路由
-2. **集成新服务**：创建新的业务逻辑模块
-3. **自定义模型**：扩展 models.py 中的数据模型
-4. **插件系统**：利用 Plugin System 模块集成新功能
-5. **中间件**：添加自定义 FastAPI 中间件
+- 改接口前先确认：该接口是 DB 驱动还是文件驱动；
+- 新增写操作时，优先补齐 `audit.log_event`；
+- 在 async DB 路径避免隐式 lazy load，优先 `selectinload`；
+- 对外输入（id/path）延续现有 sanitize 模式（如 `_sanitize_agent_id`、migration id regex）；
+- 任何“看起来只是状态字段”的改动，都要验证前端组件与 SDK 是否依赖该字段名称/枚举值。
 
-扩展时建议遵循现有代码风格，保持异步优先，并添加适当的测试和文档。
-
-## 故障排除
-
-常见问题和解决方案：
-
-1. **服务器无法启动**：检查端口占用和文件权限
-2. **会话状态不同步**：验证 `.loki/` 目录的读写权限
-3. **数据库连接错误**：检查数据库配置和网络连接
-4. **WebSocket 断开**：检查网络稳定性和代理配置
-5. **API 速率限制**：调整速率限制配置或实现重试逻辑
-
-详细的故障排除指南请参考各子模块文档。
+如果你只记住一句话：**Dashboard Backend 的难点不在单个 endpoint，而在“多状态源 + 治理一致性”的系统性约束。**

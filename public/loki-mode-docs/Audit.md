@@ -610,15 +610,26 @@ const PROVIDER_REGIONS = {
 };
 ```
 
-## 参考链接
+## 子模块摘要（建议先读）
 
-- [Dashboard Backend](Dashboard_Backend.md) - 通过 `AuditQueryParams` 与审计模块交互
-- [Python SDK](Python_SDK.md) - 提供 `AuditEntry` 类型定义
-- [TypeScript SDK](TypeScript_SDK.md) - 提供完整的审计客户端支持
-- [Dashboard UI Components](Dashboard_UI_Components.md) - `loki-audit-viewer` 组件提供审计可视化
+- [tamper_evident_audit_log](tamper_evident_audit_log.md)：聚焦 `src.audit.log.AuditLog`。重点解释哈希链防篡改机制、`record → flush → verifyChain` 的完整生命周期，以及为什么该实现选择“本地文件 + 同步写入 + 批量落盘”的务实路线。
+- [data_residency_policy_control](data_residency_policy_control.md)：聚焦 `src.audit.residency.ResidencyController`。重点解释 provider/region 白名单、`air_gapped` 短路规则、配置加载与 `reload()` 热更新语义，以及 fail-open 默认策略的合规风险。
 
-## 版本历史
+## 跨模块依赖与集成点
 
-| 版本 | 日期 | 变更 |
-|------|------|------|
-| 1.0.0 | 2024 | 初始版本，包含 AuditLog 和 ResidencyController |
+基于当前提供的模块树（而非函数级调用图），Audit 模块主要与以下模块形成契约关系：
+
+- [Dashboard Backend](Dashboard Backend.md)：暴露 `dashboard.server.AuditQueryParams`，承接审计查询参数与服务端检索。
+- [Dashboard UI Components](Dashboard UI Components.md)：`dashboard-ui.components.loki-audit-viewer.LokiAuditViewer` 消费并展示审计数据。
+- [Python SDK](Python SDK.md)：通过 `sdk.python.loki_mode_sdk.types.AuditEntry` 对外提供审计条目类型契约。
+- [TypeScript SDK](TypeScript SDK.md)：通过 `sdk.typescript.dist.types.d.AuditEntry`、`AuditQueryParams`、`AuditVerifyResult` 暴露客户端审计能力。
+
+> 说明：当前输入未提供精确 `depends_on / depended_by` 函数级关系，因此本文对跨模块调用链只做“模块级架构推断”，不声称具体调用发生在某个函数内。
+
+## 新成员上手建议（TL;DR）
+
+1. 先读 [tamper_evident_audit_log](tamper_evident_audit_log.md)，理解“为什么它是 tamper-evident 而非 tamper-proof”。
+2. 再读 [data_residency_policy_control](data_residency_policy_control.md)，理解 `air_gapped` 与白名单优先级。
+3. 落地改动前，先明确你是在改“审计留痕”（事后证明）还是“驻留准入”（事前阻断），两者职责边界不要混。
+4. 若你要做高合规改造，优先关注：多进程写入冲突、配置解析失败默认放行、以及周期性 `verifyChain()` 的运行成本。
+

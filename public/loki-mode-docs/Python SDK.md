@@ -1,132 +1,173 @@
-# Python SDK 文档
+# Python SDK
 
-## 概述
+## 1. 模块简介
 
-Python SDK 是 Autonomi Control Plane API 的官方 Python 客户端，提供了与控制平面交互的简洁、高效的接口。该 SDK 采用纯 Python 标准库实现，零外部依赖，确保了最大的兼容性和易用性。它允许开发者通过编程方式管理项目、任务、运行、租户、API 密钥等资源，并能够实时跟踪运行事件和审计日志。
+Python SDK（`sdk/python/loki_mode_sdk`）是 Autonomi 平台的官方 Python 接入层，目标是让开发者以最小依赖、最少样板代码访问控制平面能力。它将后端的 REST API（主要来自 [API Server & Services](API Server & Services.md) 与 [Dashboard Backend](Dashboard Backend.md)）封装成同步、可类型提示的 Python 接口，使调用方可以直接围绕“项目、任务、运行、租户、审计”等业务对象编写逻辑，而不是围绕 URL、Header、JSON 细节编写胶水代码。
 
-### 设计理念
+这个模块存在的核心价值有三点。第一，**标准化通信与错误处理**：统一 URL 拼接、认证头注入、JSON 编解码和 HTTP 异常映射。第二，**统一数据契约**：通过 dataclass 将响应对象化，降低“字典字段散落在业务代码里”的维护成本。第三，**零外部依赖**：仅使用 Python 标准库，适用于受限环境（CI、运维脚本、内网工具、最小镜像容器）。
 
-Python SDK 的设计遵循以下原则：
-- **简洁性**：提供直观的 API，降低学习曲线
-- **可靠性**：完善的错误处理和类型安全
-- **无依赖**：仅使用 Python 标准库，避免依赖冲突
-- **同步优先**：提供同步接口，同时为异步使用留下扩展空间
+从系统角色看，Python SDK 是“平台能力的消费端入口”，与 [TypeScript SDK](TypeScript SDK.md) 形成双语言互补：前者偏后端自动化、脚本和服务集成，后者偏前端/Node 生态。
 
-## 架构概述
+---
 
-Python SDK 采用模块化设计，由核心客户端、管理器类和类型定义组成。以下是 SDK 的整体架构：
+## 2. 架构总览
 
 ```mermaid
 graph TB
-    AutonomiClient[AutonomiClient<br/>核心客户端]
-    EventStream[EventStream<br/>事件流]
-    SessionManager[SessionManager<br/>会话管理]
-    TaskManager[TaskManager<br/>任务管理]
-    Types[类型定义<br/>Project/Task/Run等]
-    
-    AutonomiClient --> EventStream
-    AutonomiClient --> SessionManager
-    AutonomiClient --> TaskManager
-    AutonomiClient --> Types
-    
-    API[Autonomi Control Plane API]
-    AutonomiClient --> API
+    App[业务代码 / 自动化脚本] --> Client[AutonomiClient]
+    App --> Managers[EventStream / SessionManager / TaskManager]
+
+    Managers --> Client
+    Client --> Types[Project/Task/Run/Tenant/RunEvent/ApiKey/AuditEntry]
+
+    Client --> API1[API Server & Services]
+    Client --> API2[Dashboard Backend API Surface]
+
+    API2 --> Domain[Domain Models & Persistence]
 ```
 
-### 核心组件说明
+Python SDK 采用“三层结构”：
 
-1. **AutonomiClient**：作为 SDK 的核心入口点，负责所有 HTTP 请求的发送和响应处理。它提供了直接访问资源的方法，同时也作为其他管理器类的基础。
+- **传输与入口层**：`AutonomiClient`，负责请求执行、认证、错误处理、响应解析。
+- **资源管理层**：`EventStream`、`SessionManager`、`TaskManager`，按业务域组织调用语义。
+- **类型契约层**：`types.py` 中 dataclass，负责 JSON 到对象的映射。
 
-2. **EventStream**：专门处理运行事件的轮询和获取，允许开发者实时跟踪执行进度。
+这种分层让模块职责边界清晰：如果网络行为变化，优先修改客户端；如果业务动作变化，修改管理器；如果响应字段变化，修改类型契约。
 
-3. **SessionManager**：管理项目会话的生命周期，提供会话列表和详情查询功能。
+---
 
-4. **TaskManager**：专注于任务的创建、更新和查询操作。
+## 3. 核心数据流
 
-5. **类型定义**：使用数据类（dataclass）定义了所有资源类型，提供类型安全和便捷的数据访问方式。
+```mermaid
+sequenceDiagram
+    participant U as SDK User
+    participant M as Manager/Client Method
+    participant C as AutonomiClient._request
+    participant B as Backend API
+    participant T as Dataclass.from_dict
 
-## 核心功能模块
+    U->>M: 调用 list/create/get/update
+    M->>C: _get/_post/_put
+    C->>B: HTTP Request(JSON)
+    B-->>C: HTTP Response(JSON)
+    C-->>M: Dict/List/None
+    M->>T: from_dict(item)
+    T-->>U: 类型化对象
+```
 
-### 客户端与认证
+上图体现了 SDK 的关键承诺：调用者最终拿到的是类型对象或稳定结构，而不是杂乱的原始响应。同时，HTTP 错误会被统一映射为 SDK 异常，便于业务层集中处理。
 
-AutonomiClient 是 SDK 的核心，提供了完整的 API 访问能力。它支持基于令牌的认证，自动处理 HTTP 请求的构建、发送和响应解析，并提供了完善的错误处理机制。
+---
 
-### 项目管理
+## 4. 子模块说明（高层）
 
-项目管理功能允许开发者列出、获取和创建项目。每个项目都可以包含多个任务和运行，是组织工作的基本单元。
+### 4.1 core_client_transport
 
-### 任务管理
+该子模块以 `AutonomiClient` 为核心，是 Python SDK 的统一入口与传输编排层。它负责 HTTP 请求执行（GET/POST/PUT/DELETE）、认证头注入（Bearer Token）、查询参数过滤、JSON 编解码，以及 401/403/404 的异常语义化映射。模块采用标准库 `urllib`，因此具备“零第三方依赖”的可移植优势，适合运行在受限环境、运维脚本和轻量容器中。
 
-任务管理模块提供了任务的完整生命周期管理，包括创建、更新、查询和状态跟踪。任务可以分配给代理，并具有优先级和状态属性。
+你可以把它理解为 SDK 的“协议适配器”：上层管理器与调用代码无需关心 URL 拼接和错误 body 解析逻辑，只需要调用面向资源的方法并处理统一异常。
 
-### 运行管理
+详见：[core_client_transport.md](core_client_transport.md)
 
-运行管理功能允许查看和管理执行运行。开发者可以列出运行、获取详情、取消运行、重放运行，以及获取运行的事件时间线。
+### 4.2 resource_managers
 
-### 租户管理
+该子模块聚合 `TaskManager`、`SessionManager` 与 `EventStream` 三类资源管理能力。它将“底层 HTTP 调用”提升为“业务动作调用”，例如创建/更新任务、列出项目会话、查询会话详情，以及按 `run_id` 轮询增量事件。`TaskManager` 和 `EventStream` 输出类型化对象（`Task` / `RunEvent`），而 `SessionManager` 当前以字典返回为主，体现了“强类型与兼容性并存”的设计取舍。
 
-租户管理功能适用于多租户环境，允许创建和管理租户（组织）。
+如果你要新增资源域（如 RunManager/TenantManager），这里提供了最直接的扩展模板：管理器仅做参数规整与响应归一化，传输仍由 `AutonomiClient` 统一处理。
 
-### API 密钥管理
+详见：[resource_managers.md](resource_managers.md)
 
-API 密钥管理模块提供了密钥的创建、列出和轮换功能，支持设置权限角色和 grace period。
+### 4.3 type_contracts
 
-### 审计日志
+该子模块定义 SDK 的核心数据契约：`Project`、`Task`、`Run`、`RunEvent`、`Tenant`、`ApiKey`、`AuditEntry`。每个类型通过 `from_dict` 承担反序列化职责，并通过默认值策略处理后端可选字段，减少调用方对原始 JSON 字段细节的耦合。
 
-审计日志功能允许查询系统的审计记录，支持按时间范围、动作类型等条件过滤。
+它不是严格校验层，而是轻量映射层：在前向兼容和调用便利性上表现优秀，但关键业务路径仍建议在上层补充显式校验。
 
-### 事件流
+详见：[type_contracts.md](type_contracts.md)
 
-事件流模块提供了运行事件的轮询功能，允许开发者实时获取运行的最新事件。
+---
 
-## 快速开始
+## 5. 主要能力与使用入口
 
-### 安装与配置
+Python SDK 当前覆盖以下典型能力：
 
-由于 Python SDK 仅使用标准库，无需额外安装。只需将 `loki_mode_sdk` 包导入到您的项目中即可。
+- 平台状态检查（health/status）
+- 项目与租户管理
+- 任务生命周期操作
+- 运行查询、取消、重放、时间线
+- API Key 列表/创建/轮换
+- 审计日志查询
+- 基于 run 的事件轮询
 
-### 基本使用示例
+最小示例：
 
 ```python
 from loki_mode_sdk.client import AutonomiClient
+from loki_mode_sdk.tasks import TaskManager
 
-# 初始化客户端
 client = AutonomiClient(
     base_url="http://localhost:57374",
-    token="loki_your_token_here"
+    token="loki_xxx",
+    timeout=30,
 )
 
-# 获取服务器状态
-status = client.get_status()
-print(f"服务器状态: {status}")
-
-# 列出所有项目
-projects = client.list_projects()
-for project in projects:
-    print(f"项目: {project.name} (ID: {project.id})")
-
-# 创建新项目
-new_project = client.create_project(
-    name="我的新项目",
-    description="这是一个示例项目"
-)
-print(f"创建的项目 ID: {new_project.id}")
+tm = TaskManager(client)
+items = tm.list_tasks(project_id="proj_1", status="pending")
+for t in items:
+    print(t.id, t.title, t.status)
 ```
 
-## 子模块文档
+---
 
-- [类型定义](Python SDK - 类型定义.md)：详细介绍 SDK 中使用的所有数据类型
-- [管理器类](Python SDK - 管理器类.md)：深入了解 TaskManager、SessionManager 和 EventStream 的使用方法
+## 6. 配置与运行建议
 
-## 与其他模块的关系
+SDK 的核心运行参数很少：`base_url`、`token`、`timeout`。建议在生产环境通过环境变量注入，并在应用层统一构造客户端实例，避免每次操作重复创建对象。
 
-Python SDK 是与 Autonomi 系统交互的主要接口之一。它与以下模块紧密相关：
+在长轮询或批处理场景中，建议你在业务层增加：
 
-- **API Server & Services**：SDK 直接与 API 服务器通信，使用其提供的 RESTful 接口
-- **Dashboard Backend**：SDK 可以访问 Dashboard Backend 提供的许多相同功能
-- **TypeScript SDK**：提供了与 Python SDK 类似功能的 TypeScript 实现
+- 重试与退避（如指数退避）
+- 超时分级（读写操作不同 timeout）
+- 请求级日志（便于排障）
+- 事件游标持久化（用于重启后续拉）
 
-更多关于这些模块的信息，请参考它们的文档：
-- [API Server & Services](API Server & Services.md)
-- [Dashboard Backend](Dashboard Backend.md)
-- [TypeScript SDK](TypeScript SDK.md)
+SDK 保持轻量，不内置这些策略，是有意的“可组合”设计。
+
+---
+
+## 7. 错误处理、边界条件与限制
+
+你在集成时应特别关注以下点：
+
+1. **异常分层有限**：仅对 401/403/404 提供专用异常，其它状态码归并为 `AutonomiError`。如果你要做精细化策略（例如 409 重试、429 限流），需在业务层根据 `status_code` 细分。
+2. **同步模型**：SDK 当前为同步接口；高并发服务中应配合线程池或封装异步适配层。
+3. **部分接口返回原始字典**：如会话相关返回 `Dict`，意味着字段可能随服务端演进变化，你需要做健壮的 `.get()` 读取。
+4. **契约宽松映射**：某些 `from_dict` 对缺失字段采用默认值而非抛错，能提升容错但可能掩盖数据质量问题，建议在关键流程增加显式校验。
+5. **事件流为轮询**：`EventStream` 非推送模型；若轮询间隔过短会增加后端压力，过长则实时性降低。
+6. **网络异常包装范围**：底层主要对 HTTPError 做 SDK 异常映射，连接失败、DNS/TLS 类异常可能以 `urllib` 原生异常向上冒泡。
+
+---
+
+## 8. 与其他模块的关系
+
+- 与 [API Server & Services](API Server & Services.md)：Python SDK 消费其 API 与运行态能力，尤其是任务/会话/运行相关接口。
+- 与 [Dashboard Backend](Dashboard Backend.md)：Python SDK 的主要资源语义（tenant/project/task/run/audit/api key）直接来自该模块 API 面。
+- 与 [api_surface_and_transport](api_surface_and_transport.md)：SDK 中绝大多数调用最终映射到 Dashboard 的 HTTP API Surface。
+- 与 [domain_models_and_persistence](domain_models_and_persistence.md)：SDK 返回对象是后端领域模型的外部视图。
+- 与 [TypeScript SDK](TypeScript SDK.md)：两者共享同一业务域模型，保证多语言接入的一致性。
+
+如果你要扩展 Python SDK，建议先对照上述模块确认后端契约，再在 `AutonomiClient -> Manager -> Types` 三层中选择正确落点实现。
+
+---
+
+## 9. 文档导航
+
+- 核心客户端与传输层：**[core_client_transport.md](core_client_transport.md)**
+- 资源管理器（任务/会话/事件轮询）：**[resource_managers.md](resource_managers.md)**
+- 类型契约（Project/Task/Run/Tenant 等）：**[type_contracts.md](type_contracts.md)**
+
+如需系统级背景，请联读：
+- **[API Server & Services.md](API Server & Services.md)**
+- **[Dashboard Backend.md](Dashboard Backend.md)**
+- **[api_surface_and_transport.md](api_surface_and_transport.md)**
+- **[domain_models_and_persistence.md](domain_models_and_persistence.md)**
+- **[TypeScript SDK.md](TypeScript SDK.md)**

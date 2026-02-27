@@ -1,259 +1,184 @@
-# Memory System 模块文档
+# Memory System
 
-## 概述
+Memory System 可以把它想成「给智能体配的一套长期工作记忆中枢」：它不只是把历史日志存下来，而是把经历（episodic）、规律（semantic）和可复用做法（procedural）分开管理，并在需要时按任务类型、token 预算和上下文粒度动态取回。没有这层，代理每次都像“失忆重开”；有了这层，系统会越来越像“做过、总结过、还能复用”。
 
-Memory System 是一个多类型、多层次的记忆管理系统，专为智能代理和自动化任务执行设计。它实现了情景记忆、语义记忆和程序记忆的统一管理，提供任务感知的检索、渐进式内容加载和跨项目知识索引功能。
+## 这个模块解决了什么问题（Why）
 
-### 设计理念
+在代理系统里，常见痛点不是“信息太少”，而是“信息太多但拿不到对的那部分”：
 
-该模块基于认知科学原理，模拟人类记忆的三个核心类型：
-- **情景记忆 (Episodic Memory)**: 记录具体的交互轨迹和任务执行过程
-- **语义记忆 (Semantic Memory)**: 存储抽象化的模式和知识
-- **程序记忆 (Procedural Memory)**: 保存可复用的技能和操作流程
+- **只有原始轨迹，没有抽象知识**：日志很多，但难复用。
+- **只有规则库，没有执行细节**：知道“应该怎么做”，但不知道过去在哪里踩过坑。
+- **检索成本过高**：每次把全部记忆喂给模型，token 开销不可控。
+- **项目隔离与共享冲突**：单项目知识很好用，但跨项目复用困难。
 
-这种分层设计使系统能够在不同抽象层次上管理知识，同时保持高效的检索和利用。
+Memory System 的设计动机是：
+1. 用三类记忆结构化沉淀知识；
+2. 用任务感知检索提高命中率；
+3. 用渐进式加载控制 token；
+4. 用统一访问层把复杂性收敛给调用方。
 
-### 主要特性
+---
 
-- **任务感知检索**: 根据任务类型自动调整检索权重，提升性能 17%（基于 MemEvolve 研究）
-- **渐进式内容加载**: 通过三层披露机制最小化 token 使用
-- **多提供商嵌入支持**: 支持本地（sentence-transformers）、OpenAI 和 Cohere 嵌入
-- **跨项目索引**: 自动发现和索引多个项目的记忆存储
-- **向量化搜索**: 基于余弦相似度的高效语义搜索
-- **命名空间隔离**: 支持项目级别的记忆隔离和继承
+## 心智模型（How it thinks）
 
-## 架构概览
+可以把系统想成一个“三层图书馆 + 一个馆长”：
 
-Memory System 采用模块化架构，由以下核心组件组成：
+- `EpisodeTrace` / episodic：**监控录像**（发生了什么）
+- `SemanticPattern`：**经验手册**（从多次经历抽象出的规律）
+- `ProceduralSkill`：**SOP 流程卡**（下次怎么做）
+- `UnifiedMemoryAccess`：**馆长前台**（你只说需求，内部去协调检索与预算）
+
+而检索时不是“盲搜”，而是按任务类型（exploration / implementation / debugging / review / refactoring）动态加权。也就是说，同样的 query，在调试任务中会更偏 episodic + anti-pattern，在实现任务中会更偏 semantic + skills。
+
+---
+
+## 架构总览
 
 ```mermaid
-graph TB
-    subgraph "统一访问层"
-        UA[UnifiedMemoryAccess]
-    end
-    
-    subgraph "记忆引擎层"
-        ME[MemoryEngine]
-        EpiM[EpisodicMemory]
-        SemM[SemanticMemory]
-        ProM[ProceduralMemory]
-    end
-    
-    subgraph "检索与索引层"
-        MR[MemoryRetrieval]
-        VI[VectorIndex]
-        PL[ProgressiveLoader]
-    end
-    
-    subgraph "嵌入与处理层"
-        EE[EmbeddingEngine]
-        TC[TextChunker]
-        CP[CrossProjectIndex]
-    end
-    
-    subgraph "数据模式层"
-        ET[EpisodeTrace]
-        SP[SemanticPattern]
-        PS[ProceduralSkill]
-        TCtx[TaskContext]
-    end
-    
+graph TD
+    UA[UnifiedMemoryAccess]
+    ME[MemoryEngine]
+    MR[MemoryRetrieval]
+    SCH[schemas: EpisodeTrace/TaskContext]
+    EMB[embeddings: TextChunker/Providers]
+    VI[vector_index.VectorIndex]
+    PL[ProgressiveLoader]
+    CPI[CrossProjectIndex]
+
     UA --> ME
     UA --> MR
-    ME --> EpiM
-    ME --> SemM
-    ME --> ProM
-    ME --> VI
+    ME --> SCH
+    MR --> SCH
+    MR --> EMB
     MR --> VI
-    MR --> EE
-    PL --> VI
-    EE --> TC
     UA --> PL
-    ME --> ET
-    ME --> SP
-    ME --> PS
-    MR --> ET
-    MR --> SP
-    MR --> PS
+    CPI --> UA
 ```
 
-### 组件关系说明
+### 架构叙事（数据与控制流）
 
-1. **统一访问层**: `UnifiedMemoryAccess` 作为所有组件的单一入口点，简化了记忆系统的使用
-2. **记忆引擎层**: `MemoryEngine` 协调三个记忆类型的操作，提供生命周期管理
-3. **检索与索引层**: 处理向量化搜索、渐进式加载和任务感知检索
-4. **嵌入与处理层**: 管理文本嵌入、分块和跨项目索引
-5. **数据模式层**: 定义所有记忆类型的数据结构和验证规则
+**主链路：获取任务上下文**
+1. 调用方进入 `UnifiedMemoryAccess.get_relevant_context(...)`。
+2. 它组装 context，并调用 `MemoryRetrieval` 的分集合检索（episodic / semantic / skills）。
+3. `MemoryRetrieval` 根据任务信号选择策略权重（`TASK_STRATEGIES`），并在“向量检索可用”与“关键词回退”之间切换。
+4. 返回结果后，`UnifiedMemoryAccess` 逐项估算 token（`estimate_memory_tokens`）并做预算裁剪，最终组装 `MemoryContext`。
 
-## 核心功能模块
+**写链路：记录一次执行经验**
+1. `UnifiedMemoryAccess.record_episode(...)` 把 action dict 转成 `ActionEntry`。
+2. 用 `EpisodeTrace.create(...)` 生成标准化 episode。
+3. 通过 `MemoryEngine.store_episode(...)` 落盘到 `episodic/YYYY-MM-DD/task-<id>.json`。
+4. `MemoryEngine` 同步更新 timeline（`_update_timeline_with_episode`），并在配置了 embedding 时可触发排队（当前 `_queue_for_embedding` 仍是占位实现）。
 
-### 1. 记忆引擎 (Memory Engine)
+**三层加载链路：在预算内扩展上下文**
+- `ProgressiveLoader.load_relevant_context(...)` 先读 IndexLayer，再读 TimelineLayer，最后仅对高相关 topic 拉 full memory。
+- 这是一种“先目录、再摘要、后全文”的披露策略，避免一上来把完整记忆灌满上下文窗口。
 
-记忆引擎是 Memory System 的核心协调器，负责管理所有记忆操作。它提供统一的接口来访问情景、语义和程序记忆。
+---
 
-**主要功能**:
-- 初始化和维护记忆系统结构
-- 存储和检索各种类型的记忆
-- 管理记忆索引和时间线
-- 清理旧的未引用记忆
+## 关键设计决策与取舍（Tradeoffs）
 
-详细信息请参考 [Memory Engine 子模块文档](Memory Engine.md)。
+### 1) 三类记忆并存，而不是单一文档库
+- **选择**：episodic/semantic/procedural 分离。
+- **收益**：检索与排序可以任务化；数据契约更清晰。
+- **代价**：写入路径和索引维护更复杂（多文件、多格式）。
 
-### 2. 统一访问层 (Unified Memory Access)
+### 2) 检索层优先“可退化可运行”
+- **选择**：`MemoryRetrieval` 同时支持 embedding+vector 与 keyword fallback。
+- **收益**：依赖缺失或向量索引未构建时，系统仍可工作。
+- **代价**：两套召回路径的行为一致性需要额外关注（评分尺度不完全一致）。
 
-`UnifiedMemoryAccess` 提供了一个简化的接口，隐藏了记忆系统的复杂性，使其他组件能够轻松访问记忆功能。
+### 3) 渐进式加载优先 token 经济性
+- **选择**：`ProgressiveLoader` 采用 1/2/3 层按需展开。
+- **收益**：上下文成本可控，尤其对长会话与大记忆库更稳定。
+- **代价**：启发式 `sufficient_context(...)` 可能误判“信息已足够”，导致召回不深。
 
-**主要功能**:
-- 获取与任务相关的上下文
-- 记录交互和结果
-- 生成基于上下文的建议
-- 管理 token 预算
+### 4) Embedding provider 走“容错链”
+- **选择**：`EmbeddingEngine` 支持 local/openai/cohere，并有 fallback。
+- **收益**：线上可靠性高，依赖故障时可降级。
+- **代价**：跨 provider 维度与质量差异带来排序漂移风险。
 
-详细信息请参考 [Unified Access 子模块文档](Unified Access.md)。
+### 5) 存储层选择文件系统优先
+- **选择**：核心实现围绕 JSON/Markdown + 目录结构。
+- **收益**：可审计、可迁移、易调试。
+- **代价**：并发写、超大规模检索、事务一致性不如数据库天然。
 
-### 3. 嵌入系统 (Embedding System)
+---
 
-嵌入系统负责生成文本的向量表示，支持多种提供商和分块策略。
+## 子模块导读（含链接）
 
-**主要功能**:
-- 多提供商嵌入生成（本地、OpenAI、Cohere）
-- 文本分块策略（固定大小、句子、语义）
-- 嵌入质量评分
-- 缓存机制提升性能
+### 1. 数据基础与契约
+- 文档：[`memory_foundation_and_schemas.md`](memory_foundation_and_schemas.md)
+- 覆盖：`memory.schemas.EpisodeTrace`, `memory.schemas.TaskContext`
+- 重点：序列化字段形态、UTC 时间处理（`_to_utc_isoformat` / `_parse_utc_datetime`）与 `validate()` 约束。这部分是所有 IO、检索、展示的一致性底座。
 
-详细信息请参考 [Embeddings 子模块文档](Embeddings.md)。
+### 2. 记忆引擎与包装器
+- 文档：[`memory_engine_and_wrappers.md`](memory_engine_and_wrappers.md)
+- 覆盖：`memory.engine.EpisodicMemory`, `memory.engine.SemanticMemory`, `memory.engine.ProceduralMemory`
+- 重点：`MemoryEngine` 如何统一生命周期、索引、timeline 与三类记忆 API；wrapper 如何给上层提供窄接口，降低误用面。
 
-### 4. 检索系统 (Retrieval System)
+### 3. 检索与渐进加载
+- 文档：[`retrieval_and_progressive_loading.md`](retrieval_and_progressive_loading.md)
+- 覆盖：`memory.retrieval.VectorIndex`（Protocol）, `memory.retrieval.MemoryStorageProtocol`, `memory.layers.loader.ProgressiveLoader`
+- 重点：任务感知检索、协议解耦、预算优化与 progressive disclosure 的协作关系。
 
-检索系统提供任务感知的记忆检索，支持多种搜索策略和命名空间隔离。
+### 4. 嵌入与向量基础设施
+- 文档：[`embedding_and_vector_infra.md`](embedding_and_vector_infra.md)
+- 覆盖：`memory.embeddings.TextChunker`, `memory.embeddings.ChunkingStrategy`, `memory.embeddings.EmbeddingProvider`, `memory.vector_index.VectorIndex`
+- 重点：分块策略、provider 容错、缓存命中、向量索引持久化与搜索复杂度。
 
-**主要功能**:
-- 任务类型自动检测
-- 多策略检索（基于权重）
-- 向量化和关键词搜索
-- 跨命名空间检索
-- Token 预算优化
+### 5. 统一访问与跨项目索引
+- 文档：[`unified_access_and_cross_project.md`](unified_access_and_cross_project.md)
+- 覆盖：`memory.unified_access.UnifiedMemoryAccess`, `memory.cross_project.CrossProjectIndex`
+- 重点：统一门面如何把“检索 + 预算 + 记录”一站式封装；跨项目索引如何发现 `.loki/memory` 并聚合统计。
 
-详细信息请参考 [Retrieval 子模块文档](Retrieval.md)。
+---
 
-### 5. 渐进式加载器 (Progressive Loader)
+## 跨模块依赖与系统耦合点
 
-渐进式加载器实现了三层披露算法，最小化 token 使用同时最大化相关性。
+Memory System 在系统中的角色是“**知识中台 + 运行期检索服务**”，与以下模块形成明显耦合：
 
-**加载层次**:
-1. **索引层**: 加载主题摘要（约 100 tokens）
-2. **时间线层**: 加载相关主题的近期上下文（约 500 tokens）
-3. **完整层**: 仅在需要时加载完整记忆内容
+- 与 [API Server & Services](API Server & Services.md)：API 类型里有 `api.types.memory.*` 请求/响应契约（如 `RetrieveRequest`, `ConsolidateRequest`, `MemorySummary`），是 Memory 能力的服务化入口。
+- 与 [Dashboard UI Components](Dashboard UI Components.md)：`LokiMemoryBrowser` / `LokiLearningDashboard` / `LokiPromptOptimizer` 消费记忆与学习数据，形成可视化反馈回路。
+- 与 [Dashboard Backend](Dashboard Backend.md)：后端提供任务、运行、项目上下文，间接影响记忆记录与检索语境。
+- 与 [State Management](State Management.md)：都依赖本地持久化和状态演进语义，尤其是会话期间的增量记录。
+- 与 [Observability](Observability.md)：Memory 命中率、token 节省、fallback 次数属于关键运行指标。
 
-详细信息请参考 [Progressive Loader 子模块文档](Progressive Loader.md)。
+> 注意：本模块大量依赖“数据格式契约稳定”。上游一旦改变 `context` 字段结构（例如 `goal/phase/files_involved`），检索质量会先退化，再表现为功能异常。
 
-### 6. 向量索引 (Vector Index)
+---
 
-向量索引提供高效的相似度搜索功能，使用纯 numpy 实现，无需额外依赖。
+## 新贡献者最容易踩的坑（Watch-outs）
 
-**主要功能**:
-- 向量添加、更新和删除
-- 余弦相似度搜索
-- 元数据过滤
-- 磁盘持久化
+1. **时间格式混用**
+   - `Z` / `+00:00` / naive datetime 都可能出现。
+   - 任何新增序列化逻辑都应复用 schemas 的时间工具函数。
 
-详细信息请参考 [Vector Index 子模块文档](Vector Index.md)。
+2. **task type 双份逻辑**
+   - `engine.py` 和 `retrieval.py` 都有任务类型检测/策略常量。
+   - 修改策略时请同步评估两处，避免行为分叉。
 
-### 7. 跨项目索引 (Cross Project Index)
+3. **VectorIndex 的维度契约**
+   - `memory.vector_index.VectorIndex.add()` 会严格校验维度。
+   - provider/model 切换后若维度变更，旧索引可能不可直接复用。
 
-跨项目索引自动发现和索引多个项目的记忆存储，构建统一的跨项目知识索引。
+4. **ProgressiveLoader 的“足够上下文”是启发式**
+   - `sufficient_context(...)` 不是语义证明，只是经验规则。
+   - 对高风险任务，建议提高 layer3 触发概率或直接走 full retrieval。
 
-**主要功能**:
-- 自动发现包含 `.loki/memory/` 的项目
-- 构建包含记忆统计的统一索引
-- 支持自定义搜索目录
+5. **engine 中部分能力仍是占位**
+   - `_vector_search` 与 `_queue_for_embedding` 目前是 placeholder/降级路径。
+   - 扩展时应先定义明确异步队列与索引刷新策略，再接入生产链路。
 
-详细信息请参考 [Cross Project Index 子模块文档](Cross Project Index.md)。
+6. **CrossProjectIndex 只做深度=1 扫描**
+   - `discover_projects()` 只遍历 search_dir 的直接子目录。
+   - 多层 monorepo 结构下可能漏检，需要显式扩展策略。
 
-## 数据模式
+---
 
-Memory System 使用定义明确的数据类来确保数据一致性和验证。
+## 给高级工程师的落地建议
 
-### 核心数据类型
+- 先从 `UnifiedMemoryAccess` 走一遍读写主路径，再下钻 `MemoryRetrieval` 的评分与预算逻辑。
+- 做检索质量优化时，优先关注：task type 识别准确度、关键词/向量混合策略、importance/recency 权重。
+- 做性能优化时，优先关注：embedding cache 命中率、vector index 构建时机、progressive loading 命中层级分布。
 
-1. **EpisodeTrace**: 表示完整的任务执行记录
-2. **SemanticPattern**: 抽象化的知识模式
-3. **ProceduralSkill**: 可复用的操作技能
-4. **TaskContext**: 任务执行的上下文信息
-
-详细信息请参考 [Schemas 子模块文档](Schemas.md)。
-
-## 使用指南
-
-### 基本使用
-
-```python
-from memory.unified_access import UnifiedMemoryAccess
-
-# 初始化记忆系统
-memory = UnifiedMemoryAccess(base_path=".loki/memory")
-memory.initialize()
-
-# 获取相关上下文
-context = memory.get_relevant_context(
-    task_type="implementation",
-    query="构建 REST API",
-    token_budget=4000
-)
-
-# 记录交互
-memory.record_interaction(
-    source="cli",
-    action={"action": "read_file", "target": "api.py"}
-)
-
-# 获取建议
-suggestions = memory.get_suggestions("实现身份验证")
-```
-
-### 配置选项
-
-Memory System 支持多种配置方式：
-
-1. **环境变量**:
-   - `LOKI_EMBEDDING_PROVIDER`: 嵌入提供商 (local, openai, cohere)
-   - `LOKI_EMBEDDING_MODEL`: 嵌入模型名称
-   - `OPENAI_API_KEY`: OpenAI API 密钥
-   - `COHERE_API_KEY`: Cohere API 密钥
-
-2. **配置文件**:
-   - `.loki/config/embeddings.json`: 嵌入系统配置
-
-详细配置说明请参考各子模块文档。
-
-## 与其他模块的集成
-
-Memory System 设计为与系统的其他模块无缝集成：
-
-- **API Server & Services**: 通过 `api.services.learning-collector.LearningCollector` 收集学习数据，详细信息请参考 [API Server & Services 模块文档](API Server & Services.md)
-- **Dashboard Backend**: 提供记忆数据给仪表板展示，详细信息请参考 [Dashboard Backend 模块文档](Dashboard Backend.md)
-- **Dashboard UI Components**: 通过 `LokiMemoryBrowser` 组件可视化记忆内容，详细信息请参考 [Dashboard UI Components 模块文档](Dashboard UI Components.md)
-- **Swarm Multi-Agent**: 为多代理系统提供共享记忆，详细信息请参考 [Swarm Multi-Agent 模块文档](Swarm Multi-Agent.md)
-- **Python SDK / TypeScript SDK**: 提供 SDK 访问接口，详细信息请参考 [Python SDK 模块文档](Python SDK.md) 和 [TypeScript SDK 模块文档](TypeScript SDK.md)
-
-## 性能考虑
-
-- **嵌入缓存**: 系统会缓存嵌入结果以避免重复计算
-- **渐进式加载**: 仅在需要时加载完整记忆内容，显著减少 token 使用
-- **向量化搜索**: 使用 numpy 实现高效的相似度计算
-- **索引重建**: 支持增量更新和完全重建
-
-## 限制与注意事项
-
-- 本地嵌入需要 `sentence-transformers` 库（可选，有 TF-IDF 降级方案）
-- 向量化搜索需要 `numpy` 库
-- 大记忆集可能需要较多内存存储嵌入向量
-- 跨项目索引仅扫描配置目录的直接子目录（深度=1）
-
-## 未来扩展方向
-
-- 支持更多嵌入提供商
-- 实现记忆合并和摘要功能
-- 添加记忆重要性衰减机制
-- 支持分布式记忆存储
-- 增强跨项目知识迁移能力
+如果你只记住一句话：**Memory System 不是存储模块，而是“在 token 与相关性之间做实时决策的记忆编排器”。**

@@ -1,5 +1,8 @@
 # State Management 模块文档
 
+
+> 子模块文档导航：详见 [managed_state_file_contract.md](managed_state_file_contract.md) 与 [notification_channels.md](notification_channels.md)。
+
 ## 1. 简介
 
 State Management 模块是一个功能全面的状态管理系统，提供了统一的状态管理解决方案，支持多种语言（Python 和 TypeScript）的实现。该模块旨在解决分布式系统中的状态同步、一致性和变更通知问题，具有缓存机制、版本控制、冲突解决和事件通知等高级特性。
@@ -58,14 +61,25 @@ graph TB
     StateManager -->|集成| EventBus
 ```
 
-### 主要组件说明
+### 主要组件说明与子模块导航
 
-1. **StateManager**：核心管理类，提供主要的状态管理接口
-2. **缓存管理**：通过内存缓存提高访问性能
-3. **订阅系统**：允许应用订阅状态变更通知
-4. **版本控制**：维护状态历史，支持回滚操作
-5. **冲突解决**：提供多种策略解决并发更新冲突
-6. **文件监控**：监听文件变更，实时同步状态
+State Management 当前可以拆分为两个清晰的子模块文档：
+
+首先是 **managed_state_file_contract**（参见 [managed_state_file_contract](managed_state_file_contract.md)）。该子模块围绕 `ManagedFile` 枚举展开，核心职责是定义 `.loki` 目录下受管状态文件的“稳定路径契约”。它本身不处理读写、缓存或通知，但所有状态能力都依赖这层契约完成路径解析与跨模块一致性。维护者在扩展状态域时，应先更新这里，再补齐上层 API 和运维说明。
+
+其次是 **notification_channels**（参见 [notification_channels](notification_channels.md)）。该子模块描述 `FileNotificationChannel` 与 `InMemoryNotificationChannel` 的行为语义、性能边界和扩展方式。它负责把 `StateManager` 的状态变更广播到外部介质，是连接 CLI 观察、测试断言和外围集成的重要桥梁。
+
+在主模块中，`StateManager` 负责状态生命周期编排（读写、缓存、文件监听、事件总线、版本历史、冲突解决），而上述两个子模块分别承担“文件地址空间定义”和“变更外发”。这种分层使系统在可维护性与可扩展性之间取得平衡。
+
+
+### 子模块文档索引（本次拆分）
+
+为避免主文档过度膨胀、并让维护者按职责快速定位，State Management 的细分文档已独立输出如下：
+
+- [managed_state_file_contract.md](managed_state_file_contract.md)：详细解释 `ManagedFile` 的契约作用、托管路径语义、扩展与兼容性注意事项。
+- [notification_channels.md](notification_channels.md)：详细解释 `FileNotificationChannel` 与 `InMemoryNotificationChannel` 的实现细节、性能边界、错误处理与自定义通道扩展方式。
+
+建议阅读顺序：先看本文件掌握整体架构与运行机制，再进入上述子模块文档查看具体实现约束。
 
 ## 3. 核心功能
 
@@ -140,7 +154,7 @@ unsubscribe();
 
 这些通道可以通过 `addNotificationChannel` 方法添加到 StateManager 中。
 
-有关通知通道的详细信息、使用示例和扩展方法，请参考 [Notification Channels](Notification Channels.md) 文档。
+有关通知通道的详细信息、使用示例和扩展方法，请参考 [notification_channels](notification_channels.md) 文档。
 
 ## 4. 高级功能
 
@@ -342,7 +356,7 @@ manager.set_state(ManagedFile.ORCHESTRATOR, {"phase": "testing"}, source="test")
 remove_channel()
 ```
 
-有关通知通道的更多示例和高级用法，请参考 [Notification Channels](Notification Channels.md) 文档。
+有关通知通道的更多示例和高级用法，请参考 [notification_channels](notification_channels.md) 文档。
 
 ### 6.4 版本控制与回滚
 

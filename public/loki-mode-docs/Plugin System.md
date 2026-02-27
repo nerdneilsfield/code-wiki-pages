@@ -1,191 +1,220 @@
-# Plugin System 模块文档
+# Plugin System
 
-## 概述
+Plugin System 可以把它想象成系统里的“扩展插座层”：核心系统提供稳定电压（基础能力），而插件模块提供统一插孔，让团队在**不改核心代码**的前提下插入自定义 Agent、质量门、Webhook 集成和 MCP 工具。它存在的根本原因是：业务变化速度远快于核心版本发布速度，插件化是把“变动面”从主干代码剥离出来。
 
-Plugin System 模块是一个灵活的插件架构，为系统提供了可扩展性和自定义能力。该模块允许用户通过注册自定义插件来扩展系统的功能，包括自定义代理、质量门、集成和 MCP 工具等。插件系统采用了模块化设计，使得不同类型的插件可以独立开发、测试和部署，同时保持与核心系统的无缝集成。
+---
 
-## 架构设计
+## 1. 这个模块解决了什么问题（先讲问题空间）
 
-Plugin System 模块采用了分层架构设计，主要包含以下核心组件：
+如果没有插件系统，新增一个能力通常要走这条路径：改核心代码 → 改发布流程 → 回归测试全系统 → 上线。对于以下高频需求，这个成本过高：
+
+- 团队想加一个新的 Agent 角色（`type: "agent"`）
+- 在流水线里插入新的质量检查（`type: "quality_gate"`）
+- 把运行时事件推送到企业内部平台（`type: "integration"`）
+- 把已有 CLI 包装成 MCP tool（`type: "mcp_tool"`）
+
+Plugin System 的回答是：
+1. 用 `PluginLoader` 从配置文件发现并校验插件；
+2. 按类型交给对应运行时组件（`AgentPlugin` / `GatePlugin` / `IntegrationPlugin` / `MCPPlugin`）；
+3. 由这些组件在内存注册表里管理生命周期，并提供执行/查询能力。
+
+这是一种**配置驱动扩展**，而不是“编译期扩展”。
+
+---
+
+## 2. 心智模型：把它当成“机场塔台 + 四类跑道”
+
+想象 `PluginLoader` 是塔台：负责检查飞行计划（配置是否可解析、可校验），只允许合格计划起飞。  
+四个插件类是四条跑道：
+
+- `AgentPlugin`：给自定义 Agent 入场（但不允许占用内置航班号）
+- `GatePlugin`：执行质量门命令
+- `IntegrationPlugin`：把事件投递到外部 webhook
+- `MCPPlugin`：把参数化命令包装成 MCP 工具
+
+关键点：塔台不替跑道执行任务，跑道也不负责检查计划合法性。职责分层非常刻意。
+
+---
+
+## 3. 架构总览（基于提供代码）
 
 ```mermaid
-graph TB
-    subgraph "插件加载层"
-        PluginLoader[PluginLoader<br/>插件加载器]
-        PluginValidator[PluginValidator<br/>插件验证器]
+graph TD
+    A[.loki/plugins] --> B[PluginLoader]
+    B --> C[PluginValidator.validate]
+    C --> D[AgentPlugin]
+    C --> E[GatePlugin]
+    C --> F[IntegrationPlugin]
+    C --> G[MCPPlugin]
+
+    D --> H[(custom agents Map)]
+    E --> I[(gates Map)]
+    F --> J[(integrations Map)]
+    G --> K[(tools Map)]
+```
+
+### 叙述式 walkthrough
+
+- `PluginLoader.discover()` 只扫描插件目录下 `.yaml/.yml/.json` 文件。  
+- `PluginLoader._parseFile()` 对 JSON 走 `JSON.parse`，对 YAML 走内置 `parseSimpleYAML`。  
+- `PluginLoader.loadAll()/loadOne()` 调 `this.validator.validate(config)`，把结果分成 `loaded` 与 `failed`。  
+- 通过校验的配置再进入具体插件类的 `register()`。每类插件都维护一个模块级 `Map` 作为进程内注册表。  
+- 执行类能力由具体插件负责：`GatePlugin.execute()`、`IntegrationPlugin.handleEvent()`、`MCPPlugin.execute()`。
+
+> 说明：在提供代码里，没有一个“中央总调度器”把 `loadAll` 与四类 `register` 串成固定流程；这部分通常由上层 runtime/服务层完成。
+
+---
+
+## 4. 关键数据流（端到端）
+
+## 流程 A：插件加载与注册
+
+```mermaid
+sequenceDiagram
+    participant FS as Plugin Files
+    participant L as PluginLoader
+    participant V as PluginValidator
+    participant P as Plugin Class(register)
+
+    FS->>L: discover + read file
+    L->>L: parse JSON / parseSimpleYAML
+    L->>V: validate(config)
+    alt valid
+        L->>P: register(config)
+        P-->>L: { success: true/false }
+    else invalid
+        V-->>L: errors[]
     end
-    
-    subgraph "插件类型层"
-        AgentPlugin[AgentPlugin<br/>代理插件]
-        GatePlugin[GatePlugin<br/>质量门插件]
-        IntegrationPlugin[IntegrationPlugin<br/>集成插件]
-        MCPPlugin[MCPPlugin<br/>MCP工具插件]
-    end
-    
-    subgraph "注册管理层"
-        AgentRegistry[代理注册表]
-        GateRegistry[质量门注册表]
-        IntegrationRegistry[集成注册表]
-        MCPRegistry[MCP工具注册表]
-    end
-    
-    PluginLoader --> PluginValidator
-    PluginValidator --> AgentPlugin
-    PluginValidator --> GatePlugin
-    PluginValidator --> IntegrationPlugin
-    PluginValidator --> MCPPlugin
-    
-    AgentPlugin --> AgentRegistry
-    GatePlugin --> GateRegistry
-    IntegrationPlugin --> IntegrationRegistry
-    MCPPlugin --> MCPRegistry
 ```
 
-### 核心组件说明
+这条链路把“输入不确定性”挡在入口层：格式错、字段错、类型错会在加载阶段暴露，而不是到执行阶段爆炸。
 
-1. **PluginLoader**: 负责从文件系统中发现、加载和解析插件配置文件，支持 YAML 和 JSON 格式。
-2. **PluginValidator**: 验证插件配置的合法性和完整性（代码中引用但未提供）。
-3. **AgentPlugin**: 管理自定义代理插件的注册、注销和查询。
-4. **GatePlugin**: 管理自定义质量门插件的注册、执行和查询。
-5. **IntegrationPlugin**: 管理自定义集成插件的注册、事件处理和查询。
-6. **MCPPlugin**: 管理自定义 MCP 工具插件的注册、执行和查询。
+## 流程 B：质量门执行（`GatePlugin.execute`）
 
-## 功能特性
+1. 读取 `command` 与 `timeout_ms`（默认 30000）。  
+2. 用 `execFile('/bin/sh', ['-c', command], { cwd, timeout, maxBuffer, env })` 执行。  
+3. 汇总 `stdout/stderr`，返回 `{ passed, output, duration_ms }`。  
+4. 错误一般走 resolve（`passed: false`），而不是 reject。
 
-### 1. 插件类型支持
+这意味着调用方必须检查 `passed`，不能只靠 `try/catch`。
 
-Plugin System 模块支持四种主要类型的插件：
+## 流程 C：事件外发（`IntegrationPlugin.handleEvent`）
 
-- **AgentPlugin**: 允许用户注册自定义代理类型，扩展系统的代理能力。自定义代理可以拥有自己的提示模板、触发条件和能力描述，但不能覆盖系统内置的代理类型。
-- **GatePlugin**: 提供自定义质量门功能，允许用户在软件开发生命周期的不同阶段插入自定义检查逻辑。质量门可以是阻塞性的或非阻塞性的，并支持配置超时时间和严重性级别。
-- **IntegrationPlugin**: 支持与外部系统的集成，通过 webhook 机制将系统事件推送到外部服务。集成插件支持自定义事件订阅、负载模板和请求头配置。
-- **MCPPlugin**: 允许用户注册自定义 MCP (Model Context Protocol) 工具，扩展系统的工具能力。MCP 工具支持参数化命令执行，并提供与 MCP 协议兼容的工具定义。
+1. `renderTemplate()` 将 `{{event.xxx}}` 替换成事件值。  
+2. 根据 `webhook_url` 协议选择 `https.request` 或 `http.request`。  
+3. POST payload，超时/错误返回 `{ sent: false, error }`。  
+4. 收到响应即 `{ sent: true, status }`（不按 status code 自动判失败）。
 
-### 2. 插件加载机制
+## 流程 D：MCP tool 执行（`MCPPlugin.execute`）
 
-PluginLoader 组件提供了完整的插件加载功能：
+1. 将 `{{params.key}}` 替换成 `_sanitizeValue(value)` 后的 shell-safe 字符串。  
+2. `/bin/sh -c` 执行并返回 `{ success, output, duration_ms }`。  
+3. `getMCPDefinition(name)` 可把已注册工具映射成 MCP 所需 `inputSchema`。
 
-- 自动发现指定目录中的插件配置文件
-- 支持 YAML 和 JSON 格式的插件配置
-- 内置简单的 YAML 解析器，避免外部依赖
-- 提供插件文件变更监听功能，支持热重载
-- 详细的加载结果反馈，包括成功加载的插件和加载失败的原因
+---
 
-### 3. 插件注册表
+## 5. 关键设计决策与权衡
 
-每种类型的插件都有自己的内存注册表，用于存储和管理已注册的插件：
+## 决策 1：全静态类 + 模块级 `Map`
 
-- 提供插件的注册、注销和查询功能
-- 防止重复注册和内置插件覆盖
-- 支持按条件查询插件（如按阶段查询质量门、按事件类型查询集成）
-- 提供测试用的清空方法
+**选择**：`AgentPlugin/GatePlugin/IntegrationPlugin/MCPPlugin` 都是静态方法，状态存模块内 `Map`。  
+**收益**：接入简单、调用成本低、测试容易（有 `_clearAll()`）。  
+**代价**：仅进程内状态；多实例部署没有天然一致性；重启丢失注册数据。
 
-## 子模块文档
+## 决策 2：`PluginLoader` 使用同步 I/O
 
-为了更详细地了解各个子模块的功能和使用方法，请参考以下文档：
+**选择**：`readFileSync/readdirSync/statSync`。  
+**收益**：实现直观，启动时批量加载更容易保证顺序和确定性。  
+**代价**：不适合高频热路径；如果在请求路径频繁调用会阻塞事件循环。
 
-- [AgentPlugin 子模块文档](AgentPlugin.md) - 详细介绍了自定义代理插件的注册、管理和使用方法
-- [GatePlugin 子模块文档](GatePlugin.md) - 深入讲解了质量门插件的实现机制、执行流程和配置选项
-- [IntegrationPlugin 子模块文档](IntegrationPlugin.md) - 全面说明了集成插件的事件处理机制、模板渲染和webhook配置
-- [MCPPlugin 子模块文档](MCPPlugin.md) - 详细阐述了MCP工具插件的参数替换、安全执行和协议兼容性
-- [PluginLoader 子模块文档](PluginLoader.md) - 完整介绍了插件加载器的文件发现、解析验证和热重载机制
+## 决策 3：内置简化 YAML 解析器（`parseSimpleYAML`）
 
-## 使用指南
+**选择**：不引入 `js-yaml`，只支持常用子集。  
+**收益**：依赖少、攻击面小、可控。  
+**代价**：不是完整 YAML 语义，复杂 YAML 可能被误解析或不支持。
 
-### 基本使用流程
+## 决策 4：命令执行走 shell（`/bin/sh -c`）
 
-1. **准备插件配置文件**: 在插件目录（默认为 `.loki/plugins`）中创建 YAML 或 JSON 格式的插件配置文件。
-2. **加载插件**: 使用 PluginLoader 加载和验证插件配置。
-3. **注册插件**: 将验证通过的插件配置注册到相应的插件管理器中。
-4. **使用插件**: 通过相应的插件管理器使用已注册的插件功能。
+**选择**：`GatePlugin` 与 `MCPPlugin` 都走 shell。  
+**收益**：极高兼容性，几乎任何现有 CLI/脚本都能接。  
+**代价**：安全风险升高（命令注入、环境差异）；需要严控配置来源。
 
-### 插件配置示例
+## 决策 5：结果对象优先，而非异常优先
 
-以下是各种类型插件的基本配置示例：
+**选择**：执行失败通常返回 `{ success/passed/sent: false, ... }`。  
+**收益**：批处理场景更稳，单个插件失败不必打断整批。  
+**代价**：调用方若忘记检查布尔字段，容易误判成功。
 
-#### AgentPlugin 配置示例
-```yaml
-type: agent
-name: my-custom-agent
-category: analysis
-description: A custom analysis agent
-prompt_template: |
-  You are a custom analysis agent.
-  Please analyze the following code:
-  {{code}}
-trigger: analyze
-quality_gate: true
-capabilities:
-  - code_analysis
-  - bug_detection
+---
+
+## 6. 子模块总结（含跳转）
+
+- [agent_plugin.md](agent_plugin.md)  
+  聚焦自定义 Agent 注册。核心约束是不能覆盖 `BUILTIN_AGENT_NAMES`，体现“可扩展但不破坏内核”的边界。
+
+- [gate_plugin.md](gate_plugin.md)  
+  负责质量门插件注册与命令执行，支持按 `phase` 检索（`getByPhase`）。适合把现有检查脚本纳入统一门禁入口。
+
+- [integration_plugin.md](integration_plugin.md)  
+  负责事件订阅与 webhook 投递。`renderTemplate` 支持 `{{event.xxx}}` 路径渲染，是最核心的数据映射能力。
+
+- [mcp_plugin.md](mcp_plugin.md)  
+  负责 MCP 工具插件注册、参数安全替换执行、以及 `getMCPDefinition` 的协议映射。
+
+- [plugin_loader.md](plugin_loader.md)  
+  负责文件发现、解析、校验、监听；是插件系统入口。
+
+---
+
+## 7. 与其他模块的依赖关系（基于模块树与可见代码）
+
+```mermaid
+graph LR
+    PS[Plugin System] --> SW[Swarm Multi-Agent]
+    PS --> PE[Policy Engine]
+    PS --> MCP[MCP Protocol]
+    PS --> INT[Integrations]
+    PS --> API[API Server & Services]
 ```
 
-#### GatePlugin 配置示例
-```yaml
-type: quality_gate
-name: my-custom-lint
-description: Custom linting check
-phase: pre-commit
-command: npm run lint
-timeout_ms: 30000
-blocking: true
-severity: high
-```
+- 与 [Swarm Multi-Agent](Swarm Multi-Agent.md)：`AgentPlugin` 注册出的 custom agent 定义通常由上游编排层消费。  
+- 与 [Policy Engine](Policy Engine.md)：`GatePlugin` 的执行结果可作为策略/审批输入。  
+- 与 [MCP Protocol](MCP Protocol.md)：`MCPPlugin.getMCPDefinition()` 产出的 schema 可用于协议层工具暴露。  
+- 与 [Integrations](Integrations.md)：`IntegrationPlugin` 是通用 webhook 机制；`Integrations` 模块则是特定平台深度适配。  
+- 与 [API Server & Services](API Server & Services.md)：运行时事件（如 EventBus）可作为 integration 插件的上游事件源。
 
-#### IntegrationPlugin 配置示例
-```yaml
-type: integration
-name: my-slack-notifier
-description: Send notifications to Slack
-webhook_url: https://hooks.slack.com/services/xxx/yyy/zzz
-events:
-  - task.completed
-  - task.failed
-payload_template: |
-  {
-    "text": "Task {{event.task_id}} {{event.type}}: {{event.message}}"
-  }
-headers:
-  X-Custom-Header: MyValue
-timeout_ms: 5000
-retry_count: 3
-```
+> 注：上述跨模块“具体调用点”在当前提供代码中未直接展开，文档按职责关系描述，而非声称存在某个固定函数调用链。
 
-#### MCPPlugin 配置示例
-```yaml
-type: mcp_tool
-name: my-custom-tool
-description: A custom MCP tool
-command: my-tool --input {{params.input}} --output {{params.output}}
-parameters:
-  - name: input
-    type: string
-    description: Input file path
-    required: true
-  - name: output
-    type: string
-    description: Output file path
-    default: output.txt
-timeout_ms: 30000
-working_directory: project
-```
+---
 
-## 注意事项和限制
+## 8. 新贡献者最该注意的坑
 
-1. **内置代理保护**: AgentPlugin 不允许覆盖系统内置的代理类型，尝试注册与内置代理同名的插件将失败。
-2. **插件名称唯一性**: 所有类型的插件都要求名称唯一，重复注册相同名称的插件将失败。
-3. **命令执行安全**: GatePlugin 和 MCPPlugin 执行外部命令时应注意安全性，避免命令注入攻击。MCPPlugin 提供了参数值的安全转义功能。
-4. **内存注册表**: 所有插件注册表都是内存存储的，系统重启后需要重新加载和注册插件。
-5. **YAML 解析限制**: PluginLoader 内置的 YAML 解析器只支持基本的 YAML 功能，对于复杂的 YAML 特性可能需要使用完整的 YAML 解析库。
-6. **错误处理**: 插件执行过程中的错误应妥善处理，避免影响系统的正常运行。特别是集成插件的事件处理采用了 fire-and-forget 模式，不会阻塞主流程。
+1. **注册表是内存态，不持久化**  
+   重启即丢。务必保证启动阶段有“重新加载 + 重新注册”流程。
 
-## 与其他模块的关系
+2. **`retry_count` 在 `IntegrationPlugin` 中当前只存储不执行**  
+   不要误以为 webhook 自动重试已生效。
 
-Plugin System 模块与系统中的其他多个模块有密切关系：
+3. **`GatePlugin` 超时与 maxBuffer 溢出共用一类错误文案**  
+   看到 timeout 文案时，根因可能是输出过大。
 
-- **Swarm Multi-Agent**: AgentPlugin 注册的自定义代理可以被 Swarm Multi-Agent 模块使用。
-- **Policy Engine**: GatePlugin 提供的质量门可以被 Policy Engine 模块集成到策略评估流程中。
-- **MCP Protocol**: MCPPlugin 注册的工具可以通过 MCP Protocol 模块暴露给外部系统。
-- **Integrations**: IntegrationPlugin 提供了与 Integrations 模块类似的功能，但更侧重于自定义集成的支持。
+4. **`MCPPlugin` 会替换 `{{params.key}}`，未提供的占位符会原样保留**  
+   这可能导致命令语义异常，需要上层先做参数完整性校验。
 
-更多关于这些模块的信息，请参考相应的模块文档。
+5. **`PluginLoader.parseSimpleYAML` 是“够用版”**  
+   复杂 YAML（深层对象、锚点等）不要依赖；尽量使用简单结构或 JSON。
+
+6. **返回对象不是异常**  
+   执行路径失败通常 `resolve(false)`；调用方必须显式检查 `success/passed/sent`。
+
+7. **shell 执行安全边界在配置治理，不在运行时魔法**  
+   即使 `MCPPlugin._sanitizeValue` 做了参数转义，`command` 本身依然是高权限入口。
+
+---
+
+## 9. 给新成员的实操建议
+
+- 先从 [plugin_loader.md](plugin_loader.md) 看入口，再看四个插件类型实现。  
+- 本地调试时优先验证 `loadAll().failed`，不要直接查执行失败日志。  
+- 写新插件类型时，先想清楚它属于“注册类能力”还是“执行类能力”，保持现有分层风格。  
+- 若要上生产，先补齐：配置来源权限控制、审计、超时策略、输出大小控制、失败告警。

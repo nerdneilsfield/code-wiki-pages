@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>document_load_callbacks 模块技术深度剖析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T04:07<br>
+    <b>Components:</b> 2668<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/cloudwego/eino" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/cloudwego/eino" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Core Types.html" class="nv">Schema Core Types</a>
+      <button class="nvcaret" data-nav="Schema-Core-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Schema-Core-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message.html" class="nv">Schema Message</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_tool.html" class="nv">Schema Tool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_document.html" class="nv">Schema Document</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message_parser.html" class="nv">Schema Message Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Stream.html" class="nv">Schema Stream</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Interfaces.html" class="nv">Component Interfaces</a>
+      <button class="nvcaret" data-nav="Component-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_interfaces.html" class="nv">Model Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_interfaces.html" class="nv">Tool Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_interfaces.html" class="nv">Embedding Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_interfaces.html" class="nv">Prompt Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_interfaces.html" class="nv">Document Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="component_types.html" class="nv">Component Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Options and Extras.html" class="nv">Component Options And Extras</a>
+      <button class="nvcaret" data-nav="Component-Options-and-Extras-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Options-and-Extras-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_options_and_callbacks.html" class="nv">Model Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_options_and_utilities.html" class="nv">Tool Options And Utilities</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_options_and_callbacks.html" class="nv">Embedding Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retriever_indexer_options_and_callbacks.html" class="nv">Retriever Indexer Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_options_and_callbacks.html" class="nv">Prompt Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_options_and_callbacks.html" class="nv">Document Options And Callbacks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Callbacks System.html" class="nv">Callbacks System</a>
+      <button class="nvcaret" data-nav="Callbacks-System-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Callbacks-System-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="handler_builder.html" class="nv">Handler Builder</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="interface.html" class="nv">Interface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="manager.html" class="nv">Manager</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="template.html" class="nv">Template</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Graph Engine.html" class="nv">Compose Graph Engine</a>
+      <button class="nvcaret" data-nav="Compose-Graph-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Graph-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_construction_and_compilation.html" class="nv">Graph Construction And Compilation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="node_abstraction_and_options.html" class="nv">Node Abstraction And Options</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runtime_execution_engine.html" class="nv">Runtime Execution Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="channel_and_task_management.html" class="nv">Channel And Task Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="branching_and_field_mapping.html" class="nv">Branching And Field Mapping</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runnable_and_type_system.html" class="nv">Runnable And Type System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="state_and_call_control.html" class="nv">State And Call Control</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Checkpoint.html" class="nv">Compose Checkpoint</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Interrupt.html" class="nv">Compose Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Tool Node.html" class="nv">Compose Tool Node</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Workflow.html" class="nv">Compose Workflow</a>
+      <button class="nvcaret" data-nav="Compose-Workflow-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Workflow-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workflow_core.html" class="nv">Workflow Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chain_branch.html" class="nv">Chain Branch</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parallel_execution.html" class="nv">Parallel Execution</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Lambda Types.html" class="nv">Compose Lambda Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Core.html" class="nv">Internal Core</a>
+      <button class="nvcaret" data-nav="Internal-Core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="地址管理子模块.html" class="nv">地址管理子模块</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="中断管理子模块.html" class="nv">中断管理子模块</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Utilities.html" class="nv">Internal Utilities</a>
+      <button class="nvcaret" data-nav="Internal-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_serialization.html" class="nv">Internal Serialization</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_channel.html" class="nv">Internal Channel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_generic.html" class="nv">Internal Generic</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_safe.html" class="nv">Internal Safe</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Interface.html" class="nv">Adk Agent Interface</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Runner.html" class="nv">Adk Runner</a>
+      <button class="nvcaret" data-nav="ADK-Runner-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Runner-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runner_core.html" class="nv">Runner Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="execution_context.html" class="nv">Execution Context</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_options.html" class="nv">Call Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Interrupt.html" class="nv">Adk Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Tool.html" class="nv">Adk Agent Tool</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK ChatModel Agent.html" class="nv">Adk Chatmodel Agent</a>
+      <button class="nvcaret" data-nav="ADK-ChatModel-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-ChatModel-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_orchestration.html" class="nv">Agent Runtime And Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="builtin_control_tools_and_handoff.html" class="nv">Builtin Control Tools And Handoff</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chatmodel_retry_wrapper.html" class="nv">Chatmodel Retry Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK React Agent.html" class="nv">Adk React Agent</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Workflow Agents.html" class="nv">Adk Workflow Agents</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Flow Agent.html" class="nv">Adk Flow Agent</a>
+      <button class="nvcaret" data-nav="ADK-Flow-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Flow-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agent_orchestration.html" class="nv">Flow Agent Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deterministic_transfer_wrapper.html" class="nv">Deterministic Transfer Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Utils.html" class="nv">Adk Utils</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Filesystem Middleware.html" class="nv">Adk Filesystem Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Filesystem-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Filesystem-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_protocol_and_requests.html" class="nv">Backend Protocol And Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="in_memory_backend_implementation.html" class="nv">In Memory Backend Implementation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_middleware_and_tool_surface.html" class="nv">Filesystem Middleware And Tool Surface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="large_tool_result_offloading_pipeline.html" class="nv">Large Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Reduction Middleware.html" class="nv">Adk Reduction Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Reduction-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Reduction-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="middleware_entrypoint_and_contracts.html" class="nv">Middleware Entrypoint And Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_clearing_policy.html" class="nv">Tool Result Clearing Policy</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_offloading_pipeline.html" class="nv">Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Skill Middleware.html" class="nv">Adk Skill Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Skill-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Skill-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="skill_middleware_core.html" class="nv">Skill Middleware Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend_filesystem.html" class="nv">Local Backend Filesystem</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Plan-Execute.html" class="nv">Adk Prebuilt Plan-Execute</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Plan-Execute-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Plan-Execute-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="plan_execute_orchestration_core.html" class="nv">Plan Execute Orchestration Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_kv_output_wrapper.html" class="nv">Session Kv Output Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Supervisor.html" class="nv">Adk Prebuilt Supervisor</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Deep Research.html" class="nv">Adk Prebuilt Deep Research</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Deep-Research-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Deep-Research-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deep_research_core.html" class="nv">Deep Research Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="task_tool_orchestration.html" class="nv">Task Tool Orchestration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow React Agent.html" class="nv">Flow React Agent</a>
+      <button class="nvcaret" data-nav="Flow-React-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-React-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_graph_runtime_core.html" class="nv">React Graph Runtime Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_runtime_options_and_message_future.html" class="nv">React Runtime Options And Message Future</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_option_bridge.html" class="nv">Agent Option Bridge</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Multi-Agent Host.html" class="nv">Flow Multi-Agent Host</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Retrievers.html" class="nv">Flow Retrievers</a>
+      <button class="nvcaret" data-nav="Flow-Retrievers-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-Retrievers-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Multi Query</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parent</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="router.html" class="nv">Router</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Utils</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Indexers.html" class="nv">Flow Indexers</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Mock Utilities.html" class="nv">Mock Utilities</a>
+      <button class="nvcaret" data-nav="Mock-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Mock-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_agent_mocks.html" class="nv">Adk Agent Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chat_model_mocks.html" class="nv">Chat Model Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_pipeline_mocks.html" class="nv">Document Pipeline Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_retrieval_indexing_mocks.html" class="nv">Embedding Retrieval Indexing Mocks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>document_load_callbacks 模块技术深度剖析</h1>
+<h2>1. 模块定位与问题解决</h2>
+<h3>1.1 核心问题</h3>
+<p>在文档处理管道中，文档加载器（Loader）负责从各种数据源（文件系统、数据库、网络等）读取原始内容并转换为统一的 <code>schema.Document</code> 结构。但在实际应用中，我们经常需要在加载过程中插入额外的逻辑：</p>
+<ul>
+<li><strong>监控与 observability</strong>：记录加载时间、文档数量、源信息等</li>
+<li><strong>数据校验</strong>：在加载前后验证数据完整性</li>
+<li><strong>元数据增强</strong>：自动添加时间戳、源标识等元信息</li>
+<li><strong>条件过滤</strong>：根据业务规则跳过某些文档</li>
+<li><strong>错误处理与重试</strong>：在加载失败时执行补偿逻辑</li>
+</ul>
+<p>一个朴素的解决方案是将这些逻辑直接硬编码在加载器实现中，但这会导致：</p>
+<ul>
+<li>加载器职责过重，违反单一职责原则</li>
+<li>不同加载器之间重复代码</li>
+<li>难以独立测试和复用这些横切关注点</li>
+<li>修改监控逻辑需要改动加载器代码</li>
+</ul>
+<h3>1.2 设计洞察</h3>
+<p><code>document_load_callbacks</code> 模块的核心设计思想是<strong>将加载器的核心逻辑与横切关注点分离</strong>，通过定义标准的回调输入输出契约，让加载器在执行的关键节点触发回调，而具体的横切逻辑由回调处理器实现。</p>
+<p>这类似于 Web 框架中的中间件模式——加载器是核心业务逻辑，回调是可插拔的中间件，它们通过标准化的请求/响应格式进行通信。</p>
+<h2>2. 核心抽象与心智模型</h2>
+<h3>2.1 核心数据结构</h3>
+<p>该模块定义了两个关键结构体，构成了回调机制的契约：</p>
+<h4>LoaderCallbackInput</h4>
+<pre><code class="language-go">type LoaderCallbackInput struct {
+    // Source 是文档的来源，标识数据从哪里来
+    Source Source
+    
+    // Extra 是额外的回调信息，用于传递自定义数据
+    Extra map[string]any
+}
+</code></pre>
+<h4>LoaderCallbackOutput</h4>
+<pre><code class="language-go">type LoaderCallbackOutput struct {
+    // Source 是文档的来源
+    Source Source
+    
+    // Docs 是要加载的文档列表
+    Docs []*schema.Document
+    
+    // Extra 是额外的回调信息
+    Extra map[string]any
+}
+</code></pre>
+<h3>2.2 心智模型</h3>
+<p>可以把这个模块想象成<strong>文档加载流水线的&quot;安检站&quot;</strong>：</p>
+<ol>
+<li><strong>输入安检</strong>：文档源（Source）进入加载器前，先经过回调处理器的&quot;检查&quot;，可以在这里记录日志、验证源信息等</li>
+<li><strong>加载执行</strong>：加载器从源读取数据并转换为文档</li>
+<li><strong>输出安检</strong>：生成的文档离开加载器前，再次经过回调处理器的&quot;检查&quot;，可以在这里修改文档、添加元数据、过滤内容等</li>
+</ol>
+<p><code>LoaderCallbackInput</code> 是进入安检站的包裹，<code>LoaderCallbackOutput</code> 是经过检查后的包裹。回调处理器就像安检员，可以查看包裹内容，甚至在必要时修改包裹。</p>
+<h3>2.3 类型转换机制</h3>
+<p>模块还提供了两个关键的转换函数，这是回调系统灵活性的关键：</p>
+<pre><code class="language-go">func ConvLoaderCallbackInput(src callbacks.CallbackInput) *LoaderCallbackInput
+func ConvLoaderCallbackOutput(src callbacks.CallbackOutput) *LoaderCallbackOutput
+</code></pre>
+<p>这些函数实现了<strong>自适应类型转换</strong>：</p>
+<ul>
+<li>如果输入已经是目标类型，直接返回</li>
+<li>如果是简化类型（如 <code>Source</code> 或 <code>[]*schema.Document</code>），自动包装成完整的回调结构</li>
+<li>其他情况返回 <code>nil</code></li>
+</ul>
+<p>这种设计让加载器在使用回调时更加灵活——既可以传递完整的回调结构，也可以只传递核心数据，转换函数会处理剩下的事情。</p>
+<h2>3. 架构与数据流</h2>
+<h3>3.1 组件关系图</h3>
+<div class="mermaid">graph TD
+    A[Loader] -->|触发回调| B[callbacks.Handler]
+    B -->|接收输入| C[ConvLoaderCallbackInput]
+    C -->|转换为| D[LoaderCallbackInput]
+    D -->|处理| E[CallbackHandler]
+    E -->|返回| F[LoaderCallbackOutput]
+    F -->|转换为| G[ConvLoaderCallbackOutput]
+    G -->|返回给| A
+    
+    H[Source] -->|作为输入| A
+    A -->|生成| I[schema.Document]
+    
+    style D fill:#e1f5ff
+    style F fill:#e1f5ff
+    style C fill:#fff4e1
+    style G fill:#fff4e1
+</div>
+<h3>3.2 数据流详解</h3>
+<p>让我们追踪一次完整的文档加载流程：</p>
+<ol>
+<li><strong>加载器初始化回调</strong>：加载器接收 <code>Source</code> 作为输入，准备开始加载</li>
+<li><strong>创建回调输入</strong>：加载器将 <code>Source</code> 包装（或直接传递）给回调系统</li>
+<li><strong>类型转换</strong>：<code>ConvLoaderCallbackInput</code> 将输入统一转换为 <code>LoaderCallbackInput</code> 结构</li>
+<li><strong>回调处理</strong>：<code>LoaderCallbackHandler</code> 接收输入，执行自定义逻辑（如记录源信息）</li>
+<li><strong>加载执行</strong>：加载器从源读取数据，转换为 <code>[]*schema.Document</code></li>
+<li><strong>创建回调输出</strong>：加载器将文档列表包装（或直接传递）给回调系统</li>
+<li><strong>类型转换</strong>：<code>ConvLoaderCallbackOutput</code> 将输出统一转换为 <code>LoaderCallbackOutput</code> 结构</li>
+<li><strong>回调后处理</strong>：回调处理器再次执行，可能修改文档、添加元数据等</li>
+<li><strong>结果返回</strong>：处理后的文档返回给调用者</li>
+</ol>
+<h2>4. 依赖分析</h2>
+<h3>4.1 被依赖模块</h3>
+<p>该模块依赖两个核心模块：</p>
+<ol>
+<li>
+<p><strong><a href="callbacks.html">callbacks</a></strong>：提供了回调系统的基础接口</p>
+<ul>
+<li><code>callbacks.CallbackInput</code>：回调输入的通用接口</li>
+<li><code>callbacks.CallbackOutput</code>：回调输出的通用接口</li>
+<li>这是整个回调框架的基础，<code>document_load_callbacks</code> 是它在文档加载场景的具体实现</li>
+</ul>
+</li>
+<li>
+<p><strong><a href="schema_core_types.html">schema</a></strong>：提供了文档的标准结构</p>
+<ul>
+<li><code>schema.Document</code>：文档的核心数据结构</li>
+<li>所有加载器最终都生成这种格式的文档，回调系统也围绕它设计</li>
+</ul>
+</li>
+<li>
+<p><strong><a href="component_interfaces.html">document_interfaces</a></strong>：提供了数据源接口</p>
+<ul>
+<li><code>Source</code> 接口（来自 <code>components.document.interface</code>）：定义了文档源的标准</li>
+<li>这是加载器处理的输入类型</li>
+</ul>
+</li>
+</ol>
+<h3>4.2 依赖该模块的组件</h3>
+<ul>
+<li><strong><a href="callbacks_template.html">LoaderCallbackHandler</a></strong>：回调处理器模板，使用这些类型定义回调签名</li>
+<li><strong>文档加载器实现</strong>：各种具体的加载器（如文件加载器、数据库加载器等）在实现时会使用这些回调类型</li>
+<li><strong><a href="document_options.html">LoaderOptions</a></strong>：加载器选项，可能包含回调配置</li>
+</ul>
+<h2>5. 设计权衡与决策</h2>
+<h3>5.1 灵活性 vs 类型安全</h3>
+<p><strong>决策</strong>：采用 <code>interface{}</code> 基础的回调系统，配合类型转换函数</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ <strong>灵活性</strong>：加载器可以传递多种类型（<code>Source</code>、<code>[]*schema.Document</code> 或完整的回调结构）</li>
+<li>✅ <strong>易用性</strong>：简单场景下不需要构建完整的回调结构</li>
+<li>⚠️ <strong>类型安全</strong>：编译时无法保证类型正确性，运行时转换可能失败</li>
+<li>⚠️ <strong>性能</strong>：有运行时类型断言的开销</li>
+</ul>
+<p><strong>为什么这样选择</strong>：在这个场景下，灵活性和易用性比严格的类型安全更重要。文档加载是相对高频但不是性能瓶颈的操作，类型转换的开销可以接受。同时，通过提供明确的转换函数，将类型不安全的点集中管理，降低了出错概率。</p>
+<h3>5.2 单一结构 vs 细分结构</h3>
+<p><strong>决策</strong>：使用 <code>LoaderCallbackInput</code> 和 <code>LoaderCallbackOutput</code> 两个结构，而不是为不同场景创建更多细分结构</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ <strong>简单性</strong>：只需要理解两个核心结构</li>
+<li>✅ <strong>一致性</strong>：所有加载场景使用相同的结构</li>
+<li>⚠️ <strong>字段冗余</strong>：某些场景下部分字段可能为空（如 <code>Extra</code> 经常是 <code>nil</code>）</li>
+<li>⚠️ <strong>扩展性限制</strong>：如果未来需要截然不同的回调数据，可能需要修改现有结构</li>
+</ul>
+<p><strong>为什么这样选择</strong>：文档加载的回调场景相对统一，主要就是&quot;源信息&quot;和&quot;文档列表&quot;两个核心数据。当前的结构已经能覆盖绝大多数场景，过度设计会增加复杂度。如果未来需要扩展，可以通过 <code>Extra</code> 字段传递自定义数据，或者创建新的结构而不破坏现有代码。</p>
+<h3>5.3 可变性设计</h3>
+<p><strong>决策</strong>：<code>LoaderCallbackOutput</code> 中的 <code>Docs</code> 是可变的切片，允许回调处理器修改文档内容</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ <strong>功能强大</strong>：回调可以直接修改文档内容（添加元数据、清理内容等）</li>
+<li>✅ <strong>符合 Go 惯例</strong>：Go 中切片本身就是引用类型，修改是自然的</li>
+<li>⚠️ <strong>副作用风险</strong>：一个回调的修改会影响后续所有处理</li>
+<li>⚠️ <strong>并发安全</strong>：如果多个回调并发处理，需要额外的同步机制</li>
+</ul>
+<p><strong>为什么这样选择</strong>：文档处理管道通常是线性的，一个接一个地处理，并发场景较少。同时，允许修改文档是回调系统的核心价值之一——如果不能修改，回调就只剩下观察能力，价值大打折扣。通过设计约定（回调按注册顺序执行，文档在回调链中传递），可以管理副作用的风险。</p>
+<h2>6. 使用指南与最佳实践</h2>
+<h3>6.1 基本使用模式</h3>
+<h4>在加载器中触发回调</h4>
+<pre><code class="language-go">func (l *MyLoader) Load(ctx context.Context, source Source) ([]*schema.Document, error) {
+    // 1. 触发加载前回调
+    cbInput := &amp;LoaderCallbackInput{
+        Source: source,
+        Extra: map[string]any{&quot;start_time&quot;: time.Now()},
+    }
+    
+    // 假设有一个回调管理器
+    cbOutput, err := callbackManager.TriggerOnStart(ctx, cbInput)
+    if err != nil {
+        return nil, err
+    }
+    
+    // 2. 执行实际加载逻辑
+    docs, err := l.doLoad(ctx, source)
+    if err != nil {
+        return nil, err
+    }
+    
+    // 3. 准备加载后回调输入
+    finalInput := &amp;LoaderCallbackOutput{
+        Source: source,
+        Docs: docs,
+        Extra: map[string]any{&quot;end_time&quot;: time.Now()},
+    }
+    
+    // 4. 触发加载后回调
+    finalOutput, err := callbackManager.TriggerOnEnd(ctx, finalInput)
+    if err != nil {
+        return nil, err
+    }
+    
+    // 5. 返回处理后的文档
+    return finalOutput.Docs, nil
+}
+</code></pre>
+<h4>实现回调处理器</h4>
+<pre><code class="language-go">type MetadataEnhancer struct{}
+
+func (h *MetadataEnhancer) OnEnd(ctx context.Context, input callbacks.CallbackOutput) (callbacks.CallbackOutput, error) {
+    // 转换为具体类型
+    loaderOutput := ConvLoaderCallbackOutput(input)
+    if loaderOutput == nil {
+        return input, nil // 不是我们关心的类型，原样返回
+    }
+    
+    // 为每个文档添加元数据
+    for _, doc := range loaderOutput.Docs {
+        if doc.Meta == nil {
+            doc.Meta = make(map[string]any)
+        }
+        doc.Meta[&quot;loaded_at&quot;] = time.Now()
+        doc.Meta[&quot;source_type&quot;] = loaderOutput.Source.Type()
+    }
+    
+    return loaderOutput, nil
+}
+</code></pre>
+<h3>6.2 常见使用场景</h3>
+<h4>场景 1：日志记录</h4>
+<pre><code class="language-go">type LoadingLogger struct{}
+
+func (h *LoadingLogger) OnStart(ctx context.Context, input callbacks.CallbackInput) (callbacks.CallbackInput, error) {
+    loaderInput := ConvLoaderCallbackInput(input)
+    if loaderInput != nil {
+        log.Printf(&quot;开始从 %s 加载文档&quot;, loaderInput.Source.URI())
+    }
+    return input, nil
+}
+
+func (h *LoadingLogger) OnEnd(ctx context.Context, input callbacks.CallbackOutput) (callbacks.CallbackOutput, error) {
+    loaderOutput := ConvLoaderCallbackOutput(input)
+    if loaderOutput != nil {
+        log.Printf(&quot;从 %s 加载了 %d 个文档&quot;, loaderOutput.Source.URI(), len(loaderOutput.Docs))
+    }
+    return input, nil
+}
+</code></pre>
+<h4>场景 2：文档过滤</h4>
+<pre><code class="language-go">type EmptyDocFilter struct{}
+
+func (h *EmptyDocFilter) OnEnd(ctx context.Context, input callbacks.CallbackOutput) (callbacks.CallbackOutput, error) {
+    loaderOutput := ConvLoaderCallbackOutput(input)
+    if loaderOutput == nil {
+        return input, nil
+    }
+    
+    // 过滤掉空文档
+    filtered := make([]*schema.Document, 0, len(loaderOutput.Docs))
+    for _, doc := range loaderOutput.Docs {
+        if len(strings.TrimSpace(doc.Content)) &gt; 0 {
+            filtered = append(filtered, doc)
+        }
+    }
+    
+    loaderOutput.Docs = filtered
+    return loaderOutput, nil
+}
+</code></pre>
+<h3>6.3 最佳实践</h3>
+<ol>
+<li><strong>总是检查类型转换结果</strong>：<code>ConvLoaderCallbackInput</code> 和 <code>ConvLoaderCallbackOutput</code> 可能返回 <code>nil</code>，要妥善处理这种情况</li>
+<li><strong>保持回调幂等</strong>：如果可能，让回调可以安全地多次调用而不产生意外后果</li>
+<li><strong>避免在回调中执行耗时操作</strong>：回调是加载流程的一部分，耗时操作会影响整体性能</li>
+<li><strong>使用 <code>Extra</code> 字段传递自定义数据</strong>：而不是修改结构体，保持兼容性</li>
+<li><strong>文档修改要谨慎</strong>：如果修改文档，确保清楚地记录这种行为，避免意外影响</li>
+</ol>
+<h2>7. 边缘情况与注意事项</h2>
+<h3>7.1 类型转换失败</h3>
+<p><strong>问题</strong>：<code>ConvLoaderCallbackInput</code> 或 <code>ConvLoaderCallbackOutput</code> 返回 <code>nil</code></p>
+<p><strong>原因</strong>：传入的类型不是预期的类型</p>
+<p><strong>处理方式</strong>：</p>
+<ul>
+<li>回调处理器应该优雅地处理 <code>nil</code> 情况，通常是原样返回输入</li>
+<li>不要假设转换一定会成功，始终进行检查</li>
+<li>如果转换失败是关键错误，可以记录日志但尽量不要中断流程</li>
+</ul>
+<h3>7.2 空文档列表</h3>
+<p><strong>问题</strong>：<code>LoaderCallbackOutput.Docs</code> 是空切片或 <code>nil</code></p>
+<p><strong>注意事项</strong>：</p>
+<ul>
+<li>回调处理器应该同时处理这两种情况</li>
+<li>不要假设 <code>Docs</code> 一定非空，在迭代前检查长度</li>
+<li>如果是 <code>nil</code>，考虑是否需要初始化为空切片</li>
+</ul>
+<h3>7.3 回调链中的副作用</h3>
+<p><strong>问题</strong>：一个回调修改了文档，后续回调看到的是修改后的版本</p>
+<p><strong>影响</strong>：</p>
+<ul>
+<li>回调的顺序很重要</li>
+<li>调试可能变得困难，因为文档状态在不断变化</li>
+</ul>
+<p><strong>建议</strong>：</p>
+<ul>
+<li>让回调按逻辑顺序注册（先日志，再过滤，最后增强）</li>
+<li>考虑在关键节点保存文档快照以便调试</li>
+<li>如果回调之间有依赖，明确记录这种依赖关系</li>
+</ul>
+<h3>7.4 并发安全</h3>
+<p><strong>问题</strong>：如果多个 goroutine 同时处理文档并触发回调，可能出现竞态条件</p>
+<p><strong>注意事项</strong>：</p>
+<ul>
+<li>默认情况下，回调系统不保证并发安全</li>
+<li>如果回调会修改共享状态，需要自己实现同步</li>
+<li>如果不确定，假设回调可能被并发调用</li>
+</ul>
+<h2>8. 扩展与演进</h2>
+<h3>8.1 扩展点</h3>
+<p>该模块设计了几个明确的扩展点：</p>
+<ol>
+<li><strong><code>Extra</code> 字段</strong>：用于传递自定义数据，无需修改核心结构</li>
+<li><strong>新的转换规则</strong>：可以扩展 <code>ConvLoaderCallbackInput</code> 和 <code>ConvLoaderCallbackOutput</code> 以支持更多输入类型</li>
+<li><strong>包装器模式</strong>：可以创建包装器结构，在不修改现有代码的情况下添加功能</li>
+</ol>
+<h3>8.2 未来可能的演进方向</h3>
+<p>虽然当前设计已经很稳定，但未来可能的改进包括：</p>
+<ol>
+<li><strong>增加更多上下文信息</strong>：如加载器类型、配置信息等</li>
+<li><strong>错误处理增强</strong>：允许回调在特定条件下终止加载流程</li>
+<li><strong>流式回调支持</strong>：为流式加载场景提供专门的回调结构</li>
+</ol>
+<h2>9. 相关模块参考</h2>
+<ul>
+<li><strong><a href="callbacks.html">callbacks</a></strong>：回调系统的核心框架</li>
+<li><strong><a href="schema_core_types.html">schema</a></strong>：文档数据结构定义</li>
+<li><strong><a href="document_transform_callbacks.html">document_transform_callbacks</a></strong>：文档转换器的回调定义（类似模式）</li>
+<li><strong><a href="callbacks_template.html">callbacks_template</a></strong>：回调处理器的模板实现，包括 <code>LoaderCallbackHandler</code></li>
+<li><strong><a href="document_options.html">document_options</a></strong>：加载器选项配置</li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

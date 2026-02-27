@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>schema_tool 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T04:07<br>
+    <b>Components:</b> 2668<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/cloudwego/eino" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/cloudwego/eino" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Core Types.html" class="nv">Schema Core Types</a>
+      <button class="nvcaret" data-nav="Schema-Core-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Schema-Core-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message.html" class="nv">Schema Message</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_tool.html" class="nv on">Schema Tool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_document.html" class="nv">Schema Document</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message_parser.html" class="nv">Schema Message Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Stream.html" class="nv">Schema Stream</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Interfaces.html" class="nv">Component Interfaces</a>
+      <button class="nvcaret" data-nav="Component-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_interfaces.html" class="nv">Model Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_interfaces.html" class="nv">Tool Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_interfaces.html" class="nv">Embedding Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_interfaces.html" class="nv">Prompt Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_interfaces.html" class="nv">Document Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="component_types.html" class="nv">Component Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Options and Extras.html" class="nv">Component Options And Extras</a>
+      <button class="nvcaret" data-nav="Component-Options-and-Extras-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Options-and-Extras-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_options_and_callbacks.html" class="nv">Model Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_options_and_utilities.html" class="nv">Tool Options And Utilities</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_options_and_callbacks.html" class="nv">Embedding Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retriever_indexer_options_and_callbacks.html" class="nv">Retriever Indexer Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_options_and_callbacks.html" class="nv">Prompt Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_options_and_callbacks.html" class="nv">Document Options And Callbacks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Callbacks System.html" class="nv">Callbacks System</a>
+      <button class="nvcaret" data-nav="Callbacks-System-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Callbacks-System-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="handler_builder.html" class="nv">Handler Builder</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="interface.html" class="nv">Interface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="manager.html" class="nv">Manager</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="template.html" class="nv">Template</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Graph Engine.html" class="nv">Compose Graph Engine</a>
+      <button class="nvcaret" data-nav="Compose-Graph-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Graph-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_construction_and_compilation.html" class="nv">Graph Construction And Compilation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="node_abstraction_and_options.html" class="nv">Node Abstraction And Options</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runtime_execution_engine.html" class="nv">Runtime Execution Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="channel_and_task_management.html" class="nv">Channel And Task Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="branching_and_field_mapping.html" class="nv">Branching And Field Mapping</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runnable_and_type_system.html" class="nv">Runnable And Type System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="state_and_call_control.html" class="nv">State And Call Control</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Checkpoint.html" class="nv">Compose Checkpoint</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Interrupt.html" class="nv">Compose Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Tool Node.html" class="nv">Compose Tool Node</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Workflow.html" class="nv">Compose Workflow</a>
+      <button class="nvcaret" data-nav="Compose-Workflow-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Workflow-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workflow_core.html" class="nv">Workflow Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chain_branch.html" class="nv">Chain Branch</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parallel_execution.html" class="nv">Parallel Execution</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Lambda Types.html" class="nv">Compose Lambda Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Core.html" class="nv">Internal Core</a>
+      <button class="nvcaret" data-nav="Internal-Core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="地址管理子模块.html" class="nv">地址管理子模块</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="中断管理子模块.html" class="nv">中断管理子模块</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Utilities.html" class="nv">Internal Utilities</a>
+      <button class="nvcaret" data-nav="Internal-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_serialization.html" class="nv">Internal Serialization</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_channel.html" class="nv">Internal Channel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_generic.html" class="nv">Internal Generic</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_safe.html" class="nv">Internal Safe</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Interface.html" class="nv">Adk Agent Interface</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Runner.html" class="nv">Adk Runner</a>
+      <button class="nvcaret" data-nav="ADK-Runner-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Runner-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runner_core.html" class="nv">Runner Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="execution_context.html" class="nv">Execution Context</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_options.html" class="nv">Call Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Interrupt.html" class="nv">Adk Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Tool.html" class="nv">Adk Agent Tool</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK ChatModel Agent.html" class="nv">Adk Chatmodel Agent</a>
+      <button class="nvcaret" data-nav="ADK-ChatModel-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-ChatModel-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_orchestration.html" class="nv">Agent Runtime And Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="builtin_control_tools_and_handoff.html" class="nv">Builtin Control Tools And Handoff</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chatmodel_retry_wrapper.html" class="nv">Chatmodel Retry Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK React Agent.html" class="nv">Adk React Agent</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Workflow Agents.html" class="nv">Adk Workflow Agents</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Flow Agent.html" class="nv">Adk Flow Agent</a>
+      <button class="nvcaret" data-nav="ADK-Flow-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Flow-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agent_orchestration.html" class="nv">Flow Agent Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deterministic_transfer_wrapper.html" class="nv">Deterministic Transfer Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Utils.html" class="nv">Adk Utils</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Filesystem Middleware.html" class="nv">Adk Filesystem Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Filesystem-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Filesystem-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_protocol_and_requests.html" class="nv">Backend Protocol And Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="in_memory_backend_implementation.html" class="nv">In Memory Backend Implementation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_middleware_and_tool_surface.html" class="nv">Filesystem Middleware And Tool Surface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="large_tool_result_offloading_pipeline.html" class="nv">Large Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Reduction Middleware.html" class="nv">Adk Reduction Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Reduction-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Reduction-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="middleware_entrypoint_and_contracts.html" class="nv">Middleware Entrypoint And Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_clearing_policy.html" class="nv">Tool Result Clearing Policy</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_offloading_pipeline.html" class="nv">Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Skill Middleware.html" class="nv">Adk Skill Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Skill-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Skill-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="skill_middleware_core.html" class="nv">Skill Middleware Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend_filesystem.html" class="nv">Local Backend Filesystem</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Plan-Execute.html" class="nv">Adk Prebuilt Plan-Execute</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Plan-Execute-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Plan-Execute-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="plan_execute_orchestration_core.html" class="nv">Plan Execute Orchestration Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_kv_output_wrapper.html" class="nv">Session Kv Output Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Supervisor.html" class="nv">Adk Prebuilt Supervisor</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Deep Research.html" class="nv">Adk Prebuilt Deep Research</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Deep-Research-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Deep-Research-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deep_research_core.html" class="nv">Deep Research Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="task_tool_orchestration.html" class="nv">Task Tool Orchestration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow React Agent.html" class="nv">Flow React Agent</a>
+      <button class="nvcaret" data-nav="Flow-React-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-React-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_graph_runtime_core.html" class="nv">React Graph Runtime Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_runtime_options_and_message_future.html" class="nv">React Runtime Options And Message Future</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_option_bridge.html" class="nv">Agent Option Bridge</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Multi-Agent Host.html" class="nv">Flow Multi-Agent Host</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Retrievers.html" class="nv">Flow Retrievers</a>
+      <button class="nvcaret" data-nav="Flow-Retrievers-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-Retrievers-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Multi Query</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parent</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="router.html" class="nv">Router</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Utils</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Indexers.html" class="nv">Flow Indexers</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Mock Utilities.html" class="nv">Mock Utilities</a>
+      <button class="nvcaret" data-nav="Mock-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Mock-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_agent_mocks.html" class="nv">Adk Agent Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chat_model_mocks.html" class="nv">Chat Model Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_pipeline_mocks.html" class="nv">Document Pipeline Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_retrieval_indexing_mocks.html" class="nv">Embedding Retrieval Indexing Mocks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>schema_tool 模块技术深度解析</h1>
+<h2>1. 什么是 schema_tool 模块？</h2>
+<p><strong>schema_tool</strong> 模块是 Eino 框架中定义工具调用规范的核心基础设施。它提供了一套标准化的数据结构，用于描述 LLM 可调用工具的元信息、参数结构和调用行为控制。</p>
+<p>在 AI Agent 系统中，工具定义是连接自然语言接口与具体业务逻辑的关键桥梁。如果没有统一的工具描述机制，不同模型提供商的工具接口差异会导致代码高度耦合，难以维护和扩展。schema_tool 通过抽象出一套独立于具体模型实现的工具描述语言，解决了这个问题。</p>
+<p>这个模块的核心价值在于：</p>
+<ul>
+<li><strong>统一描述层</strong>：提供与模型无关的工具定义 API</li>
+<li><strong>灵活参数表达</strong>：支持从简单到复杂的参数结构描述</li>
+<li><strong>JSON Schema 桥接</strong>：能将抽象定义转换为模型可识别的标准格式</li>
+</ul>
+<h2>2. 核心概念与架构</h2>
+<h3>2.1 关键抽象</h3>
+<p>schema_tool 模块围绕三个核心概念构建：</p>
+<ol>
+<li><strong>ToolInfo（工具信息）</strong>：完整的工具描述，包括名称、功能说明和参数定义</li>
+<li><strong>ParameterInfo（参数信息）</strong>：单个参数的类型、结构、约束等元数据</li>
+<li><strong>ParamsOneOf（参数定义二选一）</strong>：灵活的参数定义方式选择器</li>
+</ol>
+<h3>2.2 架构设计</h3>
+<div class="mermaid">graph TD
+    A[ToolInfo] --> B[ParamsOneOf]
+    B --> C[params map]
+    B --> D[jsonschema object]
+    E[NewParamsOneOfByParams] --> C
+    F[NewParamsOneOfByJSONSchema] --> D
+    B --> G[ToJSONSchema]
+    G --> H[Model-ready Schema]
+    I[paramInfoToJSONSchema] --> H
+    
+    style A fill:#e1f5ff
+    style B fill:#fff4e1
+    style C fill:#ffe1e1
+    style D fill:#ffe1e1
+    style G fill:#e1ffe1
+</div>
+<h3>2.3 设计思路</h3>
+<p>这个模块的设计体现了&quot;简单问题简单处理，复杂问题精确处理&quot;的原则：</p>
+<ul>
+<li><strong>简单场景</strong>：使用 <code>ParameterInfo</code> 树结构，通过嵌套的方式描述大多数常见参数</li>
+<li><strong>复杂场景</strong>：直接提供完整的 JSON Schema，满足特殊或高级需求</li>
+<li><strong>转换层</strong>：统一的 <code>ToJSONSchema()</code> 方法，确保无论使用哪种方式，最终都能为模型提供标准格式</li>
+</ul>
+<h2>3. 核心组件详解</h2>
+<h3>3.1 DataType 与 ToolChoice 枚举</h3>
+<pre><code class="language-go">type DataType string
+
+const (
+    Object  DataType = &quot;object&quot;
+    Number  DataType = &quot;number&quot;
+    Integer DataType = &quot;integer&quot;
+    String  DataType = &quot;string&quot;
+    Array   DataType = &quot;array&quot;
+    Null    DataType = &quot;null&quot;
+    Boolean DataType = &quot;boolean&quot;
+)
+</code></pre>
+<p><strong>设计意图</strong>：这些常量直接映射到 JSON Schema 规范中的类型定义。通过枚举而非自由字符串，在编译期就能捕获类型拼写错误，这是类型安全的典型实践。</p>
+<pre><code class="language-go">type ToolChoice string
+
+const (
+    ToolChoiceForbidden ToolChoice = &quot;forbidden&quot; // 对应 OpenAI 的 &quot;none&quot;
+    ToolChoiceAllowed   ToolChoice = &quot;allowed&quot;   // 对应 OpenAI 的 &quot;auto&quot;
+    ToolChoiceForced    ToolChoice = &quot;forced&quot;    // 对应 OpenAI 的 &quot;required&quot;
+)
+</code></pre>
+<p><strong>设计意图</strong>：工具选择控制采用了语义化命名而非直接复用 OpenAI 的术语。这样做有两个好处：</p>
+<ol>
+<li>更清晰地表达意图（&quot;allowed&quot; 比 &quot;auto&quot; 更直白）</li>
+<li>解耦于特定提供商，未来扩展其他模型时无需改变 API</li>
+</ol>
+<h3>3.2 ToolInfo 结构体</h3>
+<pre><code class="language-go">type ToolInfo struct {
+    Name        string                 // 工具的唯一名称
+    Desc        string                 // 工具功能描述
+    Extra       map[string]any         // 额外信息
+    *ParamsOneOf                        // 参数定义（二选一方式）
+}
+</code></pre>
+<p><strong>核心职责</strong>：作为工具的完整描述容器。设计上采用了组合模式，嵌入 <code>ParamsOneOf</code> 而非直接包含字段，这样可以自然地复用参数定义逻辑。</p>
+<p><strong>关键点</strong>：</p>
+<ul>
+<li><code>Name</code> 是工具的标识符，必须唯一且清晰表达用途</li>
+<li><code>Desc</code> 是 LLM 理解工具功能的关键，建议包含使用场景和示例</li>
+<li><code>Extra</code> 用于存储模型特定的扩展信息，保持核心结构简洁</li>
+<li><code>ParamsOneOf</code> 指针允许为 <code>nil</code>，表示工具不需要参数</li>
+</ul>
+<h3>3.3 ParameterInfo 结构体</h3>
+<pre><code class="language-go">type ParameterInfo struct {
+    Type      DataType             // 参数类型
+    ElemInfo  *ParameterInfo       // 数组元素类型（仅 array 类型使用）
+    SubParams map[string]*ParameterInfo // 对象子参数（仅 object 类型使用）
+    Desc      string               // 参数描述
+    Enum      []string             // 枚举值（仅 string 类型使用）
+    Required  bool                 // 是否必需
+}
+</code></pre>
+<p><strong>设计意图</strong>：这是一个递归定义的树状结构，能够描述嵌套的复杂参数。每个节点可以是基本类型，也可以是包含子节点的对象或数组。</p>
+<p><strong>关键设计点</strong>：</p>
+<ul>
+<li><strong>递归结构</strong>：<code>ElemInfo</code> 和 <code>SubParams</code> 都是 <code>ParameterInfo</code> 类型，允许描述任意深度的嵌套结构</li>
+<li><strong>选择性字段</strong>：不同类型使用不同字段（如数组用 <code>ElemInfo</code>，对象用 <code>SubParams</code>），避免了冗余</li>
+<li><strong>约束表达</strong>：通过 <code>Enum</code> 和 <code>Required</code> 等字段，能表达基本的参数约束</li>
+</ul>
+<p><strong>使用场景</strong>：适用于 80% 的常见工具参数定义，提供了比手写 JSON Schema 更友好的 API。</p>
+<h3>3.4 ParamsOneOf 结构体</h3>
+<pre><code class="language-go">type ParamsOneOf struct {
+    params     map[string]*ParameterInfo  // 方式1: 使用 ParameterInfo 树
+    jsonschema *jsonschema.Schema         // 方式2: 直接提供 JSON Schema
+}
+</code></pre>
+<p><strong>设计思想</strong>：这是&quot;二选一&quot;模式的实现——用户必须且只能选择一种方式来定义参数。这种设计既满足了大多数场景的易用性需求，又保留了处理复杂情况的灵活性。</p>
+<p><strong>关键方法</strong>：</p>
+<h4>NewParamsOneOfByParams</h4>
+<pre><code class="language-go">func NewParamsOneOfByParams(params map[string]*ParameterInfo) *ParamsOneOf
+</code></pre>
+<p><strong>用途</strong>：为大多数简单场景提供的便捷构造函数。</p>
+<h4>NewParamsOneOfByJSONSchema</h4>
+<pre><code class="language-go">func NewParamsOneOfByJSONSchema(s *jsonschema.Schema) *ParamsOneOf
+</code></pre>
+<p><strong>用途</strong>：为需要精确控制或复杂约束的场景准备的逃生舱口。</p>
+<h4>ToJSONSchema</h4>
+<pre><code class="language-go">func (p *ParamsOneOf) ToJSONSchema() (*jsonschema.Schema, error)
+</code></pre>
+<p><strong>核心转换逻辑</strong>：这是整个模块的关键方法，它将内部表示转换为模型可理解的格式。</p>
+<p><strong>转换流程</strong>：</p>
+<ol>
+<li>检查是否为 <code>nil</code>——无参数时返回 <code>nil</code></li>
+<li>如果设置了 <code>params</code>，将 <code>ParameterInfo</code> 树递归转换为 JSON Schema</li>
+<li>如果设置了 <code>jsonschema</code>，直接返回</li>
+<li>注意：设计上确保两种方式互斥，不会同时设置</li>
+</ol>
+<p><strong>重要细节</strong>：转换时会对参数名按字母顺序排序，这是为了确保生成的 JSON Schema 具有确定性，避免不必要的变更。</p>
+<h2>4. 数据流动与转换过程</h2>
+<h3>4.1 典型数据流程</h3>
+<p>让我们追踪一个工具从定义到被模型使用的完整路径：</p>
+<pre><code>开发者定义工具
+    |
+    ▼
+ToolInfo 实例
+(使用 ParameterInfo)
+    |
+    ▼
+ToJSONSchema()
++ paramInfoToJSONSchema()
+    |
+    ▼
+*jsonschema.Schema
+(模型就绪格式)
+    |
+    ▼
+模型适配器层
+(如 OpenAI)
+</code></pre>
+<h3>4.2 转换示例</h3>
+<p>让我们看一个具体例子，从定义到转换：</p>
+<p><strong>定义阶段</strong>：</p>
+<pre><code class="language-go">toolInfo := &amp;schema.ToolInfo{
+    Name: &quot;search_web&quot;,
+    Desc: &quot;搜索网络获取最新信息&quot;,
+    ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+        &quot;query&quot;: {
+            Type: schema.String,
+            Desc: &quot;搜索关键词&quot;,
+            Required: true,
+        },
+        &quot;options&quot;: {
+            Type: schema.Object,
+            SubParams: map[string]*schema.ParameterInfo{
+                &quot;limit&quot;: {
+                    Type: schema.Integer,
+                    Desc: &quot;返回结果数量&quot;,
+                },
+                &quot;lang&quot;: {
+                    Type: schema.String,
+                    Desc: &quot;语言偏好&quot;,
+                    Enum: []string{&quot;en&quot;, &quot;zh&quot;, &quot;ja&quot;},
+                },
+            },
+        },
+    }),
+}
+</code></pre>
+<p><strong>转换阶段</strong>：</p>
+<pre><code class="language-go">js, err := toolInfo.ToJSONSchema()
+</code></pre>
+<p><strong>结果</strong>：</p>
+<pre><code class="language-json">{
+  &quot;type&quot;: &quot;object&quot;,
+  &quot;properties&quot;: {
+    &quot;query&quot;: {
+      &quot;type&quot;: &quot;string&quot;,
+      &quot;description&quot;: &quot;搜索关键词&quot;
+    },
+    &quot;options&quot;: {
+      &quot;type&quot;: &quot;object&quot;,
+      &quot;properties&quot;: {
+        &quot;limit&quot;: {
+          &quot;type&quot;: &quot;integer&quot;,
+          &quot;description&quot;: &quot;返回结果数量&quot;
+        },
+        &quot;lang&quot;: {
+          &quot;type&quot;: &quot;string&quot;,
+          &quot;description&quot;: &quot;语言偏好&quot;,
+          &quot;enum&quot;: [&quot;en&quot;, &quot;zh&quot;, &quot;ja&quot;]
+        }
+      }
+    }
+  },
+  &quot;required&quot;: [&quot;query&quot;]
+}
+</code></pre>
+<h2>5. 设计决策与权衡</h2>
+<h3>5.1 二选一模式 vs 统一接口</h3>
+<p><strong>选择</strong>：采用 <code>ParamsOneOf</code> 二选一模式，而非单一的参数描述方式。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>易用性</strong>：对于 80% 的简单场景，<code>ParameterInfo</code> 树比手写 JSON Schema 更直观</li>
+<li><strong>表达力</strong>：对于剩下 20% 的复杂场景，直接提供 JSON Schema 可以满足所有需求</li>
+<li><strong>渐进式</strong>：用户可以从简单方式开始，需要时无缝切换到复杂方式</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：兼顾了易用性和灵活性</li>
+<li>缺点：API 表面更大，需要用户理解两种方式的区别</li>
+</ul>
+<h3>5.2 类型安全的枚举 vs 自由字符串</h3>
+<p><strong>选择</strong>：为 <code>DataType</code> 和 <code>ToolChoice</code> 使用类型化的枚举。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>编译期检查</strong>：拼写错误会在编译时被发现，而非运行时</li>
+<li><strong>自动补全</strong>：IDE 可以提供更好的代码补全</li>
+<li><strong>文档自包含</strong>：枚举值本身就是文档</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：提高了代码的健壮性和开发体验</li>
+<li>缺点：添加新类型需要修改代码（尽管 JSON Schema 类型已经相对稳定）</li>
+</ul>
+<h3>5.3 排序属性确保确定性</h3>
+<p><strong>选择</strong>：在转换为 JSON Schema 时对属性名按字母顺序排序。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>可重复性</strong>：相同的输入总是产生相同的输出</li>
+<li><strong>可测试性</strong>：测试可以简单地比较字符串</li>
+<li><strong>版本控制友好</strong>：减少无意义的变更</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：提高了可测试性和稳定性</li>
+<li>缺点：可能与用户期望的顺序不同（但 JSON Schema 规范不保证顺序）</li>
+</ul>
+<h3>5.4 指针字段允许 nil</h3>
+<p><strong>选择</strong>：<code>ParamsOneOf</code> 在 <code>ToolInfo</code> 中是指针，允许为 <code>nil</code>。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>无参数工具</strong>：自然表达不需要参数的工具</li>
+<li><strong>可选性</strong>：与显式设置空对象相比，<code>nil</code> 更清晰地表达&quot;无&quot;的概念</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：语义清晰</li>
+<li>缺点：需要调用方处理 <code>nil</code> 情况</li>
+</ul>
+<h2>6. 使用指南与常见模式</h2>
+<h3>6.1 简单工具（无参数）</h3>
+<pre><code class="language-go">tool := &amp;schema.ToolInfo{
+    Name: &quot;get_current_time&quot;,
+    Desc: &quot;获取当前时间&quot;,
+    // ParamsOneOf 为 nil，表示无参数
+}
+</code></pre>
+<h3>6.2 基本参数工具</h3>
+<pre><code class="language-go">tool := &amp;schema.ToolInfo{
+    Name: &quot;calculate&quot;,
+    Desc: &quot;执行数学计算&quot;,
+    ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+        &quot;expression&quot;: {
+            Type: schema.String,
+            Desc: &quot;数学表达式，如 '2 + 2 * 3'&quot;,
+            Required: true,
+        },
+    }),
+}
+</code></pre>
+<h3>6.3 复杂嵌套参数</h3>
+<pre><code class="language-go">tool := &amp;schema.ToolInfo{
+    Name: &quot;send_email&quot;,
+    Desc: &quot;发送邮件&quot;,
+    ParamsOneOf: schema.NewParamsOneOfByParams(map[string]*schema.ParameterInfo{
+        &quot;to&quot;: {
+            Type: schema.Array,
+            ElemInfo: &amp;schema.ParameterInfo{
+                Type: schema.String,
+                Desc: &quot;收件人邮箱&quot;,
+            },
+            Desc: &quot;收件人列表&quot;,
+            Required: true,
+        },
+        &quot;content&quot;: {
+            Type: schema.Object,
+            SubParams: map[string]*schema.ParameterInfo{
+                &quot;subject&quot;: {
+                    Type: schema.String,
+                    Desc: &quot;邮件主题&quot;,
+                    Required: true,
+                },
+                &quot;body&quot;: {
+                    Type: schema.String,
+                    Desc: &quot;邮件正文&quot;,
+                    Required: true,
+                },
+                &quot;format&quot;: {
+                    Type: schema.String,
+                    Desc: &quot;内容格式&quot;,
+                    Enum: []string{&quot;plain&quot;, &quot;html&quot;},
+                },
+            },
+            Required: true,
+        },
+    }),
+}
+</code></pre>
+<h3>6.4 使用原始 JSON Schema</h3>
+<p>当 <code>ParameterInfo</code> 不足以表达复杂约束时：</p>
+<pre><code class="language-go">import &quot;github.com/eino-contrib/jsonschema&quot;
+
+// 构建复杂的 JSON Schema
+complexSchema := &amp;jsonschema.Schema{
+    Type: &quot;object&quot;,
+    Properties: orderedmap.New[string, *jsonschema.Schema](),
+    // ... 设置复杂约束，如 oneOf, anyOf, pattern, minLength 等
+}
+
+tool := &amp;schema.ToolInfo{
+    Name: &quot;advanced_tool&quot;,
+    Desc: &quot;需要复杂参数验证的工具&quot;,
+    ParamsOneOf: schema.NewParamsOneOfByJSONSchema(complexSchema),
+}
+</code></pre>
+<h2>7. 注意事项与常见陷阱</h2>
+<h3>7.1 类型与字段匹配</h3>
+<p><strong>陷阱</strong>：设置了与类型不匹配的字段，如为 <code>string</code> 类型设置 <code>ElemInfo</code>。</p>
+<p><strong>当前行为</strong>：<code>paramInfoToJSONSchema</code> 会忽略不相关的字段，但这可能导致预期外的结果。</p>
+<p><strong>建议</strong>：确保只设置与当前类型相关的字段。</p>
+<h3>7.2 ParamsOneOf 的互斥性</h3>
+<p><strong>陷阱</strong>：试图同时设置 <code>params</code> 和 <code>jsonschema</code>。</p>
+<p><strong>当前行为</strong>：<code>params</code> 优先，<code>jsonschema</code> 会被忽略。</p>
+<p><strong>建议</strong>：使用构造函数（<code>NewParamsOneOfByParams</code> 或 <code>NewParamsOneOfByJSONSchema</code>）而非直接创建结构体，这样可以避免这类错误。</p>
+<h3>7.3 递归结构的终止</h3>
+<p><strong>陷阱</strong>：创建递归的 <code>ParameterInfo</code> 结构（如 A 包含 B，B 又包含 A）。</p>
+<p><strong>当前行为</strong>：<code>ToJSONSchema()</code> 会无限递归，导致栈溢出。</p>
+<p><strong>建议</strong>：避免创建递归的参数结构，JSON Schema 本身也不鼓励这样做。</p>
+<h3>7.4 必需字段的处理</h3>
+<p><strong>陷阱</strong>：忘记在对象类型的参数中设置 <code>Required</code> 字段，导致所有参数都是可选的。</p>
+<p><strong>建议</strong>：明确标记哪些参数是必需的，这能帮助 LLM 更好地理解工具使用方式。</p>
+<h2>8. 与其他模块的关系</h2>
+<p>schema_tool 模块是整个系统的基础设施，被多个上层模块依赖：</p>
+<ul>
+<li><strong><a href="schema_message.html">schema_message</a></strong>：工具调用和工具结果消息结构</li>
+<li><strong><a href="tool_interfaces.html">tool_interfaces</a></strong>：工具组件的定义和实现</li>
+<li><strong><a href="ADK%20ChatModel%20Agent.html">ADK ChatModel Agent</a></strong>：Agent 开发套件中工具集成部分</li>
+</ul>
+<p>作为核心定义模块，它不依赖其他 Eino 模块，仅依赖外部 JSON Schema 库。</p>
+<h2>9. 总结</h2>
+<p>schema_tool 模块通过精心设计的抽象，成功地平衡了易用性和灵活性。它的核心价值在于：</p>
+<ol>
+<li><strong>提供了与模型无关的工具描述语言</strong></li>
+<li><strong>支持从简单到复杂的参数结构</strong></li>
+<li><strong>确保能转换为标准的 JSON Schema 格式</strong></li>
+</ol>
+<p>对于大多数场景，<code>ParameterInfo</code> 树结构提供了直观易用的 API；对于复杂场景，直接使用 JSON Schema 的逃生舱口确保了表达力不受限制。这种设计使得该模块既能满足日常开发需求，又能适应未来的扩展。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

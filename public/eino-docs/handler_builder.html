@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>handler_builder 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T04:07<br>
+    <b>Components:</b> 2668<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/cloudwego/eino" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/cloudwego/eino" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Core Types.html" class="nv">Schema Core Types</a>
+      <button class="nvcaret" data-nav="Schema-Core-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Schema-Core-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message.html" class="nv">Schema Message</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_tool.html" class="nv">Schema Tool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_document.html" class="nv">Schema Document</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message_parser.html" class="nv">Schema Message Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Stream.html" class="nv">Schema Stream</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Interfaces.html" class="nv">Component Interfaces</a>
+      <button class="nvcaret" data-nav="Component-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_interfaces.html" class="nv">Model Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_interfaces.html" class="nv">Tool Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_interfaces.html" class="nv">Embedding Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_interfaces.html" class="nv">Prompt Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_interfaces.html" class="nv">Document Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="component_types.html" class="nv">Component Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Options and Extras.html" class="nv">Component Options And Extras</a>
+      <button class="nvcaret" data-nav="Component-Options-and-Extras-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Options-and-Extras-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_options_and_callbacks.html" class="nv">Model Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_options_and_utilities.html" class="nv">Tool Options And Utilities</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_options_and_callbacks.html" class="nv">Embedding Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retriever_indexer_options_and_callbacks.html" class="nv">Retriever Indexer Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_options_and_callbacks.html" class="nv">Prompt Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_options_and_callbacks.html" class="nv">Document Options And Callbacks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Callbacks System.html" class="nv">Callbacks System</a>
+      <button class="nvcaret" data-nav="Callbacks-System-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Callbacks-System-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="handler_builder.html" class="nv on">Handler Builder</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="interface.html" class="nv">Interface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="manager.html" class="nv">Manager</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="template.html" class="nv">Template</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Graph Engine.html" class="nv">Compose Graph Engine</a>
+      <button class="nvcaret" data-nav="Compose-Graph-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Graph-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_construction_and_compilation.html" class="nv">Graph Construction And Compilation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="node_abstraction_and_options.html" class="nv">Node Abstraction And Options</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runtime_execution_engine.html" class="nv">Runtime Execution Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="channel_and_task_management.html" class="nv">Channel And Task Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="branching_and_field_mapping.html" class="nv">Branching And Field Mapping</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runnable_and_type_system.html" class="nv">Runnable And Type System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="state_and_call_control.html" class="nv">State And Call Control</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Checkpoint.html" class="nv">Compose Checkpoint</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Interrupt.html" class="nv">Compose Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Tool Node.html" class="nv">Compose Tool Node</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Workflow.html" class="nv">Compose Workflow</a>
+      <button class="nvcaret" data-nav="Compose-Workflow-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Workflow-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workflow_core.html" class="nv">Workflow Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chain_branch.html" class="nv">Chain Branch</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parallel_execution.html" class="nv">Parallel Execution</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Lambda Types.html" class="nv">Compose Lambda Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Core.html" class="nv">Internal Core</a>
+      <button class="nvcaret" data-nav="Internal-Core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="地址管理子模块.html" class="nv">地址管理子模块</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="中断管理子模块.html" class="nv">中断管理子模块</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Utilities.html" class="nv">Internal Utilities</a>
+      <button class="nvcaret" data-nav="Internal-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_serialization.html" class="nv">Internal Serialization</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_channel.html" class="nv">Internal Channel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_generic.html" class="nv">Internal Generic</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_safe.html" class="nv">Internal Safe</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Interface.html" class="nv">Adk Agent Interface</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Runner.html" class="nv">Adk Runner</a>
+      <button class="nvcaret" data-nav="ADK-Runner-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Runner-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runner_core.html" class="nv">Runner Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="execution_context.html" class="nv">Execution Context</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_options.html" class="nv">Call Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Interrupt.html" class="nv">Adk Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Tool.html" class="nv">Adk Agent Tool</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK ChatModel Agent.html" class="nv">Adk Chatmodel Agent</a>
+      <button class="nvcaret" data-nav="ADK-ChatModel-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-ChatModel-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_orchestration.html" class="nv">Agent Runtime And Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="builtin_control_tools_and_handoff.html" class="nv">Builtin Control Tools And Handoff</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chatmodel_retry_wrapper.html" class="nv">Chatmodel Retry Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK React Agent.html" class="nv">Adk React Agent</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Workflow Agents.html" class="nv">Adk Workflow Agents</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Flow Agent.html" class="nv">Adk Flow Agent</a>
+      <button class="nvcaret" data-nav="ADK-Flow-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Flow-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agent_orchestration.html" class="nv">Flow Agent Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deterministic_transfer_wrapper.html" class="nv">Deterministic Transfer Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Utils.html" class="nv">Adk Utils</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Filesystem Middleware.html" class="nv">Adk Filesystem Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Filesystem-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Filesystem-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_protocol_and_requests.html" class="nv">Backend Protocol And Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="in_memory_backend_implementation.html" class="nv">In Memory Backend Implementation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_middleware_and_tool_surface.html" class="nv">Filesystem Middleware And Tool Surface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="large_tool_result_offloading_pipeline.html" class="nv">Large Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Reduction Middleware.html" class="nv">Adk Reduction Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Reduction-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Reduction-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="middleware_entrypoint_and_contracts.html" class="nv">Middleware Entrypoint And Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_clearing_policy.html" class="nv">Tool Result Clearing Policy</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_offloading_pipeline.html" class="nv">Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Skill Middleware.html" class="nv">Adk Skill Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Skill-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Skill-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="skill_middleware_core.html" class="nv">Skill Middleware Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend_filesystem.html" class="nv">Local Backend Filesystem</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Plan-Execute.html" class="nv">Adk Prebuilt Plan-Execute</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Plan-Execute-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Plan-Execute-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="plan_execute_orchestration_core.html" class="nv">Plan Execute Orchestration Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_kv_output_wrapper.html" class="nv">Session Kv Output Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Supervisor.html" class="nv">Adk Prebuilt Supervisor</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Deep Research.html" class="nv">Adk Prebuilt Deep Research</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Deep-Research-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Deep-Research-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deep_research_core.html" class="nv">Deep Research Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="task_tool_orchestration.html" class="nv">Task Tool Orchestration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow React Agent.html" class="nv">Flow React Agent</a>
+      <button class="nvcaret" data-nav="Flow-React-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-React-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_graph_runtime_core.html" class="nv">React Graph Runtime Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_runtime_options_and_message_future.html" class="nv">React Runtime Options And Message Future</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_option_bridge.html" class="nv">Agent Option Bridge</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Multi-Agent Host.html" class="nv">Flow Multi-Agent Host</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Retrievers.html" class="nv">Flow Retrievers</a>
+      <button class="nvcaret" data-nav="Flow-Retrievers-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-Retrievers-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Multi Query</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parent</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="router.html" class="nv">Router</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Utils</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Indexers.html" class="nv">Flow Indexers</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Mock Utilities.html" class="nv">Mock Utilities</a>
+      <button class="nvcaret" data-nav="Mock-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Mock-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_agent_mocks.html" class="nv">Adk Agent Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chat_model_mocks.html" class="nv">Chat Model Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_pipeline_mocks.html" class="nv">Document Pipeline Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_retrieval_indexing_mocks.html" class="nv">Embedding Retrieval Indexing Mocks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1><code>handler_builder</code> 模块技术深度解析</h1>
+<h2>1. 为什么需要这个模块？</h2>
+<p>在构建复杂的 AI 应用系统时，我们常常需要在组件执行的关键节点（如开始、结束、出错时）插入自定义逻辑——例如日志记录、性能监控、输入输出审计等。如果我们直接在每个组件内部硬编码这些逻辑，会导致：</p>
+<ul>
+<li><strong>关注点分离失效</strong>：组件核心逻辑与横切关注点（cross-cutting concerns）耦合在一起</li>
+<li><strong>代码复用困难</strong>：相同的监控/日志逻辑需要在多处重复实现</li>
+<li><strong>灵活性差</strong>：难以动态启用/禁用或替换这些横切逻辑</li>
+</ul>
+<p><code>handler_builder</code> 模块的设计目标就是提供一种优雅的方式，让开发者能够<strong>声明式地构建回调处理器</strong>，而无需实现完整的回调接口。</p>
+<h2>2. 核心思想与抽象模型</h2>
+<p><code>handler_builder</code> 采用了<strong>构建者模式（Builder Pattern）</strong>，允许用户通过链式调用逐步配置回调逻辑，最终构建出一个完整的回调处理器。</p>
+<h3>心理模型</h3>
+<p>想象一下，你正在组装一个&quot;事件监听设备&quot;——这个设备可以在不同的&quot;时刻&quot;（开始、结束、错误等）执行你指定的动作：</p>
+<ol>
+<li>首先你拿到一个空的设备框架（<code>NewHandlerBuilder()</code>）</li>
+<li>然后你为不同的时刻安装对应的&quot;响应模块&quot;（通过 <code>OnStartFn</code>、<code>OnEndFn</code> 等方法）</li>
+<li>最后你按下&quot;组装完成&quot;按钮（<code>Build()</code>），得到一个功能完整的事件监听器</li>
+</ol>
+<h2>3. 架构与数据流向</h2>
+<p>让我们通过一个简单的 Mermaid 图来理解这个模块的架构和数据流：</p>
+<div class="mermaid">graph TD
+    A[用户代码] --> B[HandlerBuilder]
+    B -- 配置回调函数 --> B
+    B -- Build() --> C[handlerImpl]
+    C -- 实现 --> D[Handler接口]
+    D -- 被调用 --> E[回调管理器manager]
+    E -- 触发 --> F[组件执行过程]
+    
+    style A fill:#e1f5ff
+    style F fill:#fff4e1
+</div>
+<h3>核心组件</h3>
+<h4>HandlerBuilder</h4>
+<p><code>HandlerBuilder</code> 是整个模块的核心构建者结构体，它存储了用户设置的各种回调函数：</p>
+<pre><code class="language-go">type HandlerBuilder struct {
+    onStartFn                func(...) context.Context
+    onEndFn                  func(...) context.Context
+    onErrorFn                func(...) context.Context
+    onStartWithStreamInputFn func(...) context.Context
+    onEndWithStreamOutputFn  func(...) context.Context
+}
+</code></pre>
+<p>这个结构体的设计非常简洁——它仅仅是一组回调函数的容器，不包含任何业务逻辑。</p>
+<h4>handlerImpl</h4>
+<p><code>handlerImpl</code> 是一个私有结构体，它嵌入了 <code>HandlerBuilder</code> 并实现了 <code>Handler</code> 接口：</p>
+<pre><code class="language-go">type handlerImpl struct {
+    HandlerBuilder
+}
+</code></pre>
+<p>这种设计实现了两个重要的目标：</p>
+<ol>
+<li><strong>实现分离</strong>：将构建阶段和使用阶段的职责分开</li>
+<li><strong>接口封装</strong>：通过私有结构体隐藏实现细节，只暴露必要的 <code>Handler</code> 接口</li>
+</ol>
+<h3>数据流向详解</h3>
+<p>当使用 <code>handler_builder</code> 时，数据和控制流遵循以下路径：</p>
+<ol>
+<li><strong>配置阶段</strong>：用户通过链式调用配置 <code>HandlerBuilder</code></li>
+<li><strong>构建阶段</strong>：调用 <code>Build()</code> 方法将配置好的函数打包成 <code>handlerImpl</code></li>
+<li><strong>注册阶段</strong>：将构建好的 <code>Handler</code> 注册到回调管理器中</li>
+<li><strong>执行阶段</strong>：当组件执行时，回调管理器会根据时机调用对应的回调方法</li>
+</ol>
+<h2>4. 关键设计决策与权衡</h2>
+<h3>4.1 为什么使用构建者模式而不是直接实现接口？</h3>
+<p><strong>选择</strong>：使用构建者模式让用户只设置关心的回调，而不必实现完整接口</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>降低使用门槛</strong>：用户不需要实现 5 个方法，只需要设置需要的回调</li>
+<li><strong>提高可读性</strong>：通过方法名清晰地表达每个回调的用途</li>
+<li><strong>避免空实现</strong>：不需要为不关心的回调写空方法</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>✅ <strong>优点</strong>：API 更友好，使用更简洁</li>
+<li>❌ <strong>缺点</strong>：增加了一层抽象，对于需要完全控制接口实现的场景不够灵活</li>
+</ul>
+<h3>4.2 为什么 <code>handlerImpl</code> 是私有的？</h3>
+<p><strong>选择</strong>：将实现结构体设为私有，只通过 <code>Handler</code> 接口暴露功能</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>封装性</strong>：隐藏内部实现细节，防止外部直接访问或修改内部状态</li>
+<li><strong>演化灵活性</strong>：未来可以更改实现而不破坏 API 兼容性</li>
+<li><strong>正确使用引导</strong>：强制用户通过 <code>Build()</code> 方法获取实例，确保构建过程的完整性</li>
+</ul>
+<h3>4.3 为什么回调函数返回 <code>context.Context</code>？</h3>
+<p><strong>选择</strong>：所有回调函数都接收并返回 <code>context.Context</code></p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><strong>上下文传递</strong>：允许回调在处理过程中向后续流程传递信息</li>
+<li><strong>请求范围数据</strong>：可以在 context 中存储请求级别的数据</li>
+<li><strong>生命周期控制</strong>：支持通过 context 进行超时控制或取消操作</li>
+</ul>
+<h3>4.4 <code>Needed()</code> 方法的设计意图</h3>
+<p><code>handlerImpl</code> 实现了 <code>Needed()</code> 方法，用于检查某个回调时机是否有设置对应的处理函数：</p>
+<pre><code class="language-go">func (hb *handlerImpl) Needed(_ context.Context, _ *RunInfo, timing CallbackTiming) bool {
+    switch timing {
+    case TimingOnStart:
+        return hb.onStartFn != nil
+    // ...其他 case
+    }
+}
+</code></pre>
+<p>这个设计非常巧妙，它带来的好处是：</p>
+<ul>
+<li><strong>性能优化</strong>：回调管理器可以提前知道是否需要调用某个回调，避免不必要的函数调用</li>
+<li><strong>灵活性</strong>：允许动态决定是否需要某个回调（虽然当前实现只是检查函数是否为 nil）</li>
+</ul>
+<h2>5. 使用指南与最佳实践</h2>
+<h3>5.1 基本使用方式</h3>
+<p>创建一个简单的日志记录回调：</p>
+<pre><code class="language-go">handler := callbacks.NewHandlerBuilder().
+    OnStartFn(func(ctx context.Context, info *callbacks.RunInfo, input callbacks.CallbackInput) context.Context {
+        log.Printf(&quot;Component %s starting with input: %v&quot;, info.Name, input)
+        return ctx
+    }).
+    OnEndFn(func(ctx context.Context, info *callbacks.RunInfo, output callbacks.CallbackOutput) context.Context {
+        log.Printf(&quot;Component %s finished with output: %v&quot;, info.Name, output)
+        return ctx
+    }).
+    OnErrorFn(func(ctx context.Context, info *callbacks.RunInfo, err error) context.Context {
+        log.Printf(&quot;Component %s error: %v&quot;, info.Name, err)
+        return ctx
+    }).
+    Build()
+</code></pre>
+<h3>5.2 处理流式输入输出</h3>
+<p>对于支持流式数据的组件，使用对应的回调：</p>
+<pre><code class="language-go">handler := callbacks.NewHandlerBuilder().
+    OnStartWithStreamInputFn(func(ctx context.Context, info *callbacks.RunInfo, input *schema.StreamReader[callbacks.CallbackInput]) context.Context {
+        log.Printf(&quot;Stream processing started for %s&quot;, info.Name)
+        return ctx
+    }).
+    OnEndWithStreamOutputFn(func(ctx context.Context, info *callbacks.RunInfo, output *schema.StreamReader[callbacks.CallbackOutput]) context.Context {
+        log.Printf(&quot;Stream processing ended for %s&quot;, info.Name)
+        return ctx
+    }).
+    Build()
+</code></pre>
+<h3>5.3 最佳实践</h3>
+<ol>
+<li><strong>保持回调函数轻量</strong>：回调函数应该快速执行，避免阻塞主流程</li>
+<li><strong>正确处理 context</strong>：总是返回传入的 context 或其派生版本</li>
+<li><strong>错误处理</strong>：在回调内部处理错误，不要让 panic 传播到调用方</li>
+<li><strong>避免在回调中修改输入/输出</strong>：除非明确设计需要，否则不应修改输入或输出参数</li>
+</ol>
+<h2>6. 扩展点与集成</h2>
+<p><code>handler_builder</code> 模块与系统其他部分的集成主要通过以下几个点：</p>
+<ol>
+<li><strong>与回调管理器集成</strong>：构建的 <code>Handler</code> 会被注册到 <code>manager</code> 中</li>
+<li><strong>与组件模板集成</strong>：可以与 <code>handlerTemplate</code> 一起使用，为不同类型的组件提供特定的回调</li>
+<li><strong>与图执行引擎集成</strong>：在 <code>compose.graph</code> 执行过程中，回调会在适当的时机被触发</li>
+</ol>
+<h2>7. 常见陷阱与注意事项</h2>
+<h3>7.1 不要忘记调用 Build()</h3>
+<p>一个常见的错误是配置完 <code>HandlerBuilder</code> 后忘记调用 <code>Build()</code> 方法：</p>
+<pre><code class="language-go">// 错误示例
+builder := callbacks.NewHandlerBuilder().OnStartFn(...)
+// 直接使用 builder 而不是 builder.Build()
+
+// 正确示例
+handler := callbacks.NewHandlerBuilder().OnStartFn(...).Build()
+</code></pre>
+<h3>7.2 注意回调的执行顺序</h3>
+<p>当注册多个回调时，它们的执行顺序通常是按照注册顺序，但不要依赖这个顺序进行业务逻辑处理。</p>
+<h3>7.3 上下文传递的陷阱</h3>
+<p>当在回调中修改 context 时，要确保这个修改是有意的，并且理解它对后续流程的影响：</p>
+<pre><code class="language-go">// 这样会创建一个新的 context，修改对后续流程可见
+return context.WithValue(ctx, key, value)
+
+// 这样只是修改了局部变量，不会影响后续流程
+ctx = context.WithValue(ctx, key, value)
+// ... 一些操作
+return ctx // 必须返回修改后的 ctx
+</code></pre>
+<h2>8. 总结</h2>
+<p><code>handler_builder</code> 模块是一个精巧的工具，它通过构建者模式简化了回调处理器的创建过程。它的设计体现了几个重要的软件工程原则：</p>
+<ol>
+<li><strong>关注点分离</strong>：将回调逻辑与组件核心逻辑分离</li>
+<li><strong>开闭原则</strong>：对扩展开放，对修改关闭</li>
+<li><strong>最小接口原则</strong>：用户只需要关心他们需要的回调</li>
+</ol>
+<p>虽然这个模块很小，但它在整个系统中扮演着重要的角色，为横切关注点的实现提供了优雅的解决方案。</p>
+<hr />
+<p><strong>相关模块</strong>：</p>
+<ul>
+<li><a href="internal_callbacks_interface.html">内部回调接口</a>：定义了回调系统的核心接口和数据结构</li>
+<li><a href="internal_callbacks_manager.html">回调管理器</a>：管理回调的注册和执行</li>
+<li><a href="utils_callbacks_template.html">回调模板</a>：提供了预定义的回调处理器模板</li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

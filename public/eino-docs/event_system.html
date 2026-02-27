@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Event System Module 技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T04:07<br>
+    <b>Components:</b> 2668<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/cloudwego/eino" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/cloudwego/eino" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Core Types.html" class="nv">Schema Core Types</a>
+      <button class="nvcaret" data-nav="Schema-Core-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Schema-Core-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message.html" class="nv">Schema Message</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_tool.html" class="nv">Schema Tool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_document.html" class="nv">Schema Document</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_message_parser.html" class="nv">Schema Message Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Schema Stream.html" class="nv">Schema Stream</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Interfaces.html" class="nv">Component Interfaces</a>
+      <button class="nvcaret" data-nav="Component-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_interfaces.html" class="nv">Model Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_interfaces.html" class="nv">Tool Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_interfaces.html" class="nv">Embedding Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_interfaces.html" class="nv">Prompt Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_interfaces.html" class="nv">Document Interfaces</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="component_types.html" class="nv">Component Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Component Options and Extras.html" class="nv">Component Options And Extras</a>
+      <button class="nvcaret" data-nav="Component-Options-and-Extras-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Component-Options-and-Extras-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_options_and_callbacks.html" class="nv">Model Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_options_and_utilities.html" class="nv">Tool Options And Utilities</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_options_and_callbacks.html" class="nv">Embedding Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retriever_indexer_options_and_callbacks.html" class="nv">Retriever Indexer Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prompt_options_and_callbacks.html" class="nv">Prompt Options And Callbacks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_options_and_callbacks.html" class="nv">Document Options And Callbacks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Callbacks System.html" class="nv">Callbacks System</a>
+      <button class="nvcaret" data-nav="Callbacks-System-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Callbacks-System-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="handler_builder.html" class="nv">Handler Builder</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="interface.html" class="nv">Interface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="manager.html" class="nv">Manager</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="template.html" class="nv">Template</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Graph Engine.html" class="nv">Compose Graph Engine</a>
+      <button class="nvcaret" data-nav="Compose-Graph-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Graph-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_construction_and_compilation.html" class="nv">Graph Construction And Compilation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="node_abstraction_and_options.html" class="nv">Node Abstraction And Options</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runtime_execution_engine.html" class="nv">Runtime Execution Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="channel_and_task_management.html" class="nv">Channel And Task Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="branching_and_field_mapping.html" class="nv">Branching And Field Mapping</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runnable_and_type_system.html" class="nv">Runnable And Type System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="state_and_call_control.html" class="nv">State And Call Control</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Checkpoint.html" class="nv">Compose Checkpoint</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Interrupt.html" class="nv">Compose Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Tool Node.html" class="nv">Compose Tool Node</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Workflow.html" class="nv">Compose Workflow</a>
+      <button class="nvcaret" data-nav="Compose-Workflow-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compose-Workflow-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workflow_core.html" class="nv">Workflow Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chain_branch.html" class="nv">Chain Branch</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parallel_execution.html" class="nv">Parallel Execution</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compose Lambda Types.html" class="nv">Compose Lambda Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Core.html" class="nv">Internal Core</a>
+      <button class="nvcaret" data-nav="Internal-Core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="地址管理子模块.html" class="nv">地址管理子模块</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="中断管理子模块.html" class="nv">中断管理子模块</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Internal Utilities.html" class="nv">Internal Utilities</a>
+      <button class="nvcaret" data-nav="Internal-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Internal-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_serialization.html" class="nv">Internal Serialization</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_channel.html" class="nv">Internal Channel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_generic.html" class="nv">Internal Generic</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_safe.html" class="nv">Internal Safe</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Interface.html" class="nv">Adk Agent Interface</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Runner.html" class="nv">Adk Runner</a>
+      <button class="nvcaret" data-nav="ADK-Runner-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Runner-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="runner_core.html" class="nv">Runner Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="execution_context.html" class="nv">Execution Context</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_options.html" class="nv">Call Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Interrupt.html" class="nv">Adk Interrupt</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Agent Tool.html" class="nv">Adk Agent Tool</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK ChatModel Agent.html" class="nv">Adk Chatmodel Agent</a>
+      <button class="nvcaret" data-nav="ADK-ChatModel-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-ChatModel-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_orchestration.html" class="nv">Agent Runtime And Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="builtin_control_tools_and_handoff.html" class="nv">Builtin Control Tools And Handoff</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chatmodel_retry_wrapper.html" class="nv">Chatmodel Retry Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK React Agent.html" class="nv">Adk React Agent</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Workflow Agents.html" class="nv">Adk Workflow Agents</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Flow Agent.html" class="nv">Adk Flow Agent</a>
+      <button class="nvcaret" data-nav="ADK-Flow-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Flow-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agent_orchestration.html" class="nv">Flow Agent Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deterministic_transfer_wrapper.html" class="nv">Deterministic Transfer Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Utils.html" class="nv">Adk Utils</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Filesystem Middleware.html" class="nv">Adk Filesystem Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Filesystem-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Filesystem-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_protocol_and_requests.html" class="nv">Backend Protocol And Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="in_memory_backend_implementation.html" class="nv">In Memory Backend Implementation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_middleware_and_tool_surface.html" class="nv">Filesystem Middleware And Tool Surface</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="large_tool_result_offloading_pipeline.html" class="nv">Large Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Reduction Middleware.html" class="nv">Adk Reduction Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Reduction-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Reduction-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="middleware_entrypoint_and_contracts.html" class="nv">Middleware Entrypoint And Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_clearing_policy.html" class="nv">Tool Result Clearing Policy</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_result_offloading_pipeline.html" class="nv">Tool Result Offloading Pipeline</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Skill Middleware.html" class="nv">Adk Skill Middleware</a>
+      <button class="nvcaret" data-nav="ADK-Skill-Middleware-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Skill-Middleware-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="skill_middleware_core.html" class="nv">Skill Middleware Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend_filesystem.html" class="nv">Local Backend Filesystem</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Plan-Execute.html" class="nv">Adk Prebuilt Plan-Execute</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Plan-Execute-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Plan-Execute-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="plan_execute_orchestration_core.html" class="nv">Plan Execute Orchestration Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_kv_output_wrapper.html" class="nv">Session Kv Output Wrapper</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Supervisor.html" class="nv">Adk Prebuilt Supervisor</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="ADK Prebuilt Deep Research.html" class="nv">Adk Prebuilt Deep Research</a>
+      <button class="nvcaret" data-nav="ADK-Prebuilt-Deep-Research-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="ADK-Prebuilt-Deep-Research-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="deep_research_core.html" class="nv">Deep Research Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="task_tool_orchestration.html" class="nv">Task Tool Orchestration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow React Agent.html" class="nv">Flow React Agent</a>
+      <button class="nvcaret" data-nav="Flow-React-Agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-React-Agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_graph_runtime_core.html" class="nv">React Graph Runtime Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_runtime_options_and_message_future.html" class="nv">React Runtime Options And Message Future</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_option_bridge.html" class="nv">Agent Option Bridge</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Multi-Agent Host.html" class="nv">Flow Multi-Agent Host</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Retrievers.html" class="nv">Flow Retrievers</a>
+      <button class="nvcaret" data-nav="Flow-Retrievers-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Flow-Retrievers-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Multi Query</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parent</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="router.html" class="nv">Router</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Utils</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Flow Indexers.html" class="nv">Flow Indexers</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Mock Utilities.html" class="nv">Mock Utilities</a>
+      <button class="nvcaret" data-nav="Mock-Utilities-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Mock-Utilities-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_agent_mocks.html" class="nv">Adk Agent Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chat_model_mocks.html" class="nv">Chat Model Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="document_pipeline_mocks.html" class="nv">Document Pipeline Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embedding_retrieval_indexing_mocks.html" class="nv">Embedding Retrieval Indexing Mocks</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Event System Module 技术深度解析</h1>
+<h2>1. 模块概述</h2>
+<p>event_system 模块是 ADK（Agent Development Kit）框架中的核心组件，专注于智能体（Agent）执行过程中的事件管理、状态追踪和并发控制。它解决了在复杂多智能体系统中几个关键问题：</p>
+<p><strong>问题空间：</strong></p>
+<ul>
+<li>如何在智能体执行过程中统一记录和管理各类事件（输出、动作、错误）？</li>
+<li>如何在支持流式输出的同时，保证事件可以被正确序列化和恢复？</li>
+<li>如何处理多智能体并行执行场景下的事件顺序问题？</li>
+<li>如何支持智能体执行的 checkpointing 和恢复机制？</li>
+</ul>
+<p><strong>核心洞察：</strong>
+该模块采用了&quot;事件包装器&quot;模式和&quot;车道事件&quot;机制，将智能体执行过程中的所有信息统一封装为事件，同时通过巧妙的并发设计，既保证了并行执行的效率，又确保了事件顺序的正确性。</p>
+<h2>2. 核心架构与心智模型</h2>
+<h3>2.1 整体架构</h3>
+<div class="mermaid">graph TD
+    A[Agent 执行] -->|产生事件| B[agentEventWrapper]
+    B -->|添加到| C[runSession]
+    C -->|主路径| D[Events 切片]
+    C -->|并行车道| E[laneEvents]
+    E -->|链表结构| F[父 laneEvents]
+    
+    G[forkRunCtx] -->|创建| H[子 runContext]
+    H -->|拥有| I[独立 laneEvents]
+    
+    J[joinRunCtxs] -->|收集并排序| K[车道事件]
+    K -->|提交到| L[主事件日志]
+    
+    M[GobEncode/Decode] -->|序列化/恢复| B
+</div>
+<h3>2.2 心智模型</h3>
+<p>可以将 event_system 想象成一个<strong>版本控制系统</strong>，其中：</p>
+<ul>
+<li><strong>runSession</strong> 像是一个代码仓库，存储着整个执行过程的&quot;历史记录&quot;和&quot;当前状态&quot;</li>
+<li><strong>agentEventWrapper</strong> 像是一个个提交（commit），封装了每个智能体执行的完整信息</li>
+<li><strong>laneEvents</strong> 像是分支（branch），允许并行的智能体在各自的分支上工作</li>
+<li><strong>joinRunCtxs</strong> 像是分支合并，将并行执行的结果按时间顺序合并回主线</li>
+<li><strong>GobEncode/Decode</strong> 像是仓库的序列化和克隆，支持状态的持久化和恢复</li>
+</ul>
+<p>这种设计使得整个系统既支持高效的并行执行，又能保证事件的正确排序和状态的可恢复性。</p>
+<h2>3. 核心组件深度解析</h2>
+<h3>3.1 agentEventWrapper</h3>
+<p><strong>核心作用：</strong> 事件的统一包装器，是整个事件系统的核心数据结构。</p>
+<p><strong>设计亮点：</strong></p>
+<pre><code class="language-go">type agentEventWrapper struct {
+    *AgentEvent
+    mu                  sync.Mutex
+    concatenatedMessage Message
+    TS                  int64
+    StreamErr           error
+}
+</code></pre>
+<ol>
+<li>
+<p><strong>嵌入式 AgentEvent</strong>：通过嵌入 <code>*AgentEvent</code>，既保持了对原始事件的访问，又能添加额外的元数据和功能。</p>
+</li>
+<li>
+<p><strong>concatenatedMessage</strong>：专门用于处理流式输出。当流式输出结束时，完整的拼接消息会被存储在这里，以便在序列化时重建流。</p>
+</li>
+<li>
+<p><strong>TS（时间戳）</strong>：记录事件创建的纳秒级时间戳，这是解决多智能体并行执行时事件排序问题的关键。</p>
+</li>
+<li>
+<p><strong>StreamErr</strong>：记录流处理过程中的错误，防止对流的重复消费导致的错误。</p>
+</li>
+</ol>
+<p><strong>序列化设计：</strong></p>
+<pre><code class="language-go">func (a *agentEventWrapper) GobEncode() ([]byte, error) {
+    if a.concatenatedMessage != nil &amp;&amp; a.Output != nil &amp;&amp; 
+       a.Output.MessageOutput != nil &amp;&amp; a.Output.MessageOutput.IsStreaming {
+        // 将拼接后的消息重建为数组流，确保序列化后可以恢复
+        a.Output.MessageOutput.MessageStream = 
+            schema.StreamReaderFromArray([]Message{a.concatenatedMessage})
+    }
+    // ... 序列化逻辑
+}
+</code></pre>
+<p>这里的设计非常巧妙：它将已经完成的流式输出在序列化时转换为基于数组的流，这样反序列化后仍然可以像读取原始流一样读取完整消息，同时避免了序列化实际流对象的复杂性。</p>
+<h3>3.2 runSession</h3>
+<p><strong>核心作用：</strong> 管理一次完整运行的所有状态，包括事件日志和会话值。</p>
+<pre><code class="language-go">type runSession struct {
+    Values    map[string]any
+    valuesMtx *sync.Mutex
+
+    Events     []*agentEventWrapper
+    LaneEvents *laneEvents
+    mtx        sync.Mutex
+}
+</code></pre>
+<p><strong>关键机制：</strong></p>
+<ol>
+<li>
+<p><strong>双模式事件存储</strong>：</p>
+<ul>
+<li>主路径执行：直接使用 <code>Events</code> 切片，需要加锁保护</li>
+<li>并行车道执行：使用 <code>LaneEvents</code> 链表结构，无锁写入</li>
+</ul>
+</li>
+<li>
+<p><strong>会话值管理</strong>：</p>
+<ul>
+<li>通过 <code>Values</code> 映射存储任意会话数据</li>
+<li>使用独立的 <code>valuesMtx</code> 保护，提高并发性能</li>
+</ul>
+</li>
+<li>
+<p><strong>事件获取策略</strong>：</p>
+<pre><code class="language-go">func (rs *runSession) getEvents() []*agentEventWrapper {
+    // 如果没有车道事件，直接返回主事件切片
+    if rs.LaneEvents == nil {
+        // ... 加锁返回
+    }
+    
+    // 否则，合并主事件和所有车道事件
+    // ... 合并逻辑
+}
+</code></pre>
+</li>
+</ol>
+<h3>3.3 laneEvents</h3>
+<p><strong>核心作用：</strong> 支持并行执行的无锁事件收集机制。</p>
+<pre><code class="language-go">type laneEvents struct {
+    Events []*agentEventWrapper
+    Parent *laneEvents
+}
+</code></pre>
+<p><strong>设计亮点：</strong></p>
+<ol>
+<li><strong>链表结构</strong>：通过 <code>Parent</code> 指针形成链表，支持嵌套的并行执行场景</li>
+<li><strong>无锁写入</strong>：每个车道有自己的 <code>Events</code> 切片，并行执行时无需加锁</li>
+<li><strong>延迟合并</strong>：事件只在 <code>joinRunCtxs</code> 时才合并到主线，减少了锁竞争</li>
+</ol>
+<h3>3.4 上下文管理机制</h3>
+<h4>3.4.1 forkRunCtx - 并行分支创建</h4>
+<pre><code class="language-go">func forkRunCtx(ctx context.Context) context.Context {
+    // 复制父会话，但创建新的 LaneEvents
+    childSession := &amp;runSession{
+        Events:    parentRunCtx.Session.Events, // 共享已提交历史
+        Values:    parentRunCtx.Session.Values, // 共享值映射
+        valuesMtx: parentRunCtx.Session.valuesMtx,
+    }
+    
+    // 创建新的车道事件
+    childSession.LaneEvents = &amp;laneEvents{
+        Parent: parentRunCtx.Session.LaneEvents,
+        Events: make([]*agentEventWrapper, 0),
+    }
+    
+    // ...
+}
+</code></pre>
+<p><strong>设计意图：</strong></p>
+<ul>
+<li>共享已提交的历史事件和会话值，避免不必要的复制</li>
+<li>为每个分支创建独立的 <code>LaneEvents</code>，实现无锁并行写入</li>
+<li>通过链表结构保持分支的父子关系</li>
+</ul>
+<h4>3.4.2 joinRunCtxs - 并行分支合并</h4>
+<pre><code class="language-go">func joinRunCtxs(parentCtx context.Context, childCtxs ...context.Context) {
+    // 1. 收集所有车道的新事件
+    newEvents := unwindLaneEvents(childCtxs...)
+    
+    // 2. 按时间戳排序
+    sort.Slice(newEvents, func(i, j int) bool {
+        return newEvents[i].TS &lt; newEvents[j].TS
+    })
+    
+    // 3. 提交到父上下文
+    commitEvents(parentCtx, newEvents)
+}
+</code></pre>
+<p><strong>关键设计：</strong></p>
+<ol>
+<li><strong>时间戳排序</strong>：通过 <code>TS</code> 字段确保来自不同并行分支的事件能按实际发生顺序排列</li>
+<li><strong>批量提交</strong>：一次性合并和排序所有事件，减少锁竞争</li>
+<li><strong>优化单分支情况</strong>：当只有一个分支时，跳过排序步骤，直接提交</li>
+</ol>
+<h2>4. 数据流程分析</h2>
+<h3>4.1 常规执行流程</h3>
+<ol>
+<li><strong>初始化</strong>：<code>initRunCtx</code> 创建初始的 <code>runContext</code> 和 <code>runSession</code></li>
+<li><strong>事件产生</strong>：智能体执行过程中产生 <code>AgentEvent</code></li>
+<li><strong>事件包装</strong>：<code>addEvent</code> 创建 <code>agentEventWrapper</code> 并添加时间戳</li>
+<li><strong>事件存储</strong>：根据是否在并行车道，选择添加到 <code>Events</code> 或 <code>LaneEvents</code></li>
+<li><strong>事件消费</strong>：通过 <code>getEvents</code> 获取完整的事件序列</li>
+</ol>
+<h3>4.2 并行执行流程</h3>
+<pre><code>主上下文
+    |
+    |-- forkRunCtx --&gt; 子上下文 1 (laneEvents A) --\
+    |                                                 |-- 并行执行
+    |-- forkRunCtx --&gt; 子上下文 2 (laneEvents B) --/
+    |
+    |-- joinRunCtxs
+         |
+         |-- unwindLaneEvents (收集事件)
+         |
+         |-- 按 TS 排序
+         |
+         |-- commitEvents (提交到主事件日志)
+</code></pre>
+<h3>4.3 序列化/恢复流程</h3>
+<ol>
+<li>
+<p><strong>序列化</strong>：</p>
+<ul>
+<li><code>GobEncode</code> 检查是否有拼接后的消息</li>
+<li>如果有，将其重建为数组流</li>
+<li>序列化整个 <code>agentEventWrapper</code></li>
+</ul>
+</li>
+<li>
+<p><strong>恢复</strong>：</p>
+<ul>
+<li><code>GobDecode</code> 反序列化数据</li>
+<li>重建的流可以像普通流一样读取完整消息</li>
+</ul>
+</li>
+</ol>
+<h2>5. 设计决策与权衡</h2>
+<h3>5.1 时间戳排序 vs 顺序依赖</h3>
+<p><strong>选择</strong>：使用时间戳（TS）对并行事件进行排序</p>
+<p><strong>原因</strong>：</p>
+<ul>
+<li>无需在并行分支间建立复杂的顺序依赖关系</li>
+<li>实现简单，性能开销小</li>
+<li>符合实际执行的时间顺序</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>依赖系统时间的准确性</li>
+<li>极短时间内发生的事件可能存在微小的顺序不确定性</li>
+</ul>
+<h3>5.2 车道事件链表 vs 扁平结构</h3>
+<p><strong>选择</strong>：使用链表结构组织车道事件</p>
+<p><strong>原因</strong>：</p>
+<ul>
+<li>支持嵌套的并行场景</li>
+<li>无需预先知道并行深度</li>
+<li>内存效率高，只在需要时分配</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>合并时需要遍历链表</li>
+<li>代码复杂度稍高</li>
+</ul>
+<h3>5.3 流式消息的序列化策略</h3>
+<p><strong>选择</strong>：将拼接后的完整消息重建为数组流</p>
+<p><strong>原因</strong>：</p>
+<ul>
+<li>避免了序列化实际流对象的复杂性</li>
+<li>保持了流接口的一致性</li>
+<li>支持从 checkpoint 恢复后继续读取消息</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>需要额外存储拼接后的消息</li>
+<li>内存占用稍高</li>
+</ul>
+<h3>5.4 锁策略：主路径加锁 vs 车道无锁</h3>
+<p><strong>选择</strong>：主路径事件使用互斥锁，车道事件无锁写入</p>
+<p><strong>原因</strong>：</p>
+<ul>
+<li>主路径可能有多个写入者，需要同步</li>
+<li>车道事件只有一个写入者，无需锁</li>
+<li>减少了并行执行时的锁竞争</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>需要额外的合并步骤</li>
+<li>代码复杂度增加</li>
+</ul>
+<h2>6. 使用指南与最佳实践</h2>
+<h3>6.1 会话值管理</h3>
+<pre><code class="language-go">// 设置会话值
+adk.AddSessionValue(ctx, &quot;user_id&quot;, &quot;12345&quot;)
+
+// 获取会话值
+userID, ok := adk.GetSessionValue(ctx, &quot;user_id&quot;)
+
+// 批量设置
+adk.AddSessionValues(ctx, map[string]any{
+    &quot;key1&quot;: &quot;value1&quot;,
+    &quot;key2&quot;: &quot;value2&quot;,
+})
+</code></pre>
+<p><strong>注意事项</strong>：</p>
+<ul>
+<li>会话值会被序列化，因此只能存储可序列化的类型</li>
+<li>避免在会话值中存储大量数据，以免影响序列化性能</li>
+</ul>
+<h3>6.2 并行执行中的事件处理</h3>
+<p>当使用并行工作流时，系统会自动处理事件的收集和排序：</p>
+<pre><code class="language-go">// 框架内部会自动处理
+// 1. 为每个并行分支创建独立的 laneEvents
+// 2. 收集所有分支的事件
+// 3. 按时间戳排序
+// 4. 合并到主事件日志
+</code></pre>
+<p><strong>最佳实践</strong>：</p>
+<ul>
+<li>确保智能体执行的重要操作都有对应的事件</li>
+<li>避免在并行分支间依赖事件的处理顺序</li>
+<li>利用时间戳机制来正确理解事件的先后关系</li>
+</ul>
+<h3>6.3 自定义事件处理</h3>
+<p>虽然 event_system 主要由框架内部使用，但可以通过回调机制获取事件：</p>
+<pre><code class="language-go">// 框架会在适当的时机调用回调，传递事件信息
+// 可以在回调中处理自定义逻辑，如日志记录、监控等
+</code></pre>
+<h2>7. 边缘情况与注意事项</h2>
+<h3>7.1 流错误处理</h3>
+<p>当处理流式输出时，需要注意 <code>StreamErr</code> 字段：</p>
+<ul>
+<li>它会记录流处理过程中的错误</li>
+<li>防止对已消费流的重复读取</li>
+<li>与重试机制配合，<code>WillRetryError</code> 类型的错误表示会重试</li>
+</ul>
+<h3>7.2 时间戳精度</h3>
+<p>事件的时间戳使用纳秒级精度：</p>
+<ul>
+<li>在大多数情况下足够准确</li>
+<li>但不应依赖它来实现极高精度的事件排序逻辑</li>
+<li>同一智能体内部的事件顺序通过添加顺序保证</li>
+</ul>
+<h3>7.3 嵌套并行场景</h3>
+<p>系统支持嵌套的并行执行：</p>
+<ul>
+<li>每个层级都会有自己的 laneEvents 链表</li>
+<li>合并时会正确处理所有层级的事件</li>
+<li>深度嵌套可能会影响合并性能</li>
+</ul>
+<h3>7.4 序列化限制</h3>
+<p>当使用 checkpointing 功能时：</p>
+<ul>
+<li>确保所有存储在会话值和事件中的数据都是可序列化的</li>
+<li>避免存储包含不可序列化字段的结构体</li>
+<li>流式输出会被转换为数组流，确保可以序列化</li>
+</ul>
+<h2>8. 与其他模块的关系</h2>
+<ul>
+<li><strong><a href="adk_runner.html">adk.runner</a></strong>：使用 event_system 来管理智能体执行的事件和状态</li>
+<li><strong><a href="adk_interface.html">adk.interface</a></strong>：定义了 <code>AgentEvent</code>、<code>AgentInput</code>、<code>AgentOutput</code> 等核心类型</li>
+<li><strong><a href="schema_stream.html">schema.stream</a></strong>：提供了流处理的基础设施，用于流式输出的管理</li>
+<li><strong><a href="compose_graph.html">compose.graph</a></strong>：可能在并行工作流执行中使用 event_system 的功能</li>
+</ul>
+<h2>9. 总结</h2>
+<p>event_system 模块通过精巧的设计，解决了多智能体系统中的事件管理、并发控制和状态恢复问题。它的核心价值在于：</p>
+<ol>
+<li><strong>统一的事件抽象</strong>：将智能体执行的所有信息封装为事件</li>
+<li><strong>高效的并发处理</strong>：通过车道事件机制实现无锁并行写入</li>
+<li><strong>正确的事件排序</strong>：利用时间戳确保并行事件的正确顺序</li>
+<li><strong>完善的序列化支持</strong>：巧妙地处理流式输出的序列化问题</li>
+<li><strong>灵活的状态管理</strong>：提供会话值机制存储自定义状态</li>
+</ol>
+<p>这些设计使得 event_system 成为 ADK 框架中支持复杂多智能体系统的关键基础设施。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

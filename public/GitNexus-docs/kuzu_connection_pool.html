@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kuzu 连接池模块 (kuzu_connection_pool)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; GitNexus</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-gpt-5.3-codex<br>
+    <b>Generated:</b> 2026-02-27T19:25<br>
+    <b>Components:</b> 791<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/abhigyanpatwari/GitNexus" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/abhigyanpatwari/GitNexus" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_graph_types.html" class="nv">Core Graph Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_ingestion_parsing.html" class="nv">Core Ingestion Parsing</a>
+      <button class="nvcaret" data-nav="core_ingestion_parsing-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_ingestion_parsing-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workers_parsing.html" class="nv">Workers Parsing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_processor_orchestration.html" class="nv">Parsing Processor Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ast_cache_management.html" class="nv">Ast Cache Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_scanning_and_loading.html" class="nv">Filesystem Scanning And Loading</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_ingestion_resolution.html" class="nv">Core Ingestion Resolution</a>
+      <button class="nvcaret" data-nav="core_ingestion_resolution-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_ingestion_resolution-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="symbol_indexing.html" class="nv">Symbol Indexing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="import_resolution.html" class="nv">Import Resolution</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_resolution.html" class="nv">Call Resolution</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="entry_point_intelligence.html" class="nv">Entry Point Intelligence</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_ingestion_community_and_process.html" class="nv">Core Ingestion Community And Process</a>
+      <button class="nvcaret" data-nav="core_ingestion_community_and_process-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_ingestion_community_and_process-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="community_detection.html" class="nv">Community Detection</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cluster_enrichment.html" class="nv">Cluster Enrichment</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="process_detection.html" class="nv">Process Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_pipeline_types.html" class="nv">Core Pipeline Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_kuzu_storage.html" class="nv">Core Kuzu Storage</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_embeddings_and_search.html" class="nv">Core Embeddings And Search</a>
+      <button class="nvcaret" data-nav="core_embeddings_and_search-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_embeddings_and_search-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embeddings_types.html" class="nv">Embeddings Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="bm25_fulltext_search.html" class="nv">Bm25 Fulltext Search</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hybrid_rrf_search.html" class="nv">Hybrid Rrf Search</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_wiki_generator.html" class="nv">Core Wiki Generator</a>
+      <button class="nvcaret" data-nav="core_wiki_generator-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_wiki_generator-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="wiki_generation_orchestrator.html" class="nv">Wiki Generation Orchestrator</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_query_layer.html" class="nv">Graph Query Layer</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="llm_client_and_config.html" class="nv">Llm Client And Config</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="offline_html_viewer.html" class="nv">Offline Html Viewer</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+      <button class="nvcaret" data-nav="mcp_server-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="mcp_server-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="kuzu_connection_pool.html" class="nv on">Kuzu Connection Pool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend.html" class="nv">Local Backend</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_system.html" class="nv">Resource System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="staleness_detection.html" class="nv">Staleness Detection</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_definitions.html" class="nv">Tool Definitions</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="http_server.html" class="nv">Http Server</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="cli.html" class="nv">Cli</a>
+      <button class="nvcaret" data-nav="cli-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="cli-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="analyze_command.html" class="nv">Analyze Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ai_context_generation.html" class="nv">Ai Context Generation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="eval_server.html" class="nv">Eval Server</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="setup_command.html" class="nv">Setup Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="wiki_generation.html" class="nv">Wiki Generation</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_repo_manager.html" class="nv">Storage Repo Manager</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_graph_types_and_rendering.html" class="nv">Web Graph Types And Rendering</a>
+      <button class="nvcaret" data-nav="web_graph_types_and_rendering-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_graph_types_and_rendering-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_domain_types.html" class="nv">Graph Domain Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graphology_sigma_adapter.html" class="nv">Graphology Sigma Adapter</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="sigma_runtime_hook.html" class="nv">Sigma Runtime Hook</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_canvas_interaction_layer.html" class="nv">Graph Canvas Interaction Layer</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_ingestion_pipeline.html" class="nv">Web Ingestion Pipeline</a>
+      <button class="nvcaret" data-nav="web_ingestion_pipeline-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_ingestion_pipeline-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ast_cache_management.html" class="nv">Ast Cache Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="symbol_indexing_and_call_resolution.html" class="nv">Symbol Indexing And Call Resolution</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="community_detection.html" class="nv">Community Detection</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cluster_enrichment.html" class="nv">Cluster Enrichment</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="process_detection_and_entry_scoring.html" class="nv">Process Detection And Entry Scoring</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_pipeline_and_storage.html" class="nv">Web Pipeline And Storage</a>
+      <button class="nvcaret" data-nav="web_pipeline_and_storage-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_pipeline_and_storage-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="pipeline_result_transport.html" class="nv">Pipeline Result Transport</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="kuzu_csv_generation.html" class="nv">Kuzu Csv Generation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="kuzu_wasm_type_bindings.html" class="nv">Kuzu Wasm Type Bindings</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_embeddings_and_search.html" class="nv">Web Embeddings And Search</a>
+      <button class="nvcaret" data-nav="web_embeddings_and_search-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_embeddings_and_search-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embeddings_types.html" class="nv">Embeddings Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="bm25_fulltext_search.html" class="nv">Bm25 Fulltext Search</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hybrid_rrf_search.html" class="nv">Hybrid Rrf Search</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_llm_agent.html" class="nv">Web Llm Agent</a>
+      <button class="nvcaret" data-nav="web_llm_agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_llm_agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="llm_provider_and_message_types.html" class="nv">Llm Provider And Message Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_factory_and_streaming.html" class="nv">Agent Factory And Streaming</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="dynamic_context_builder.html" class="nv">Dynamic Context Builder</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_app_state_and_ui.html" class="nv">Web App State And Ui</a>
+      <button class="nvcaret" data-nav="web_app_state_and_ui-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_app_state_and_ui-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="app_state_orchestration.html" class="nv">App State Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_connectivity_hook.html" class="nv">Backend Connectivity Hook</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="code_references_ui_panel.html" class="nv">Code References Ui Panel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mermaid_rendering_component.html" class="nv">Mermaid Rendering Component</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mermaid_process_modeling.html" class="nv">Mermaid Process Modeling</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_backend_services.html" class="nv">Web Backend Services</a>
+      <button class="nvcaret" data-nav="web_backend_services-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_backend_services-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_http_client.html" class="nv">Backend Http Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_connection_workflow.html" class="nv">Server Connection Workflow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="zip_archive_extraction.html" class="nv">Zip Archive Extraction</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="eval_framework.html" class="nv">Eval Framework</a>
+      <button class="nvcaret" data-nav="eval_framework-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="eval_framework-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_metrics.html" class="nv">Agent Runtime And Metrics</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_bridge_and_cli.html" class="nv">Mcp Bridge And Cli</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="docker_environment_and_tooling.html" class="nv">Docker Environment And Tooling</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Kuzu 连接池模块 (kuzu_connection_pool)</h1>
+<h2>概述</h2>
+<p><code>kuzu_connection_pool</code> 模块是 GitNexus MCP 服务器的核心基础设施组件，负责管理 KuzuDB 图数据库的连接池。该模块解决了 KuzuDB 连接对象<strong>非线程安全</strong>的关键约束，通过实现连接池模式，确保多个并发查询能够安全地共享同一个数据库实例。</p>
+<p>在 GitNexus 系统中，MCP 服务器需要同时处理来自多个客户端的并发查询请求，每个请求都可能需要访问代码库的知识图谱数据。KuzuDB 的官方并发模式允许从同一个 <code>Database</code> 对象创建多个 <code>Connection</code> 对象，但每个 <code>Connection</code> 本身不能同时处理多个查询。本模块通过维护一个可复用的连接池，自动管理连接的分配、回收和生命周期，为上层提供透明的高并发查询能力。</p>
+<p>该模块位于 <code>mcp_server</code> 模块体系下，与 <code>local_backend</code>、<code>resource_system</code> 和 <code>http_server</code> 等组件紧密协作，是 MCP 服务器读取代码库图谱数据的核心通道。</p>
+<hr />
+<h2>架构设计</h2>
+<h3>核心设计原则</h3>
+<ol>
+<li><strong>连接隔离</strong>：每个并发查询获得独立的 <code>Connection</code> 对象，避免 KuzuDB 的段错误（segfault）风险</li>
+<li><strong>资源复用</strong>：连接对象在查询完成后回收到池中，避免频繁创建/销毁的开销</li>
+<li><strong>容量控制</strong>：通过 LRU 淘汰和空闲超时机制，防止内存泄漏和资源耗尽</li>
+<li><strong>只读安全</strong>：以只读模式打开数据库，允许多个 MCP 服务器实例并发读取，同时避免与 <code>gitnexus analyze</code> 命令的写操作冲突</li>
+</ol>
+<h3>系统架构图</h3>
+<div class="mermaid">graph TB
+    subgraph MCP_Server["MCP 服务器"]
+        subgraph kuzu_connection_pool["Kuzu 连接池模块"]
+            PoolManager["连接池管理器<br/>Map<repoId, PoolEntry>"]
+            Checkout["checkout() 连接检出"]
+            Checkin["checkin() 连接归还"]
+            IdleTimer["空闲清理定时器"]
+            LRU["LRU 淘汰机制"]
+        end
+        
+        subgraph local_backend["本地后端"]
+            CodebaseContext["CodebaseContext"]
+            RepoHandle["RepoHandle"]
+        end
+        
+        subgraph http_server["HTTP 服务器"]
+            MCPSession["MCPSession"]
+        end
+    end
+    
+    subgraph KuzuDB["KuzuDB 实例"]
+        DB1["Database (repo1)<br/>只读模式"]
+        DB2["Database (repo2)<br/>只读模式"]
+        Conn1["Connection 1-8"]
+        Conn2["Connection 1-8"]
+    end
+    
+    MCPSession --> CodebaseContext
+    CodebaseContext --> RepoHandle
+    RepoHandle --> PoolManager
+    PoolManager --> Checkout
+    PoolManager --> Checkin
+    PoolManager --> IdleTimer
+    PoolManager --> LRU
+    
+    Checkout --> DB1
+    Checkout --> DB2
+    Checkin --> DB1
+    Checkin --> DB2
+    
+    DB1 --> Conn1
+    DB2 --> Conn2
+    
+    style kuzu_connection_pool fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    style PoolManager fill:#bbdefb,stroke:#01579b
+    style KuzuDB fill:#fff3e0,stroke:#e65100,stroke-width:2px
+</div>
+<h3>数据流图</h3>
+<div class="mermaid">sequenceDiagram
+    participant Client as MCP 客户端
+    participant Session as MCPSession
+    participant Pool as 连接池管理器
+    participant Conn as Connection 对象
+    participant Kuzu as KuzuDB 引擎
+    
+    Client->>Session: 查询请求 (repoId, cypher)
+    Session->>Pool: executeQuery(repoId, cypher)
+    
+    alt 连接池未初始化
+        Pool-->>Session: 抛出错误
+        Session-->>Client: 返回错误：需先运行 gitnexus analyze
+    else 连接池已初始化
+        Pool->>Pool: checkout() 检出连接
+        alt 有空闲连接
+            Pool->>Pool: 从 available 数组弹出
+        else 未达上限
+            Pool->>Conn: 创建新 Connection
+        else 已达上限
+            Pool->>Pool: 加入 waiters 队列
+            Note over Pool: 等待其他查询归还连接
+        end
+        
+        Pool->>Conn: 执行 query(cypher)
+        Conn->>Kuzu: 执行 Cypher 查询
+        Kuzu-->>Conn: 返回 QueryResult
+        Conn-->>Pool: 返回查询结果
+        Pool->>Pool: checkin() 归还连接
+        alt 有等待者
+            Pool->>Pool: 直接交给下一个 waiter
+        else 无等待者
+            Pool->>Pool: 放回 available 数组
+        end
+        Pool-->>Session: 返回结果数组
+        Session-->>Client: 返回查询结果
+    end
+</div>
+<h3>连接池状态机</h3>
+<div class="mermaid">stateDiagram-v2
+    [*] --> 未初始化：initKuzu() 调用
+    未初始化 --> 已初始化：数据库打开成功
+    未初始化 --> 未初始化：锁错误，重试中
+    未初始化 --> 失败：超过重试次数
+    
+    已初始化 --> 活跃：checkout() 检出连接
+    活跃 --> 已初始化：checkin() 归还连接
+    
+    已初始化 --> 关闭：idle timeout 触发
+    已初始化 --> 关闭：LRU 淘汰触发
+    已初始化 --> 关闭：closeKuzu() 显式关闭
+    
+    关闭 --> [*]: 资源释放完成
+    
+    note right of 已初始化
+        每个 repo 维护：
+        - 1 个 Database
+        - 2-8 个 Connection
+        - 等待队列
+    end note
+</div>
+<hr />
+<h2>核心组件详解</h2>
+<h3>PoolEntry 接口</h3>
+<p><code>PoolEntry</code> 是连接池的核心数据结构，表示单个代码库的数据库连接池状态。</p>
+<pre><code class="language-typescript">interface PoolEntry {
+  db: kuzu.Database;           // KuzuDB 数据库实例
+  available: kuzu.Connection[]; // 可用连接池
+  checkedOut: number;           // 已检出连接数
+  waiters: Array&lt;(conn: kuzu.Connection) =&gt; void&gt;; // 等待队列
+  lastUsed: number;             // 最后使用时间戳
+  dbPath: string;               // 数据库文件路径
+}
+</code></pre>
+<h4>字段说明</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>db</code></td>
+<td><code>kuzu.Database</code></td>
+<td>KuzuDB 数据库实例，每个 repo 唯一。以只读模式打开，支持并发读取。</td>
+</tr>
+<tr>
+<td><code>available</code></td>
+<td><code>kuzu.Connection[]</code></td>
+<td>当前可用的连接数组。查询完成后归还的连接会放入此数组供后续复用。</td>
+</tr>
+<tr>
+<td><code>checkedOut</code></td>
+<td><code>number</code></td>
+<td>当前已被检出的连接数量。用于追踪活跃查询数，配合 <code>available.length</code> 计算总连接数。</td>
+</tr>
+<tr>
+<td><code>waiters</code></td>
+<td><code>Array&lt;(conn) =&gt; void&gt;</code></td>
+<td>当连接池达到上限时，新查询的回调函数会进入此队列。连接归还时直接交给队列头部的等待者。</td>
+</tr>
+<tr>
+<td><code>lastUsed</code></td>
+<td><code>number</code></td>
+<td>最后使用时间的 Unix 时间戳（毫秒）。用于 LRU 淘汰和空闲超时判断。</td>
+</tr>
+<tr>
+<td><code>dbPath</code></td>
+<td><code>string</code></td>
+<td>数据库文件在磁盘上的路径。用于错误提示和调试。</td>
+</tr>
+</tbody>
+</table>
+<h4>设计要点</h4>
+<ol>
+<li>
+<p><strong>单 Database 多 Connection</strong>：每个 <code>PoolEntry</code> 只维护一个 <code>Database</code> 实例，但可以有多个 <code>Connection</code>。这是 KuzuDB 官方推荐的并发模式。</p>
+</li>
+<li>
+<p><strong>等待队列优化</strong>：当连接池满时，新查询不会轮询检查，而是通过 Promise 挂起。连接归还时，如果有等待者，直接通过回调传递连接，避免&quot;归还→放入数组→检出&quot;的中间状态竞争。</p>
+</li>
+<li>
+<p><strong>时间戳追踪</strong>：<code>lastUsed</code> 在每次 <code>executeQuery</code> 调用时更新，确保活跃的连接池不会被空闲清理器误删。</p>
+</li>
+</ol>
+<hr />
+<h3>连接池全局配置</h3>
+<p>模块定义了四个关键配置常量，控制连接池的行为：</p>
+<pre><code class="language-typescript">const MAX_POOL_SIZE = 5;           // 最大 repo 数量（LRU 淘汰）
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 空闲超时（5 分钟）
+const MAX_CONNS_PER_REPO = 8;      // 每个 repo 最大连接数
+const INITIAL_CONNS_PER_REPO = 2;  // 初始预创建连接数
+</code></pre>
+<h4>配置参数详解</h4>
+<p><strong>MAX_POOL_SIZE = 5</strong></p>
+<p>限制内存中同时存在的代码库数量。当第 6 个代码库被访问时，LRU（最近最少使用）淘汰机制会关闭最久未使用的代码库的连接池。这个限制防止 MCP 服务器在访问大量代码库时内存无限增长。</p>
+<p><strong>IDLE_TIMEOUT_MS = 5 分钟</strong></p>
+<p>连接池的空闲超时时间。如果某个代码库在 5 分钟内没有任何查询，其连接池会被自动关闭以释放资源。清理定时器每 60 秒运行一次检查。</p>
+<p><strong>MAX_CONNS_PER_REPO = 8</strong></p>
+<p>单个代码库的最大并发连接数。这限制了同一时间能有多少个查询同时执行。8 是一个经验值，平衡了并发能力和资源消耗。对于大多数 MCP 使用场景，同时 8 个查询已经足够。</p>
+<p><strong>INITIAL_CONNS_PER_REPO = 2</strong></p>
+<p>初始化时预创建的连接数。避免第一个查询需要等待连接创建。2 个初始连接可以处理少量并发，后续连接按需创建直到达到上限。</p>
+<hr />
+<h3>核心函数</h3>
+<h4>initKuzu(repoId, dbPath)</h4>
+<p>初始化指定代码库的数据库连接池。</p>
+<pre><code class="language-typescript">export const initKuzu = async (repoId: string, dbPath: string): Promise&lt;void&gt;
+</code></pre>
+<p><strong>参数</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repoId</code></td>
+<td><code>string</code></td>
+<td>代码库的唯一标识符，用作连接池的键</td>
+</tr>
+<tr>
+<td><code>dbPath</code></td>
+<td><code>string</code></td>
+<td>KuzuDB 数据库文件在磁盘上的路径</td>
+</tr>
+</tbody>
+</table>
+<p><strong>返回值</strong></p>
+<p><code>Promise&lt;void&gt;</code> - 初始化成功时 resolve，失败时 reject</p>
+<p><strong>执行流程</strong></p>
+<ol>
+<li><strong>检查现有池</strong>：如果该 <code>repoId</code> 已有连接池，仅更新 <code>lastUsed</code> 时间戳并返回</li>
+<li><strong>验证数据库存在</strong>：检查 <code>dbPath</code> 是否存在，不存在则抛出错误提示用户运行 <code>gitnexus analyze</code></li>
+<li><strong>LRU 淘汰</strong>：如果池已满，淘汰最久未使用的代码库</li>
+<li><strong>打开数据库</strong>：以只读模式打开 KuzuDB，带重试逻辑处理锁冲突</li>
+<li><strong>预创建连接</strong>：创建 <code>INITIAL_CONNS_PER_REPO</code> 个连接放入 <code>available</code> 数组</li>
+<li><strong>启动定时器</strong>：确保空闲清理定时器运行</li>
+</ol>
+<p><strong>锁重试机制</strong></p>
+<p>当 <code>gitnexus analyze</code> 命令正在写入数据库时，MCP 服务器以只读模式打开可能会遇到锁冲突。<code>initKuzu</code> 实现了指数退避重试：</p>
+<pre><code class="language-typescript">const LOCK_RETRY_ATTEMPTS = 3;
+const LOCK_RETRY_DELAY_MS = 2000;
+
+for (let attempt = 1; attempt &lt;= LOCK_RETRY_ATTEMPTS; attempt++) {
+  try {
+    // 尝试打开数据库
+  } catch (err) {
+    if (锁错误 &amp;&amp; attempt &lt; LOCK_RETRY_ATTEMPTS) {
+      await sleep(LOCK_RETRY_DELAY_MS * attempt); // 2s, 4s, 6s
+      continue;
+    }
+    throw;
+  }
+}
+</code></pre>
+<p><strong>stdout 静默处理</strong></p>
+<p>KuzuDB 的 native 模块可能会向 stdout 输出调试信息，这会干扰 MCP 协议的 stdio 通信。<code>initKuzu</code> 在创建数据库和连接时临时替换 <code>process.stdout.write</code> 为无操作函数。</p>
+<p><strong>错误处理</strong></p>
+<table>
+<thead>
+<tr>
+<th>错误场景</th>
+<th>错误消息</th>
+<th>建议操作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>数据库不存在</td>
+<td><code>KuzuDB not found at ${dbPath}. Run: gitnexus analyze</code></td>
+<td>运行分析命令生成数据库</td>
+</tr>
+<tr>
+<td>锁冲突（重试耗尽）</td>
+<td><code>KuzuDB unavailable for ${repoId}. Another process may be rebuilding the index.</code></td>
+<td>等待 <code>gitnexus analyze</code> 完成后重试</td>
+</tr>
+<tr>
+<td>其他错误</td>
+<td>包含原始错误消息</td>
+<td>检查数据库文件权限和完整性</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h4>executeQuery(repoId, cypher)</h4>
+<p>执行 Cypher 查询的核心入口函数，自动管理连接的检出和归还。</p>
+<pre><code class="language-typescript">export const executeQuery = async (repoId: string, cypher: string): Promise&lt;any[]&gt;
+</code></pre>
+<p><strong>参数</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repoId</code></td>
+<td><code>string</code></td>
+<td>目标代码库的标识符</td>
+</tr>
+<tr>
+<td><code>cypher</code></td>
+<td><code>string</code></td>
+<td>Cypher 查询语句</td>
+</tr>
+</tbody>
+</table>
+<p><strong>返回值</strong></p>
+<p><code>Promise&lt;any[]&gt;</code> - 查询结果数组，每个元素对应一行记录</p>
+<p><strong>执行流程</strong></p>
+<div class="mermaid">flowchart TD
+    A[executeQuery 调用] --> B{连接池存在？}
+    B -->|否 | C[抛出错误：未初始化]
+    B -->|是 | D[更新 lastUsed]
+    D --> E[checkout 连接]
+    
+    E --> F{available 有连接？}
+    F -->|是 | G[弹出可用连接]
+    F -->|否 | H{总连接数 < MAX？}
+    H -->|是 | I[创建新连接]
+    H -->|否 | J[加入 waiters 队列]
+    J --> K[等待其他查询归还]
+    K --> L[获得连接]
+    G --> L
+    I --> L
+    
+    L --> M[conn.query cypher]
+    M --> N[获取所有行]
+    N --> O[checkin 归还连接]
+    
+    O --> P{有 waiters？}
+    P -->|是 | Q[直接交给下一个 waiter]
+    P -->|否 | R[放回 available 数组]
+    Q --> S[返回结果]
+    R --> S
+</div>
+<p><strong>连接检出策略</strong></p>
+<ol>
+<li><strong>快速路径</strong>：如果 <code>available</code> 数组非空，直接弹出一个连接，<code>checkedOut++</code></li>
+<li><strong>扩容路径</strong>：如果总连接数（<code>available.length + checkedOut</code>）小于 <code>MAX_CONNS_PER_REPO</code>，创建新连接</li>
+<li><strong>等待路径</strong>：如果已达上限，创建 Promise 并将 resolve 回调加入 <code>waiters</code> 队列</li>
+</ol>
+<p><strong>连接归还策略</strong></p>
+<ol>
+<li><strong>有等待者</strong>：直接从 <code>waiters</code> 队列取出头部回调，传入连接并执行。连接不经过 <code>available</code> 数组，避免竞争条件。</li>
+<li><strong>无等待者</strong>：<code>checkedOut--</code>，连接推入 <code>available</code> 数组供后续使用。</li>
+</ol>
+<p><strong>结果处理</strong></p>
+<p>KuzuDB 的 <code>query()</code> 返回 <code>QueryResult</code> 对象，需要调用 <code>getAll()</code> 获取所有行。函数处理了返回值的两种可能格式（数组或对象），统一返回行数组。</p>
+<p><strong>示例</strong></p>
+<pre><code class="language-typescript">// 查询所有类节点
+const classes = await executeQuery(
+  'my-repo',
+  'MATCH (c:Class) RETURN c.name, c.filePath LIMIT 10'
+);
+
+// classes 格式：
+// [
+//   { c: { name: 'UserService', filePath: '/src/services/user.ts' } },
+//   { c: { name: 'AuthController', filePath: '/src/controllers/auth.ts' } },
+//   ...
+// ]
+</code></pre>
+<hr />
+<h4>checkout(entry) / checkin(entry, conn)</h4>
+<p>内部函数，管理单个连接的检出和归还逻辑。</p>
+<p><strong>checkout(entry)</strong></p>
+<pre><code class="language-typescript">function checkout(entry: PoolEntry): Promise&lt;kuzu.Connection&gt;
+</code></pre>
+<p>从连接池中获取一个可用连接。返回 Promise 是因为可能需要等待其他查询归还连接。</p>
+<p><strong>checkin(entry, conn)</strong></p>
+<pre><code class="language-typescript">function checkin(entry: PoolEntry, conn: kuzu.Connection): void
+</code></pre>
+<p>将连接归还到池中。如果有等待者，直接传递；否则放回可用数组。</p>
+<p><strong>设计要点</strong></p>
+<ul>
+<li><strong>直接传递优化</strong>：当有等待者时，连接不经过 <code>available</code> 数组，直接从归还者传递给等待者。这减少了中间状态的竞争窗口。</li>
+<li><strong>计数同步</strong>：<code>checkedOut</code> 计数在检出时增加，在无等待者归还时减少。有等待者时计数保持不变（因为连接立即被下一个查询使用）。</li>
+</ul>
+<hr />
+<h4>closeKuzu(repoId?)</h4>
+<p>关闭连接池，释放资源。</p>
+<pre><code class="language-typescript">export const closeKuzu = async (repoId?: string): Promise&lt;void&gt;
+</code></pre>
+<p><strong>参数</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repoId</code></td>
+<td><code>string</code> (可选)</td>
+<td>指定要关闭的代码库。如果省略，关闭所有连接池。</td>
+</tr>
+</tbody>
+</table>
+<p><strong>行为</strong></p>
+<ol>
+<li><strong>单 repo 关闭</strong>：如果提供 <code>repoId</code>，仅关闭该 repo 的所有连接和数据库</li>
+<li><strong>全部关闭</strong>：如果省略 <code>repoId</code>，遍历并关闭所有 repo 的连接池，并清除空闲定时器</li>
+</ol>
+<p><strong>使用场景</strong></p>
+<ul>
+<li>MCP 服务器关闭时清理所有资源</li>
+<li>测试完成后重置连接池状态</li>
+<li>显式释放不再需要的代码库资源</li>
+</ul>
+<hr />
+<h4>isKuzuReady(repoId)</h4>
+<p>检查指定代码库的连接池是否已初始化。</p>
+<pre><code class="language-typescript">export const isKuzuReady = (repoId: string): boolean
+</code></pre>
+<p><strong>返回值</strong></p>
+<p><code>boolean</code> - <code>true</code> 表示连接池已初始化并可接受查询</p>
+<p><strong>使用场景</strong></p>
+<pre><code class="language-typescript">if (!isKuzuReady(repoId)) {
+  await initKuzu(repoId, dbPath);
+}
+const results = await executeQuery(repoId, cypher);
+</code></pre>
+<hr />
+<h4>内部辅助函数</h4>
+<p><strong>createConnection(db)</strong></p>
+<p>创建新的 KuzuDB 连接，同时静默 stdout 防止 native 模块输出干扰 MCP 协议。</p>
+<pre><code class="language-typescript">function createConnection(db: kuzu.Database): kuzu.Connection {
+  const origWrite = process.stdout.write;
+  process.stdout.write = (() =&gt; true) as any;
+  try {
+    return new kuzu.Connection(db);
+  } finally {
+    process.stdout.write = origWrite;
+  }
+}
+</code></pre>
+<p><strong>closeOne(repoId)</strong></p>
+<p>关闭单个 repo 的所有连接和数据库，并从全局 <code>pool</code> Map 中删除。</p>
+<p><strong>evictLRU()</strong></p>
+<p>如果连接池数量达到 <code>MAX_POOL_SIZE</code>，淘汰 <code>lastUsed</code> 最老的 repo。</p>
+<p><strong>ensureIdleTimer()</strong></p>
+<p>确保空闲清理定时器运行。定时器每 60 秒检查一次所有 repo，关闭超过 <code>IDLE_TIMEOUT_MS</code> 未使用的连接池。</p>
+<hr />
+<h2>与其他模块的集成</h2>
+<h3>与 local_backend 的协作</h3>
+<p><code>local_backend</code> 模块的 <code>LocalBackend</code> 和 <code>RepoHandle</code> 类使用本模块访问代码库的图谱数据。典型调用流程：</p>
+<pre><code class="language-typescript">// local_backend.ts 简化示例
+class RepoHandle {
+  async queryGraph(cypher: string): Promise&lt;any[]&gt; {
+    // 确保连接池初始化
+    if (!isKuzuReady(this.repoId)) {
+      await initKuzu(this.repoId, this.dbPath);
+    }
+    // 执行查询
+    return executeQuery(this.repoId, cypher);
+  }
+}
+</code></pre>
+<p>参考 <a href="mcp_server.md#local_backend">local_backend</a> 模块文档了解完整的后端实现。</p>
+<h3>与 core_kuzu_storage 的关系</h3>
+<p><code>core_kuzu_storage</code> 模块定义了 KuzuDB 相关的类型，如 <code>StreamedCSVResult</code>、<code>FileContentCache</code> 和 <code>BufferedCSVWriter</code>。这些类型用于分析阶段将图谱数据导出为 CSV 格式，然后由本模块在查询阶段读取。</p>
+<div class="mermaid">graph LR
+    subgraph 分析阶段
+        A[代码解析] --> B[图谱构建]
+        B --> C[CSV 导出<br/>core_kuzu_storage]
+        C --> D[KuzuDB 文件]
+    end
+    
+    subgraph 查询阶段
+        D --> E[initKuzu<br/>kuzu_connection_pool]
+        E --> F[executeQuery<br/>kuzu_connection_pool]
+        F --> G[MCP 工具响应]
+    end
+</div>
+<p>参考 <a href="core_kuzu_storage.html">core_kuzu_storage</a> 模块文档了解 CSV 导出机制。</p>
+<h3>与 http_server 的集成</h3>
+<p><code>MCPSession</code> 类（来自 <code>http_server</code> 子模块）通过 <code>local_backend</code> 间接使用本模块处理 HTTP 请求。SSE 或 stdio 传输的查询请求最终都会调用 <code>executeQuery</code>。</p>
+<p>参考 <a href="mcp_server.md#http_server">http_server</a> 模块文档了解 MCP 会话管理。</p>
+<hr />
+<h2>使用指南</h2>
+<h3>基本使用模式</h3>
+<pre><code class="language-typescript">import { initKuzu, executeQuery, closeKuzu, isKuzuReady } from './kuzu-adapter';
+
+async function main() {
+  const repoId = 'my-project';
+  const dbPath = '/path/to/repo/.gitnexus/kuzu.db';
+  
+  try {
+    // 1. 初始化连接池
+    await initKuzu(repoId, dbPath);
+    
+    // 2. 执行查询
+    const classes = await executeQuery(
+      repoId,
+      'MATCH (c:Class) RETURN c.name, c.loc LIMIT 10'
+    );
+    
+    console.log('Found classes:', classes);
+    
+    // 3. 检查状态
+    console.log('Pool ready:', isKuzuReady(repoId));
+    
+  } catch (error) {
+    console.error('Query failed:', error);
+  } finally {
+    // 4. 清理资源
+    await closeKuzu(repoId);
+  }
+}
+</code></pre>
+<h3>MCP 服务器中的使用</h3>
+<p>在 MCP 服务器中，连接池的初始化通常发生在 <code>LocalBackend</code> 启动时：</p>
+<pre><code class="language-typescript">// mcp/local/local-backend.ts 简化示例
+export class LocalBackend {
+  async initializeRepo(repoPath: string): Promise&lt;RepoHandle&gt; {
+    const repoId = await this.getRepoId(repoPath);
+    const dbPath = path.join(repoPath, '.gitnexus', 'kuzu.db');
+    
+    // 初始化连接池
+    await initKuzu(repoId, dbPath);
+    
+    return new RepoHandle(repoId, dbPath);
+  }
+}
+</code></pre>
+<h3>并发查询示例</h3>
+<pre><code class="language-typescript">// 多个查询并发执行，连接池自动分配连接
+const [classes, functions, imports] = await Promise.all([
+  executeQuery(repoId, 'MATCH (c:Class) RETURN count(c) as count'),
+  executeQuery(repoId, 'MATCH (f:Function) RETURN count(f) as count'),
+  executeQuery(repoId, 'MATCH ()-[i:IMPORTS]-&gt;() RETURN count(i) as count'),
+]);
+
+// 如果并发数超过 MAX_CONNS_PER_REPO (8)，超出的查询会自动排队等待
+</code></pre>
+<hr />
+<h2>配置与调优</h2>
+<h3>调整连接池参数</h3>
+<p>修改模块顶部的常量可以调整连接池行为：</p>
+<pre><code class="language-typescript">// 增加最大 repo 数量（适合需要同时访问多个代码库的场景）
+const MAX_POOL_SIZE = 10; // 默认 5
+
+// 缩短空闲超时（适合资源受限环境）
+const IDLE_TIMEOUT_MS = 2 * 60 * 1000; // 默认 5 分钟
+
+// 增加并发连接数（适合高并发查询场景）
+const MAX_CONNS_PER_REPO = 16; // 默认 8
+
+// 增加初始连接数（减少冷启动延迟）
+const INITIAL_CONNS_PER_REPO = 4; // 默认 2
+</code></pre>
+<p><strong>调优建议</strong></p>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>推荐配置</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>开发环境，单 repo</td>
+<td><code>MAX_CONNS_PER_REPO = 4</code></td>
+<td>减少内存占用，4 个并发足够</td>
+</tr>
+<tr>
+<td>生产环境，多 repo</td>
+<td><code>MAX_POOL_SIZE = 10</code>, <code>MAX_CONNS_PER_REPO = 16</code></td>
+<td>支持更多并发和代码库</td>
+</tr>
+<tr>
+<td>资源受限（如容器）</td>
+<td><code>IDLE_TIMEOUT_MS = 60000</code></td>
+<td>快速释放空闲资源</td>
+</tr>
+<tr>
+<td>高并发查询</td>
+<td><code>INITIAL_CONNS_PER_REPO = 4</code></td>
+<td>减少连接创建延迟</td>
+</tr>
+</tbody>
+</table>
+<h3>监控连接池状态</h3>
+<p>虽然模块未提供显式的监控 API，但可以通过以下方式观察连接池行为：</p>
+<pre><code class="language-typescript">// 调试：查看当前池状态（需要临时导出 pool 变量）
+console.log('Active repos:', pool.size);
+for (const [repoId, entry] of pool) {
+  console.log(`${repoId}: available=${entry.available.length}, checkedOut=${entry.checkedOut}, waiters=${entry.waiters.length}`);
+}
+</code></pre>
+<hr />
+<h2>边缘情况与注意事项</h2>
+<h3>1. 数据库锁冲突</h3>
+<p><strong>问题</strong>：当 <code>gitnexus analyze</code> 命令正在写入数据库时，MCP 服务器以只读模式打开可能会遇到锁冲突。</p>
+<p><strong>表现</strong>：<code>initKuzu</code> 抛出 <code>Could not set lock</code> 或包含 <code>lock</code> 的错误消息。</p>
+<p><strong>解决</strong>：</p>
+<ul>
+<li>模块已内置重试机制（最多 3 次，指数退避）</li>
+<li>如果重试失败，等待 <code>gitnexus analyze</code> 完成后重试</li>
+<li>避免在分析过程中查询同一代码库</li>
+</ul>
+<h3>2. 连接泄漏</h3>
+<p><strong>问题</strong>：如果 <code>executeQuery</code> 抛出异常，连接可能未正确归还。</p>
+<p><strong>防护</strong>：模块使用 <code>try/finally</code> 确保 <code>checkin</code> 总是执行：</p>
+<pre><code class="language-typescript">const conn = await checkout(entry);
+try {
+  const result = await conn.query(cypher);
+  return await result.getAll();
+} finally {
+  checkin(entry, conn); // 总是执行
+}
+</code></pre>
+<p><strong>注意</strong>：如果在 <code>checkout</code> 后、<code>try</code> 前抛出异常（如 <code>conn.query</code> 参数错误），连接仍会归还。但如果在 <code>checkout</code> 前抛出异常（如 <code>repoId</code> 不存在），不会发生泄漏。</p>
+<h3>3. 等待队列饥饿</h3>
+<p><strong>问题</strong>：如果某个查询长时间持有连接（如复杂查询或网络延迟），后续查询会一直等待。</p>
+<p><strong>表现</strong>：<code>waiters</code> 队列增长，新查询响应变慢。</p>
+<p><strong>缓解</strong>：</p>
+<ul>
+<li><code>MAX_CONNS_PER_REPO</code> 限制单个 repo 的并发，防止单个 repo 耗尽所有资源</li>
+<li><code>IDLE_TIMEOUT_MS</code> 定期清理空闲连接池，但不会中断活跃查询</li>
+<li><strong>建议</strong>：优化 Cypher 查询，避免长时间运行的查询</li>
+</ul>
+<h3>4. 内存泄漏</h3>
+<p><strong>问题</strong>：如果 <code>idleTimer</code> 未正确清理，可能导致进程无法退出。</p>
+<p><strong>防护</strong>：</p>
+<ul>
+<li><code>closeKuzu()</code> 无参数调用时会清除定时器</li>
+<li>定时器使用 <code>unref()</code> 允许进程在无其他任务时退出</li>
+<li>MCP 服务器关闭时应调用 <code>closeKuzu()</code></li>
+</ul>
+<h3>5. stdout 静默的副作用</h3>
+<p><strong>问题</strong>：模块临时替换 <code>process.stdout.write</code> 以静默 KuzuDB 的 native 输出。</p>
+<p><strong>风险</strong>：如果在静默期间有其他代码向 stdout 写入，输出会丢失。</p>
+<p><strong>防护</strong>：使用 <code>try/finally</code> 确保总是恢复原始 <code>stdout.write</code>：</p>
+<pre><code class="language-typescript">const origWrite = process.stdout.write;
+process.stdout.write = (() =&gt; true) as any;
+try {
+  return new kuzu.Connection(db);
+} finally {
+  process.stdout.write = origWrite; // 总是恢复
+}
+</code></pre>
+<h3>6. 数据库文件不存在</h3>
+<p><strong>问题</strong>：调用 <code>initKuzu</code> 时数据库文件尚未生成。</p>
+<p><strong>表现</strong>：抛出 <code>KuzuDB not found at ${dbPath}. Run: gitnexus analyze</code></p>
+<p><strong>解决</strong>：确保先运行 <code>gitnexus analyze</code> 命令生成数据库。</p>
+<h3>7. 并发初始化竞争</h3>
+<p><strong>问题</strong>：多个请求同时调用 <code>initKuzu</code> 同一个 <code>repoId</code>。</p>
+<p><strong>防护</strong>：<code>initKuzu</code> 开头检查现有池：</p>
+<pre><code class="language-typescript">const existing = pool.get(repoId);
+if (existing) {
+  existing.lastUsed = Date.now();
+  return; // 直接返回，不重复初始化
+}
+</code></pre>
+<hr />
+<h2>已知限制</h2>
+<ol>
+<li>
+<p><strong>不支持写操作</strong>：连接池以只读模式打开数据库，无法执行 <code>CREATE</code>、<code>MERGE</code>、<code>DELETE</code> 等写操作。这是设计决策，确保 MCP 服务器不会意外修改图谱数据。</p>
+</li>
+<li>
+<p><strong>固定配置常量</strong>：连接池参数（<code>MAX_POOL_SIZE</code>、<code>MAX_CONNS_PER_REPO</code> 等）是硬编码常量，无法在运行时配置。如需调整，需修改源代码并重新构建。</p>
+</li>
+<li>
+<p><strong>无连接健康检查</strong>：模块假设 KuzuDB 连接始终有效。如果连接因某种原因失效（如数据库文件损坏），查询会抛出异常，但连接不会被自动替换。</p>
+</li>
+<li>
+<p><strong>单进程限制</strong>：连接池是进程内单例，无法在多个进程间共享。每个 MCP 服务器进程维护自己的连接池。</p>
+</li>
+<li>
+<p><strong>无查询超时</strong>：<code>executeQuery</code> 没有内置超时机制。长时间运行的查询会一直占用连接，可能导致等待队列饥饿。</p>
+</li>
+</ol>
+<hr />
+<h2>故障排查</h2>
+<h3>常见错误及解决方案</h3>
+<table>
+<thead>
+<tr>
+<th>错误消息</th>
+<th>可能原因</th>
+<th>解决方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KuzuDB not found at ${dbPath}</code></td>
+<td>数据库未生成</td>
+<td>运行 <code>gitnexus analyze</code></td>
+</tr>
+<tr>
+<td><code>KuzuDB unavailable for ${repoId}</code></td>
+<td>锁冲突，分析正在进行</td>
+<td>等待分析完成，或检查是否有多个分析进程</td>
+</tr>
+<tr>
+<td><code>KuzuDB not initialized for repo</code></td>
+<td>未调用 <code>initKuzu</code></td>
+<td>确保查询前初始化连接池</td>
+</tr>
+<tr>
+<td><code>Segmentation fault</code></td>
+<td>连接并发使用（应被池防止）</td>
+<td>检查是否绕过连接池直接使用 <code>kuzu.Connection</code></td>
+</tr>
+</tbody>
+</table>
+<h3>调试技巧</h3>
+<ol>
+<li><strong>启用连接池日志</strong>（需临时修改代码）：</li>
+</ol>
+<pre><code class="language-typescript">// 在 checkout 和 checkin 中添加日志
+console.log(`checkout: repo=${repoId}, available=${entry.available.length}, checkedOut=${entry.checkedOut}`);
+console.log(`checkin: repo=${repoId}, available=${entry.available.length}, checkedOut=${entry.checkedOut}`);
+</code></pre>
+<ol start="2">
+<li><strong>监控等待队列</strong>：</li>
+</ol>
+<pre><code class="language-typescript">// 定期检查 waiters 长度
+setInterval(() =&gt; {
+  for (const [repoId, entry] of pool) {
+    if (entry.waiters.length &gt; 0) {
+      console.warn(`High contention on ${repoId}: ${entry.waiters.length} waiters`);
+    }
+  }
+}, 5000);
+</code></pre>
+<ol start="3">
+<li><strong>检查数据库文件</strong>：</li>
+</ol>
+<pre><code class="language-bash"># 确认数据库文件存在
+ls -la /path/to/repo/.gitnexus/
+
+# 检查文件权限
+stat /path/to/repo/.gitnexus/kuzu.db
+</code></pre>
+<hr />
+<h2>扩展与定制</h2>
+<h3>添加连接健康检查</h3>
+<p>可以通过扩展 <code>checkout</code> 函数添加连接健康检查：</p>
+<pre><code class="language-typescript">async function checkout(entry: PoolEntry): Promise&lt;kuzu.Connection&gt; {
+  if (entry.available.length &gt; 0) {
+    const conn = entry.available.pop()!;
+    // 健康检查
+    try {
+      await conn.query('RETURN 1');
+    } catch {
+      // 连接失效，创建新连接
+      return createConnection(entry.db);
+    }
+    entry.checkedOut++;
+    return conn;
+  }
+  // ... 其余逻辑
+}
+</code></pre>
+<h3>添加查询超时</h3>
+<p>可以通过 <code>Promise.race</code> 添加查询超时：</p>
+<pre><code class="language-typescript">export const executeQuery = async (
+  repoId: string,
+  cypher: string,
+  timeoutMs: number = 30000
+): Promise&lt;any[]&gt; =&gt; {
+  const entry = pool.get(repoId);
+  if (!entry) throw new Error('Not initialized');
+  
+  const conn = await checkout(entry);
+  try {
+    const queryPromise = conn.query(cypher);
+    const timeoutPromise = new Promise((_, reject) =&gt;
+      setTimeout(() =&gt; reject(new Error('Query timeout')), timeoutMs)
+    );
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+    return await result.getAll();
+  } finally {
+    checkin(entry, conn);
+  }
+};
+</code></pre>
+<h3>添加连接池指标</h3>
+<p>可以导出连接池统计信息用于监控：</p>
+<pre><code class="language-typescript">export function getPoolStats(): Record&lt;string, any&gt; {
+  const stats: Record&lt;string, any&gt; = {};
+  for (const [repoId, entry] of pool) {
+    stats[repoId] = {
+      available: entry.available.length,
+      checkedOut: entry.checkedOut,
+      waiters: entry.waiters.length,
+      total: entry.available.length + entry.checkedOut,
+      lastUsed: entry.lastUsed,
+    };
+  }
+  return {
+    totalRepos: pool.size,
+    repos: stats,
+  };
+}
+</code></pre>
+<hr />
+<h2>参考文档</h2>
+<ul>
+<li><a href="https://docs.kuzudb.com/concurrency">KuzuDB 并发文档</a> — 官方并发模式说明</li>
+<li><a href="mcp_server.html">mcp_server</a> — MCP 服务器模块总览</li>
+<li><a href="mcp_server.md#local_backend">local_backend</a> — 本地后端实现</li>
+<li><a href="core_kuzu_storage.html">core_kuzu_storage</a> — KuzuDB 存储和 CSV 导出</li>
+<li><a href="mcp_server.md#http_server">http_server</a> — MCP HTTP 服务器</li>
+</ul>
+<hr />
+<h2>文档边界说明</h2>
+<p>本文档仅依据 <code>gitnexus/src/mcp/core/kuzu-adapter.ts</code> 当前实现与模块树信息编写。对于跨模块调用链（例如 <code>local_backend</code>、<code>http_server</code> 的具体方法签名），请以对应模块文档和源码为准。</p>
+<hr />
+<h2>总结</h2>
+<p><code>kuzu_connection_pool</code> 模块是 GitNexus MCP 服务器的关键基础设施，通过连接池模式解决了 KuzuDB 连接非线程安全的约束。其核心设计原则是：</p>
+<ol>
+<li><strong>安全并发</strong>：每个查询获得独立连接，避免段错误</li>
+<li><strong>资源高效</strong>：连接复用、LRU 淘汰、空闲清理</li>
+<li><strong>只读隔离</strong>：与 <code>gitnexus analyze</code> 写操作无冲突</li>
+<li><strong>透明使用</strong>：上层无需关心连接管理细节</li>
+</ol>
+<p>理解本模块的工作原理对于开发和维护 GitNexus MCP 服务器至关重要，特别是在处理高并发查询、调试锁冲突或优化查询性能时。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

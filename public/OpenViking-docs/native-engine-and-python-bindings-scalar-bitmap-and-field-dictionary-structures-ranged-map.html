@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RangedMap 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-MiniMax-M2.5<br>
+    <b>Generated:</b> 2026-02-28T15:10<br>
+    <b>Components:</b> 4836<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/volcengine/OpenViking" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/volcengine/OpenViking" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="rust_cli_interface.html" class="nv">Rust Cli Interface</a>
+      <button class="nvcaret" data-nav="rust_cli_interface-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="rust_cli_interface-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="rust_cli_interface-cli_bootstrap_and_runtime_context.html" class="nv">Cli Bootstrap And Runtime Context</a>
+        <button class="nvcaret" data-nav="cli_bootstrap_and_runtime_context-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="cli_bootstrap_and_runtime_context-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cli Command Structure</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cli Runtime Context</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-cli_bootstrap_and_runtime_context-cli_configuration_management.html" class="nv">Cli Configuration Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Http Api And Tabular Output</span>
+        <button class="nvcaret" data-nav="http_api_and_tabular_output-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="http_api_and_tabular_output-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-http_api_and_tabular_output-http_client.html" class="nv">Http Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Output Formatting</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Tui Application Orchestration</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Tui Tree Navigation And View Model</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="python_client_and_cli_utils.html" class="nv">Python Client And Cli Utils</a>
+      <button class="nvcaret" data-nav="python_client_and_cli_utils-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="python_client_and_cli_utils-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-client_session_and_transport.html" class="nv">Client Session And Transport</a>
+        <button class="nvcaret" data-nav="client_session_and_transport-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="client_session_and_transport-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-base_client.html" class="nv">Base Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-session_wrapper.html" class="nv">Session Wrapper</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-configuration_models_and_singleton.html" class="nv">Configuration Models And Singleton</a>
+        <button class="nvcaret" data-nav="configuration_models_and_singleton-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="configuration_models_and_singleton-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-embedding_config.html" class="nv">Embedding Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-open_viking_config.html" class="nv">Open Viking Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-content_extraction_schema_and_strategies.html" class="nv">Content Extraction Schema And Strategies</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-llm_and_rerank_clients.html" class="nv">Llm And Rerank Clients</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-retrieval_trace_and_scoring_types.html" class="nv">Retrieval Trace And Scoring Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_context_prompts_and_sessions.html" class="nv">Core Context Prompts And Sessions</a>
+      <button class="nvcaret" data-nav="core_context_prompts_and_sessions-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_context_prompts_and_sessions-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-context_typing_and_levels.html" class="nv">Context Typing And Levels</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-prompt_template_metadata.html" class="nv">Prompt Template Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_memory_deduplication.html" class="nv">Session Memory Deduplication</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Session Runtime And Skill Discovery</span>
+        <button class="nvcaret" data-nav="session_runtime_and_skill_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="session_runtime_and_skill_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-session_runtime.html" class="nv">Session Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Skill Loader</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Session Runtime</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Skill Loader</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Directory Definition</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="parsing_and_resource_detection.html" class="nv">Parsing And Resource Detection</a>
+      <button class="nvcaret" data-nav="parsing_and_resource_detection-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="parsing_and_resource_detection-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy</span>
+        <button class="nvcaret" data-nav="resource_and_document_taxonomy-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_document_taxonomy-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Base Types</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Html Parser</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parser Abstractions And Extension Points</span>
+        <button class="nvcaret" data-nav="parser_abstractions_and_extension_points-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="parser_abstractions_and_extension_points-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Code Language Ast Extractors</span>
+        <button class="nvcaret" data-nav="code_language_ast_extractors-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="code_language_ast_extractors-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Systems Programming Ast Extractors</span>
+          <button class="nvcaret" data-nav="systems_programming_ast_extractors-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="systems_programming_ast_extractors-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-cpp_extractor.html" class="nv">Cpp Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-rust_extractor.html" class="nv">Rust Extractor</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Application And Web Platform Ast Extractors</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cpp Extractor</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Go Extractor</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Rust Extractor</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-resource_detection_traversal_metadata.html" class="nv">Resource Detection Traversal Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Base Types</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Html Parser</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Custom Parser Protocol And Wrappers</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Language Extractor Base</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Systems Programming Ast Extractors</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Application And Web Platform Ast Extractors</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="model_providers_embeddings_and_vlm.html" class="nv">Model Providers Embeddings And Vlm</a>
+      <button class="nvcaret" data-nav="model_providers_embeddings_and_vlm-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="model_providers_embeddings_and_vlm-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-embedder_base_contracts.html" class="nv">Embedder Base Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-openai_embedding_providers.html" class="nv">Openai Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-vikingdb_embedding_providers.html" class="nv">Vikingdb Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-volcengine_embedding_providers.html" class="nv">Volcengine Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-jina_embedding_provider.html" class="nv">Jina Embedding Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vlm Abstractions Factory And Structured Interface</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="retrieval_and_evaluation.html" class="nv">Retrieval And Evaluation</a>
+      <button class="nvcaret" data-nav="retrieval_and_evaluation-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="retrieval_and_evaluation-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-ragas_evaluation_core.html" class="nv">Ragas Evaluation Core</a>
+        <button class="nvcaret" data-nav="ragas_evaluation_core-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ragas_evaluation_core-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Base Evaluator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Dataset Generator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Ragas Config And Evaluator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Data Types</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-retrieval_query_orchestration.html" class="nv">Retrieval Query Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Evaluation Recording And Storage Instrumentation</span>
+        <button class="nvcaret" data-nav="evaluation_recording_and_storage_instrumentation-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="evaluation_recording_and_storage_instrumentation-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Recorder Core</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval_and_evaluation-evaluation_recording_and_storage_instrumentation-recording_types.html" class="nv">Recording Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval_and_evaluation-evaluation_recording_and_storage_instrumentation-storage_wrappers.html" class="nv">Storage Wrappers</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="server_api_contracts.html" class="nv">Server Api Contracts</a>
+      <button class="nvcaret" data-nav="server_api_contracts-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="server_api_contracts-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-admin_user_and_role_contracts.html" class="nv">Admin User And Role Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-filesystem_mutation_contracts.html" class="nv">Filesystem Mutation Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-pack_import_export_contracts.html" class="nv">Pack Import Export Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-resource_and_relation_contracts.html" class="nv">Resource And Relation Contracts</a>
+        <button class="nvcaret" data-nav="resource_and_relation_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_relation_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-resource_request_contracts.html" class="nv">Resource Request Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-relation_request_contracts.html" class="nv">Relation Request Contracts</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-search_request_contracts.html" class="nv">Search Request Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-session_message_contracts.html" class="nv">Session Message Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">System And Usage Contracts</span>
+        <button class="nvcaret" data-nav="system_and_usage_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="system_and_usage_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">System Endpoint Contracts</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-system_and_usage_contracts-response_and_usage_models.html" class="nv">Response And Usage Models</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_core_and_runtime_primitives.html" class="nv">Storage Core And Runtime Primitives</a>
+      <button class="nvcaret" data-nav="storage_core_and_runtime_primitives-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="storage_core_and_runtime_primitives-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Storage Schema And Query Ranges</span>
+        <button class="nvcaret" data-nav="storage_schema_and_query_ranges-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="storage_schema_and_query_ranges-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Schemas</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Expr</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives.html" class="nv">Observer And Queue Processing Primitives</a>
+        <button class="nvcaret" data-nav="observer_and_queue_processing_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="observer_and_queue_processing_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-base_observer.html" class="nv">Base Observer</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-named_queue_and_handlers.html" class="nv">Named Queue And Handlers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-embedding_msg_converter.html" class="nv">Embedding Msg Converter</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-kv_store_interfaces_and_operation_model.html" class="nv">Kv Store Interfaces And Operation Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-store_value_typing_and_ttl.html" class="nv">Store Value Typing And Ttl</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-runtime_support_utilities.html" class="nv">Runtime Support Utilities</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectordb_domain_models_and_service_schemas.html" class="nv">Vectordb Domain Models And Service Schemas</a>
+      <button class="nvcaret" data-nav="vectordb_domain_models_and_service_schemas-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectordb_domain_models_and_service_schemas-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Domain Models And Contracts</span>
+        <button class="nvcaret" data-nav="domain_models_and_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="domain_models_and_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Contracts And Results</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-index_domain_models_and_interfaces.html" class="nv">Index Domain Models And Interfaces</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-metadata_dictionary_models.html" class="nv">Metadata Dictionary Models</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-project_domain_models_and_interfaces.html" class="nv">Project Domain Models And Interfaces</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-volcengine_data_api_integration.html" class="nv">Volcengine Data Api Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-service_api_models_collection_and_index_management.html" class="nv">Service Api Models Collection And Index Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-service_api_models_data_operations.html" class="nv">Service Api Models Data Operations</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Service Api Models Search Requests</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-schema_validation_and_constants.html" class="nv">Schema Validation And Constants</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectorization_and_storage_adapters.html" class="nv">Vectorization And Storage Adapters</a>
+      <button class="nvcaret" data-nav="vectorization_and_storage_adapters-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectorization_and_storage_adapters-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-vectorization_contracts_and_metadata.html" class="nv">Vectorization Contracts And Metadata</a>
+        <button class="nvcaret" data-nav="vectorization_contracts_and_metadata-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="vectorization_contracts_and_metadata-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Vectorizer Factory And Model Typing</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Volcengine Vectorization Provider</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vectorizer Factory And Model Typing</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Collection Adapters Abstraction And Backends</span>
+        <button class="nvcaret" data-nav="collection_adapters_abstraction_and_backends-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="collection_adapters_abstraction_and_backends-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Adapter Abstractions</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Local And Http Collection Backends</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Provider Specific Managed Collection Backends</span>
+          <button class="nvcaret" data-nav="provider_specific_managed_collection_backends-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="provider_specific_managed_collection_backends-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <span class="nv-missing" title="Documentation not yet generated">Vikingdb Private Adapter</span>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <span class="nv-missing" title="Documentation not yet generated">Volcengine Adapter</span>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="native_engine_and_python_bindings.html" class="nv">Native Engine And Python Bindings</a>
+      <button class="nvcaret" data-nav="native_engine_and_python_bindings-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="native_engine_and_python_bindings-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native_engine_and_python_bindings-python_bytes_row_bindings.html" class="nv">Python Bytes Row Bindings</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Native Bytes Row Schema And Field Layout</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vector Recall And Sparse Ann Primitives</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Search Context And Fetch State Models</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Scalar Bitmap And Field Dictionary Structures</span>
+        <button class="nvcaret" data-nav="scalar_bitmap_and_field_dictionary_structures-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="scalar_bitmap_and_field_dictionary_structures-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native_engine_and_python_bindings-scalar_bitmap_and_field_dictionary_structures-fields_dict.html" class="nv">Fields Dict</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Dir Index</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native_engine_and_python_bindings-scalar_bitmap_and_field_dictionary_structures-ranged_map.html" class="nv on">Ranged Map</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="build_and_packaging.html" class="nv">Build And Packaging</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>RangedMap 模块技术深度解析</h1>
+<h2>概述</h2>
+<p><code>ranged_map</code> 模块是向量数据库索引系统中处理<strong>连续值字段</strong>（如分数、价格、时间戳等）的核心组件。它解决的问题非常直观：当我们需要根据某个数值字段进行范围查询（如&quot;查找分数在 80-90 之间的所有记录&quot;）或 Top-K 查询（如&quot;查找分数最高的 100 条记录&quot;）时，如何在海量数据中高效地完成这些操作？</p>
+<p>想象一个图书馆的图书管理系统。如果你只有一份按字母顺序排列的图书清单，查找特定作者的所有图书需要遍历整个清单——这是线性扫描。但如果你按类别把图书分区域存放，每类再用字母顺序排列，查找效率就会大幅提升。<code>ranged_map</code> 正是采用了类似的&quot;分段有序&quot;策略，它将数据分割成固定大小的&quot;槽（slot）&quot;，每个槽内数据保持有序，槽之间也保持有序，从而将原本需要全表扫描的操作优化为只扫描相关槽。</p>
+<h2>架构设计</h2>
+<h3>核心数据结构</h3>
+<div class="mermaid">graph TB
+    subgraph RangedMap
+        direction TB
+        OT["offset_to_value_ 数组<br/>O(1) 按偏移量查找"]
+        
+        subgraph Slots_数组
+            S1["Slot 0<br/>values: [1.0, 3.5, 7.2...]<br/>offsets: [0, 5, 12...]<br/>bitmap: {0, 5, 12...}"]
+            S2["Slot 1<br/>values: [10.1, 15.8...]<br/>offsets: [3, 8...]<br/>bitmap: {3, 8...}"]
+            S3["Slot N"]
+        end
+    end
+    
+    OT --> S1
+    OT --> S2
+    OT --> S3
+    
+    subgraph SlotMeta_内部结构
+        BV["bitmap<br/>Roaring Bitmap"]
+        VV["value_vec<br/>有序double数组"]
+        OV["offset_vec<br/>对应偏移量数组"]
+        LR["left/right<br/>槽值范围边界"]
+    end
+    
+    S1 --> BV
+    S1 --> VV
+    S1 --> OV
+    S1 --> LR
+</div>
+<p><strong>关键设计参数：</strong></p>
+<ul>
+<li><code>kRangedMapSlotSize = 10000</code>：每个槽的初始容量阈值</li>
+<li><code>kRangedMapSortMultiplier = 2.0</code>：分裂触发系数（当槽内数据超过 20000 时触发分裂）</li>
+</ul>
+<h3>RangedMap 类</h3>
+<p><code>RangedMap</code> 是整个模块的核心类，它维护了两层索引：</p>
+<ol>
+<li>
+<p><strong>主索引 <code>offset_to_value_</code></strong>：一个 <code>std::vector&lt;double&gt;</code>，下标即为记录的 offset（逻辑行号），可以直接 O(1) 访问任意 offset 对应的值。这类似于一个密集数组，为 <code>get_score_by_offset</code> 提供常数时间查询。</p>
+</li>
+<li>
+<p><strong>分段索引 <code>slots_</code></strong>：<code>std::vector&lt;SlotMeta&gt;</code>，每个 <code>SlotMeta</code> 包含：</p>
+<ul>
+<li><code>left</code> / <code>right</code>：该槽内值的最小/最大边界，用于快速定位相关槽</li>
+<li><code>bitmap</code>：一个 <a href="https://github.com/RoaringBitmap/CRoaring">CRoaring</a> 位图，高效支持集合操作</li>
+<li><code>value_vec</code>：槽内按值排序的 double 数组</li>
+<li><code>offset_vec</code>：与 <code>value_vec</code> 对应的 offset 数组，保持同步排序</li>
+</ul>
+</li>
+</ol>
+<h3>SlotMeta 的内部机制</h3>
+<p>每个 SlotMeta 实际上是一个自包含的微型索引结构。<code>split_half_to_new_slot</code> 方法展示了它的分裂逻辑：</p>
+<pre><code class="language-cpp">bool split_half_to_new_slot(SlotMeta&amp; new_slot) {
+  if (value_vec.size() &lt; 2) {
+    return false;
+  }
+  size_t split_idx = value_vec.size() / 2;
+  // 将后一半数据移动到新槽
+  new_slot.value_vec.assign(value_vec.begin() + split_idx, value_vec.end());
+  new_slot.offset_vec.assign(offset_vec.begin() + split_idx, offset_vec.end());
+  new_slot.bitmap-&gt;SetMany(new_slot.offset_vec);
+  
+  // 更新左右边界
+  new_slot.left = *new_slot.value_vec.begin();
+  new_slot.right = *new_slot.value_vec.rbegin();
+  
+  // 保留前一半数据
+  value_vec.resize(split_idx);
+  offset_vec.resize(split_idx);
+  bitmap-&gt;clear();
+  bitmap-&gt;SetMany(offset_vec);
+  right = *value_vec.rbegin();
+  return true;
+}
+</code></pre>
+<p>这种设计有几个精妙之处：</p>
+<ul>
+<li>分裂是中点的自然分割，保证了分裂后两个槽的值范围不会重叠</li>
+<li>同步维护 value_vec 和 offset_vec 的排序一致性</li>
+<li>使用 Roaring Bitmap 而非普通 set，在基数大时具有极高的压缩率和查询性能</li>
+</ul>
+<h3>RangedMap2D 扩展</h3>
+<p><code>RangedMap2D</code> 是 RangedMap 的二维扩展，用于支持地理位置等二维范围查询。它组合了两个 RangedMap（分别代表 x 和 y 坐标），通过计算欧氏距离的平方来进行圆形区域查询：</p>
+<pre><code class="language-cpp">inline double dist_square_to(double x, double y, uint32_t offset) const {
+  double xdiff = x_.offset_to_value_[offset] - x;
+  double ydiff = y_.offset_to_value_[offset] - y;
+  double d2 = xdiff * xdiff + ydiff * ydiff;
+  return d2;
+}
+</code></pre>
+<p>注意这里使用的是距离平方，避免了开方运算的开销。</p>
+<h2>数据流分析</h2>
+<h3>插入操作：add_offset_and_score</h3>
+<pre><code>用户调用 add_offset_and_score(offset=100, value=85.5)
+            │
+            ▼
+┌─────────────────────────────────────────────────────────┐
+│ 1. 检查 offset 是否已存在，若已存在则返回 -1           │
+│ 2. 扩展 offset_to_value_ 数组确保足够大                │
+│ 3. 更新 offset_to_value_[offset] = value               │
+└─────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────┐
+│ 4. 若 slots_ 为空，创建第一个槽                         │
+│    否则使用 find_right_slot_index 定位合适槽           │
+│    （二分查找，基于 value 找槽区间）                    │
+└─────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────┐
+│ 5. 在目标槽内执行有序插入：                              │
+│    - std::upper_bound 找到插入位置 O(log n)            │
+│    - vector::insert 插入值和偏移量 O(n)                │
+│    - 更新槽的 left/right 边界                           │
+│ 6. 检查是否超过阈值(20000)，若超过则 split             │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<p>关键性能点：</p>
+<ul>
+<li>二分查找定位槽：O(log S)，S 为槽数量</li>
+<li>槽内有序插入：O(n)，n 为槽内元素数量，但由于槽大小有限（~10000），实际开销可控</li>
+</ul>
+<h3>范围查询：get_range_bitmap</h3>
+<pre><code>用户调用 get_range_bitmap(lower_than=90, greater_than=70)
+            │
+            ▼
+┌─────────────────────────────────────────────────────────┐
+│ 1. find_right_slot_index 找右边界槽                    │
+│ 2. find_left_slot_index 找左边界槽                     │
+│    （都是二分查找，基于槽的 left/right 边界）          │
+└─────────────────────────────────────────────────────────┘
+            │
+            ▼
+┌─────────────────────────────────────────────────────────┐
+│ 3. 对完全在范围内的槽，直接 union 其 bitmap            │
+│ 4. 对边界槽，使用 get_range_data 精细筛选：            │
+│    - get_right_border: std::upper_bound/lower_bound    │
+│    - get_left_border: std::lower_bound/upper_bound     │
+│    - 在 value_vec 中定位后取对应的 offset              │
+└─────────────────────────────────────────────────────────┘
+            │
+            ▼
+         返回 BitmapPtr
+</code></pre>
+<p>这里的设计非常巧妙：完全在范围内的槽直接使用 bitmap 操作，只有边界槽才需要遍历向量，这大大减少了计算量。</p>
+<h3>Top-K 查询：get_topk_result</h3>
+<p>对于 Top-K 查询，模块提供了几种变体：</p>
+<ol>
+<li><strong>基本 Top-K</strong> (<code>get_topk_result</code>)：按值排序返回前 k 个</li>
+<li><strong>中心距离 Top-K</strong> (<code>get_topk_result_center1d</code>)：找到距离指定值最近的 k 个</li>
+<li><strong>多条件 Top-K</strong> (<code>get_topk_result_with_conditions</code>)：支持额外的过滤条件</li>
+</ol>
+<p>基本 Top-K 的实现逻辑是：按顺序遍历槽（升序或降序），收集满足条件的 offset，直到凑够 k 个即停止。这种&quot;早停&quot;策略在数据分布均匀时非常高效。</p>
+<p>中心距离 Top-K 的实现更为复杂，需要使用双指针从中心向两侧扩展：</p>
+<pre><code class="language-cpp">// 伪代码示意
+1. 二分找到 center1d 在 value_vec 中的位置
+2. 使用双指针 left/right 从中心向两侧扩展
+3. 每次选择距离中心更近的一侧加入结果
+4. 两侧都遍历完后继续向外扩展直到凑够 k 个
+</code></pre>
+<h2>设计决策与权衡</h2>
+<h3>1. 槽大小选择：10000 的来由</h3>
+<p>选择 <code>kRangedMapSlotSize = 10000</code> 是一个经验性的权衡：</p>
+<ul>
+<li><strong>太大</strong>：单次查询需要扫描的元素过多，无法利用&quot;分段&quot;优势</li>
+<li><strong>太小</strong>：槽数量激增，二分查找定位槽的开销增加，同时管理复杂度上升</li>
+<li><strong>10000</strong>：对于典型的向量数据库查询模式，这个大小使得：
+<ul>
+<li>槽内二分查找开销可控（约 14 次比较）</li>
+<li>单个槽的内存占用合理（约几百 KB）</li>
+<li>分裂频率适中</li>
+</ul>
+</li>
+</ul>
+<h3>2. 延迟分裂策略</h3>
+<p>代码中的分裂阈值是 <code>kRangedMapSlotSize * 2 = 20000</code>，而不是创建时就保持 10000。这种&quot;延迟分裂&quot;策略的好处是：</p>
+<ul>
+<li>避免频繁分裂带来的抖动</li>
+<li>让数据自然聚集，减少无意义的分割</li>
+<li>代价是某些查询可能需要扫描略大的槽</li>
+</ul>
+<h3>3. 使用 Roaring Bitmap 而非 std::set</h3>
+<p><code>Bitmap</code> 类内部使用 CRoaring 库，这是一个高度优化的压缩位图库。相比 <code>std::set</code>：</p>
+<ul>
+<li><strong>基数高时</strong>：Roaring Bitmap 压缩率极高，内存占用可能降低 10-100 倍</li>
+<li><strong>集合操作</strong>：Roaring 原生支持 Union/Intersect 等操作，效率远高于手动遍历</li>
+<li><strong>小基数优化</strong>：代码中保留 <code>std::set</code> 作为小数据量的fallback（阈值 32），避免小数据量时压缩的开销</li>
+</ul>
+<h3>4. 为什么不用平衡二叉搜索树？</h3>
+<p>如果使用 B+ 树或红黑树，理论上可以达到 O(log n) 的插入和查询性能。但这里选择了&quot;分段数组&quot;方案，原因可能是：</p>
+<ul>
+<li><strong>实现简洁</strong>：std::vector + 二分查找的代码更容易理解和维护</li>
+<li><strong>缓存友好</strong>：连续内存布局对 CPU 缓存更友好</li>
+<li><strong>足够实用</strong>：在典型数据量下，性能差距可接受，而工程复杂度更低</li>
+</ul>
+<h3>5. 2D 扩展的设计</h3>
+<p>RangedMap2D 采用&quot;组合&quot;而非&quot;继承&quot;的方式扩展，这是很合理的设计：</p>
+<ul>
+<li>不影响原有 RangedMap 的实现</li>
+<li>避免引入不必要的复杂性</li>
+<li>可以灵活地复用已有的单维查询能力</li>
+</ul>
+<h2>依赖分析</h2>
+<h3>上游依赖</h3>
+<p><code>ranged_map</code> 依赖以下组件：</p>
+<table>
+<thead>
+<tr>
+<th>依赖组件</th>
+<th>作用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bitmap.h</code></td>
+<td>提供 BitmapPtr 类型和位图操作能力</td>
+</tr>
+<tr>
+<td><code>common/io_utils.h</code></td>
+<td>提供二进制序列化工具（read_bin/write_bin）</td>
+</tr>
+<tr>
+<td><code>index/detail/scalar/bitmap_holder/bitmap_utils.h</code></td>
+<td>工具函数</td>
+</tr>
+<tr>
+<td><code>common/ann_utils.h</code></td>
+<td>提供 RecallResult 结构定义</td>
+</tr>
+</tbody>
+</table>
+<h3>下游消费者</h3>
+<p><code>ranged_map</code> 被以下组件使用：</p>
+<table>
+<thead>
+<tr>
+<th>消费者组件</th>
+<th>使用方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bitmap_field_group.h</code></td>
+<td><code>FieldBitmapGroup</code> 使用 RangedMap 存储 double/float 字段的索引</td>
+</tr>
+</tbody>
+</table>
+<p>具体在 <code>bitmap_field_group.h</code> 中的调用链：</p>
+<pre><code class="language-cpp">// 添加数据时
+virtual int add_field_data(double field_dbl, int offset) {
+  RangedMap* temp_p = get_editable_rangedmap();
+  return temp_p-&gt;add_offset_and_score(offset, field_dbl);
+}
+
+// 范围查询时
+BitmapPtr get_bitmap_in_range(bool range_out, double lower_than,
+                              bool include_le, double greater_than,
+                              bool include_ge) {
+  return rangedmap_ptr_-&gt;get_range_bitmap(...);
+}
+</code></pre>
+<p>这意味着 RangedMap 是作为&quot;字段索引&quot;的一部分被使用，上层（检索引擎）通过 <code>FieldBitmapGroup</code> 接口来操作。</p>
+<h2>使用示例与常见模式</h2>
+<h3>基本使用</h3>
+<pre><code class="language-cpp">// 创建 RangedMap
+RangedMapPtr score_map = std::make_shared&lt;RangedMap&gt;();
+
+// 添加数据：offset 为逻辑行号，value 为分数
+score_map-&gt;add_offset_and_score(0, 85.5);
+score_map-&gt;add_offset_and_score(1, 92.3);
+score_map-&gt;add_offset_and_score(2, 78.1);
+
+// 范围查询：查找 [80, 90) 范围内的记录
+BitmapPtr result = score_map-&gt;get_range_bitmap(
+    false,              // range_out: false 表示范围内
+    90.0,               // lower_than
+    false,              // include_le: 不包含 90
+    80.0,               // greater_than  
+    true                // include_ge: 包含 80
+);
+
+// Top-K 查询：查找分数最高的 10 条
+RecallResultPtr topk = score_map-&gt;get_topk_result(
+    10,                 // topk
+    false,              // order_asc: 降序
+    nullptr             // filter_func: 无过滤
+);
+
+// 查找距离 85 最近的 5 条
+RecallResultPtr nearest = score_map-&gt;get_topk_result_center1d(
+    5, true, 85.0, nullptr
+);
+</code></pre>
+<h3>在检索流程中的位置</h3>
+<p>典型的检索流程中，数据流是这样的：</p>
+<pre><code>用户查询请求
+    │
+    ▼
+检索引擎解析查询条件
+    │
+    ├─► 标量字段过滤 ──► FieldBitmapGroupSet ──► RangedMap（范围查询）
+    │
+    ├─► 向量相似度计算 ──► VectorIndex（ANN 检索）
+    │
+    └─► 结果合并排序
+</code></pre>
+<p>RangedMap 在这里扮演&quot;过滤层&quot;的角色：首先通过范围查询筛除不满足条件的记录，然后与其他索引的结果进行交集运算。</p>
+<h2>边界情况与注意事项</h2>
+<h3>1. 插入顺序影响槽分布</h3>
+<p>由于采用有序插入，数据的插入顺序会影响最终的槽分布：</p>
+<ul>
+<li><strong>顺序插入</strong>（如按 ID 顺序）：数据会集中在前几个槽，后面的槽为空</li>
+<li><strong>随机插入</strong>：数据会较均匀地分布在各槽</li>
+</ul>
+<p>对于批量导入场景，建议在导入前对数据按查询字段排序，以获得更均匀的槽分布。</p>
+<h3>2. 删除操作的代价</h3>
+<p><code>delete_offset</code> 需要：</p>
+<ol>
+<li>在 <code>offset_to_value_</code> 中将值设为 NaN（逻辑删除）</li>
+<li>在对应槽中二分查找定位</li>
+<li>从两个 vector 中 erase 元素（O(n) 移动）</li>
+</ol>
+<p>这比插入更昂贵，且不会回收已分配的内存。如果删除操作频繁，需要定期重建索引。</p>
+<h3>3. NaN 值的特殊处理</h3>
+<p>代码中使用 <code>std::numeric_limits&lt;double&gt;::quiet_NaN()</code> 表示已删除或未初始化的值：</p>
+<pre><code class="language-cpp">offset_to_value_.resize(offset + 1, std::numeric_limits&lt;double&gt;::quiet_NaN());
+</code></pre>
+<p>这意味着：</p>
+<ul>
+<li>查询时需要检查 <code>std::isnan(value)</code></li>
+<li>NaN 值不会被任何范围查询返回（因为 NaN 不大于也不小于任何值）</li>
+</ul>
+<h3>4. 序列化注意事项</h3>
+<p><code>SerializeToStream</code> 将所有槽数据（包括 bitmap 的二进制表示）写入流。恢复时需要确保 CRoaring 库版本兼容，否则可能导致反序列化失败。</p>
+<h3>5. 浮点数边界判断</h3>
+<p>在 <code>get_range_data</code> 等方法中，使用 <code>std::upper_bound</code> 和 <code>std::lower_bound</code> 进行边界判断：</p>
+<pre><code class="language-cpp">uint32_t get_right_border(double lower_than, bool include_le) const {
+  if (include_le) {
+    // include_le=true: &lt;= lower_than
+    const auto&amp; u_it = std::upper_bound(value_vec.begin(), value_vec.end(), lower_than);
+    return u_it - value_vec.begin();
+  } else {
+    // include_le=false: &lt; lower_than
+    const auto&amp; l_it = std::lower_bound(value_vec.begin(), value_vec.end(), lower_than);
+    return l_it - value_vec.begin();
+  }
+}
+</code></pre>
+<p>理解 <code>upper_bound</code>（第一个大于）和 <code>lower_bound</code>（第一个大于等于）的区别对于正确使用 API 至关重要。</p>
+<h2>扩展点与可改进方向</h2>
+<h3>当前设计未覆盖的场景</h3>
+<ol>
+<li>
+<p><strong>范围统计</strong>：目前只能返回满足条件的 offset 列表，无法直接返回 count。如果需要高效的范围计数，可能需要额外维护每个槽的元素数量。</p>
+</li>
+<li>
+<p><strong>并发写入</strong>：RangedMap 本身不是线程安全的，如果有并发写入需求，需要在外层加锁。</p>
+</li>
+<li>
+<p><strong>范围更新</strong>：目前只支持单点删除，不支持范围更新（如&quot;将所有分数低于 60 的记录加 10 分&quot;）。</p>
+</li>
+</ol>
+<h3>可选的优化方向</h3>
+<ol>
+<li><strong>范围聚合</strong>：为每个槽维护 min/max/sum 等聚合值，支持更高效的统计查询</li>
+<li><strong>自适应槽大小</strong>：根据数据分布动态调整槽大小，而非固定阈值</li>
+<li><strong>持久化优化</strong>：考虑使用内存映射文件（mmap）来处理超大索引</li>
+</ol>
+<h2>相关模块</h2>
+<ul>
+<li><a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-bitmap-field-group.html">bitmap_field_group</a>：RangedMap 的上层封装，提供了更友好的字段索引接口</li>
+<li><a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-bitmap.html">bitmap</a>：底层位图实现，RangedMap 依赖此组件进行集合操作</li>
+<li><a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-dir-index.html">dir_index</a>：目录索引，用于字符串字段的，前缀/后缀匹配</li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

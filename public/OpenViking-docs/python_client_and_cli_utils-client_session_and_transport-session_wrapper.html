@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session Wrapper 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-MiniMax-M2.5<br>
+    <b>Generated:</b> 2026-02-28T15:10<br>
+    <b>Components:</b> 4836<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/volcengine/OpenViking" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/volcengine/OpenViking" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="rust_cli_interface.html" class="nv">Rust Cli Interface</a>
+      <button class="nvcaret" data-nav="rust_cli_interface-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="rust_cli_interface-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="rust_cli_interface-cli_bootstrap_and_runtime_context.html" class="nv">Cli Bootstrap And Runtime Context</a>
+        <button class="nvcaret" data-nav="cli_bootstrap_and_runtime_context-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="cli_bootstrap_and_runtime_context-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cli Command Structure</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cli Runtime Context</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-cli_bootstrap_and_runtime_context-cli_configuration_management.html" class="nv">Cli Configuration Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Http Api And Tabular Output</span>
+        <button class="nvcaret" data-nav="http_api_and_tabular_output-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="http_api_and_tabular_output-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-http_api_and_tabular_output-http_client.html" class="nv">Http Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Output Formatting</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Tui Application Orchestration</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Tui Tree Navigation And View Model</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="python_client_and_cli_utils.html" class="nv">Python Client And Cli Utils</a>
+      <button class="nvcaret" data-nav="python_client_and_cli_utils-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="python_client_and_cli_utils-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-client_session_and_transport.html" class="nv">Client Session And Transport</a>
+        <button class="nvcaret" data-nav="client_session_and_transport-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="client_session_and_transport-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-base_client.html" class="nv">Base Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-session_wrapper.html" class="nv on">Session Wrapper</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-configuration_models_and_singleton.html" class="nv">Configuration Models And Singleton</a>
+        <button class="nvcaret" data-nav="configuration_models_and_singleton-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="configuration_models_and_singleton-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-embedding_config.html" class="nv">Embedding Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-open_viking_config.html" class="nv">Open Viking Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-content_extraction_schema_and_strategies.html" class="nv">Content Extraction Schema And Strategies</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-llm_and_rerank_clients.html" class="nv">Llm And Rerank Clients</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-retrieval_trace_and_scoring_types.html" class="nv">Retrieval Trace And Scoring Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_context_prompts_and_sessions.html" class="nv">Core Context Prompts And Sessions</a>
+      <button class="nvcaret" data-nav="core_context_prompts_and_sessions-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_context_prompts_and_sessions-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-context_typing_and_levels.html" class="nv">Context Typing And Levels</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-prompt_template_metadata.html" class="nv">Prompt Template Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_memory_deduplication.html" class="nv">Session Memory Deduplication</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Session Runtime And Skill Discovery</span>
+        <button class="nvcaret" data-nav="session_runtime_and_skill_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="session_runtime_and_skill_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-session_runtime.html" class="nv">Session Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Skill Loader</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Session Runtime</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Skill Loader</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Directory Definition</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="parsing_and_resource_detection.html" class="nv">Parsing And Resource Detection</a>
+      <button class="nvcaret" data-nav="parsing_and_resource_detection-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="parsing_and_resource_detection-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy</span>
+        <button class="nvcaret" data-nav="resource_and_document_taxonomy-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_document_taxonomy-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Base Types</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Html Parser</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parser Abstractions And Extension Points</span>
+        <button class="nvcaret" data-nav="parser_abstractions_and_extension_points-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="parser_abstractions_and_extension_points-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Code Language Ast Extractors</span>
+        <button class="nvcaret" data-nav="code_language_ast_extractors-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="code_language_ast_extractors-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Systems Programming Ast Extractors</span>
+          <button class="nvcaret" data-nav="systems_programming_ast_extractors-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="systems_programming_ast_extractors-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-cpp_extractor.html" class="nv">Cpp Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-rust_extractor.html" class="nv">Rust Extractor</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Application And Web Platform Ast Extractors</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cpp Extractor</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Go Extractor</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Rust Extractor</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-resource_detection_traversal_metadata.html" class="nv">Resource Detection Traversal Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Base Types</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Html Parser</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Custom Parser Protocol And Wrappers</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Language Extractor Base</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Systems Programming Ast Extractors</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Application And Web Platform Ast Extractors</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="model_providers_embeddings_and_vlm.html" class="nv">Model Providers Embeddings And Vlm</a>
+      <button class="nvcaret" data-nav="model_providers_embeddings_and_vlm-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="model_providers_embeddings_and_vlm-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-embedder_base_contracts.html" class="nv">Embedder Base Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-openai_embedding_providers.html" class="nv">Openai Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-vikingdb_embedding_providers.html" class="nv">Vikingdb Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-volcengine_embedding_providers.html" class="nv">Volcengine Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-jina_embedding_provider.html" class="nv">Jina Embedding Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vlm Abstractions Factory And Structured Interface</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="retrieval_and_evaluation.html" class="nv">Retrieval And Evaluation</a>
+      <button class="nvcaret" data-nav="retrieval_and_evaluation-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="retrieval_and_evaluation-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-ragas_evaluation_core.html" class="nv">Ragas Evaluation Core</a>
+        <button class="nvcaret" data-nav="ragas_evaluation_core-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ragas_evaluation_core-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Base Evaluator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Dataset Generator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Ragas Config And Evaluator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Data Types</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-retrieval_query_orchestration.html" class="nv">Retrieval Query Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Evaluation Recording And Storage Instrumentation</span>
+        <button class="nvcaret" data-nav="evaluation_recording_and_storage_instrumentation-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="evaluation_recording_and_storage_instrumentation-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Recorder Core</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval_and_evaluation-evaluation_recording_and_storage_instrumentation-recording_types.html" class="nv">Recording Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval_and_evaluation-evaluation_recording_and_storage_instrumentation-storage_wrappers.html" class="nv">Storage Wrappers</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="server_api_contracts.html" class="nv">Server Api Contracts</a>
+      <button class="nvcaret" data-nav="server_api_contracts-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="server_api_contracts-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-admin_user_and_role_contracts.html" class="nv">Admin User And Role Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-filesystem_mutation_contracts.html" class="nv">Filesystem Mutation Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-pack_import_export_contracts.html" class="nv">Pack Import Export Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-resource_and_relation_contracts.html" class="nv">Resource And Relation Contracts</a>
+        <button class="nvcaret" data-nav="resource_and_relation_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_relation_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-resource_request_contracts.html" class="nv">Resource Request Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-relation_request_contracts.html" class="nv">Relation Request Contracts</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-search_request_contracts.html" class="nv">Search Request Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-session_message_contracts.html" class="nv">Session Message Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">System And Usage Contracts</span>
+        <button class="nvcaret" data-nav="system_and_usage_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="system_and_usage_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">System Endpoint Contracts</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-system_and_usage_contracts-response_and_usage_models.html" class="nv">Response And Usage Models</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_core_and_runtime_primitives.html" class="nv">Storage Core And Runtime Primitives</a>
+      <button class="nvcaret" data-nav="storage_core_and_runtime_primitives-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="storage_core_and_runtime_primitives-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Storage Schema And Query Ranges</span>
+        <button class="nvcaret" data-nav="storage_schema_and_query_ranges-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="storage_schema_and_query_ranges-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Schemas</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Expr</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives.html" class="nv">Observer And Queue Processing Primitives</a>
+        <button class="nvcaret" data-nav="observer_and_queue_processing_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="observer_and_queue_processing_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-base_observer.html" class="nv">Base Observer</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-named_queue_and_handlers.html" class="nv">Named Queue And Handlers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-embedding_msg_converter.html" class="nv">Embedding Msg Converter</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-kv_store_interfaces_and_operation_model.html" class="nv">Kv Store Interfaces And Operation Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-store_value_typing_and_ttl.html" class="nv">Store Value Typing And Ttl</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-runtime_support_utilities.html" class="nv">Runtime Support Utilities</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectordb_domain_models_and_service_schemas.html" class="nv">Vectordb Domain Models And Service Schemas</a>
+      <button class="nvcaret" data-nav="vectordb_domain_models_and_service_schemas-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectordb_domain_models_and_service_schemas-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Domain Models And Contracts</span>
+        <button class="nvcaret" data-nav="domain_models_and_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="domain_models_and_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Contracts And Results</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-index_domain_models_and_interfaces.html" class="nv">Index Domain Models And Interfaces</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-metadata_dictionary_models.html" class="nv">Metadata Dictionary Models</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-project_domain_models_and_interfaces.html" class="nv">Project Domain Models And Interfaces</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-volcengine_data_api_integration.html" class="nv">Volcengine Data Api Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-service_api_models_collection_and_index_management.html" class="nv">Service Api Models Collection And Index Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-service_api_models_data_operations.html" class="nv">Service Api Models Data Operations</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Service Api Models Search Requests</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-schema_validation_and_constants.html" class="nv">Schema Validation And Constants</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectorization_and_storage_adapters.html" class="nv">Vectorization And Storage Adapters</a>
+      <button class="nvcaret" data-nav="vectorization_and_storage_adapters-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectorization_and_storage_adapters-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-vectorization_contracts_and_metadata.html" class="nv">Vectorization Contracts And Metadata</a>
+        <button class="nvcaret" data-nav="vectorization_contracts_and_metadata-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="vectorization_contracts_and_metadata-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Vectorizer Factory And Model Typing</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Volcengine Vectorization Provider</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vectorizer Factory And Model Typing</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Collection Adapters Abstraction And Backends</span>
+        <button class="nvcaret" data-nav="collection_adapters_abstraction_and_backends-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="collection_adapters_abstraction_and_backends-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Adapter Abstractions</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Local And Http Collection Backends</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Provider Specific Managed Collection Backends</span>
+          <button class="nvcaret" data-nav="provider_specific_managed_collection_backends-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="provider_specific_managed_collection_backends-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <span class="nv-missing" title="Documentation not yet generated">Vikingdb Private Adapter</span>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <span class="nv-missing" title="Documentation not yet generated">Volcengine Adapter</span>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="native_engine_and_python_bindings.html" class="nv">Native Engine And Python Bindings</a>
+      <button class="nvcaret" data-nav="native_engine_and_python_bindings-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="native_engine_and_python_bindings-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native_engine_and_python_bindings-python_bytes_row_bindings.html" class="nv">Python Bytes Row Bindings</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Native Bytes Row Schema And Field Layout</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vector Recall And Sparse Ann Primitives</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Search Context And Fetch State Models</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Scalar Bitmap And Field Dictionary Structures</span>
+        <button class="nvcaret" data-nav="scalar_bitmap_and_field_dictionary_structures-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="scalar_bitmap_and_field_dictionary_structures-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native_engine_and_python_bindings-scalar_bitmap_and_field_dictionary_structures-fields_dict.html" class="nv">Fields Dict</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Dir Index</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native_engine_and_python_bindings-scalar_bitmap_and_field_dictionary_structures-ranged_map.html" class="nv">Ranged Map</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="build_and_packaging.html" class="nv">Build And Packaging</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Session Wrapper 模块技术深度解析</h1>
+<blockquote>
+<p>本文档面向刚刚加入团队的高级工程师，旨在帮助你深入理解 <code>session_wrapper</code> 模块的设计意图、架构角色以及非显而易见选择背后的考量。</p>
+</blockquote>
+<h2>一、这个模块解决什么问题？</h2>
+<h3>1.1 问题背景</h3>
+<p>在 OpenViking 系统中，客户端需要与两种不同模式的服务器进行交互：</p>
+<ol>
+<li><strong>嵌入模式（Embedded Mode）</strong>：客户端直接调用本地服务，所有操作都在同一进程内完成</li>
+<li><strong>HTTP 模式（HTTP Mode）</strong>：客户端通过 HTTP API 与远程服务器通信</li>
+</ol>
+<p>这两种模式分别由 <code>LocalClient</code> 和 <code>AsyncHTTPClient</code> 实现，它们都遵循 <code>BaseClient</code> 抽象接口。这意味着从调用者的角度来看，无论是本地还是远程调用，API 应该是统一的。</p>
+<h3>1.2 痛点分析</h3>
+<p>在没有 Session 包装器之前，调用者需要这样操作会话：</p>
+<pre><code class="language-python"># 调用者需要知道使用的是哪种客户端
+# 如果是 LocalClient
+await client.commit_session(session_id)
+
+# 如果是 AsyncHTTPClient
+await client.commit_session(session_id)
+</code></pre>
+<p>看起来似乎没有问题，但实际上存在几个设计上的不优雅：</p>
+<ol>
+<li><strong>语义不清晰</strong>：<code>session_id</code> 只是一个字符串参数，调用者必须自己维护这个状态</li>
+<li><strong>API 不一致</strong>：有些方法需要传 <code>session_id</code>，有些方法直接操作 Session 对象</li>
+<li><strong>缺乏面向对象的体验</strong>：开发者更希望获得一个 <code>Session</code> 对象，然后在这个对象上调用方法</li>
+</ol>
+<h3>1.3 解决方案</h3>
+<p><code>Session</code> 包装类的核心思想是：<strong>将「会话 ID + 用户标识 + 操作委托」封装成一个统一的面向对象接口</strong>。</p>
+<pre><code class="language-python"># 现在的使用方式
+session = client.session(session_id)  # 获得一个 Session 对象
+await session.add_message(&quot;user&quot;, &quot;你好&quot;)  # 在对象上操作
+await session.commit()  # 语义更清晰
+</code></pre>
+<p>这不仅仅是一个简单的封装，它还解决了跨传输层（本地 vs HTTP）的一致性问题。</p>
+<hr />
+<h2>二、心智模型——把这个模块想象成什么？</h2>
+<h3>2.1 门面模式（Facade）的实际应用</h3>
+<p>你可以把 <code>Session</code> 类想象成<strong>餐厅的服务员</strong>。当顾客（调用者）走进餐厅时：</p>
+<ul>
+<li>顾客不需要知道厨房在哪里、厨师是谁、食材储存在哪里</li>
+<li>顾客只需要告诉服务员要点什么菜</li>
+<li>服务员负责把订单传递给后厨（LocalClient 或 AsyncHTTPClient），把菜品（结果）端回来</li>
+</ul>
+<p>在这个类比中：</p>
+<ul>
+<li><strong>顾客</strong> = 调用 Session 的业务代码</li>
+<li><strong>服务员</strong> = Session 包装类</li>
+<li><strong>后厨</strong> = 底层 Client 实现（LocalClient / AsyncHTTPClient）</li>
+<li><strong>菜品</strong> = 各种操作的结果（消息列表、提交结果等）</li>
+</ul>
+<h3>2.2 委托模式（Delegation）的简洁实现</h3>
+<p>Session 类采用了最直接的委托模式：<strong>它本身不实现任何核心逻辑，只是把调用转发给底层的 Client</strong>。</p>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                         调用者                                │
+│                     (业务层代码)                              │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ session.add_message()
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Session (openviking.client.session)            │
+│  - 维护 session_id                                          │
+│  - 维护 user (UserIdentifier)                              │
+│  - 转发调用给 _client                                       │
+└─────────────────────┬───────────────────────────────────────┘
+                      │ await self._client.add_message()
+                      ▼
+┌─────────────────────────────────────────────────────────────┐
+│              BaseClient (抽象接口)                           │
+│  - LocalClient (嵌入模式)                                   │
+│  - AsyncHTTPClient (HTTP 模式)                              │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<hr />
+<h2>三、数据流分析——调用链是如何工作的？</h2>
+<h3>3.1 创建一个 Session 对象</h3>
+<p>当你调用 <code>client.session(session_id)</code> 时，实际上发生了以下事情：</p>
+<p><strong>路径 1：HTTP 客户端（AsyncHTTPClient）</strong></p>
+<pre><code class="language-python"># openviking_cli/client/http.py
+def session(self, session_id: Optional[str] = None, must_exist: bool = False):
+    from openviking.client.session import Session
+    
+    if not session_id:
+        # 如果没有提供 session_id，自动创建一个新会话
+        result = run_async(self.create_session())
+        session_id = result.get(&quot;session_id&quot;, &quot;&quot;)
+    elif must_exist:
+        # 如果 must_exist=True，验证会话是否存在
+        run_async(self.get_session(session_id))
+    
+    # 创建并返回 Session 包装对象
+    return Session(self, session_id, self._user)
+</code></pre>
+<p><strong>路径 2：本地客户端（LocalClient）</strong></p>
+<pre><code class="language-python"># openviking/client/local.py
+def session(self, session_id: Optional[str] = None, must_exist: bool = False):
+    # 直接调用服务层的 session 方法
+    session = self._service.sessions.session(self._ctx, session_id)
+    if must_exist and session_id:
+        if not run_async(session.exists()):
+            raise NotFoundError(session_id, &quot;session&quot;)
+    return session  # 注意：这里返回的是服务器端的 Session 对象！
+</code></pre>
+<p><strong>关键发现</strong>：这里存在一个微妙的不对称——HTTP 客户端返回的是客户端的 <code>Session</code> 包装类，而本地客户端返回的是服务器端的 <code>Session</code> 对象。这种设计背后有它的合理性，我们会在设计决策部分详细讨论。</p>
+<h3>3.2 添加消息的完整调用链</h3>
+<pre><code>业务代码
+    │
+    ▼
+session.add_message(&quot;user&quot;, &quot;你好&quot;)    [openviking/client/session.py]
+    │
+    ▼
+await self._client.add_message(       [委托给底层 client]
+    self.session_id, &quot;user&quot;, &quot;你好&quot;)
+    │
+    ├─ LocalClient: ──────────────────────┐
+    │   调用 self._service.sessions.session() │
+    │   然后 session.add_message()         │
+    │                                      │
+    │   服务端 Session 完成实际工作：       │
+    │   - 创建 Message 对象                │
+    │   - 写入 messages.jsonl              │
+    │   - 更新统计信息                     │
+    │                                      │
+    └─ AsyncHTTPClient: ───────────────────┤
+        发送 HTTP POST 请求：              │
+        /api/v1/sessions/{session_id}/messages
+        │
+        ▼
+    服务端 API 路由
+    [openviking/server/routers/sessions/add_message.py]
+        │
+        ▼
+    服务端 Session.add_message()
+</code></pre>
+<h3>3.3 提交会话的完整调用链</h3>
+<pre><code>session.commit()
+    │
+    ▼
+await self._client.commit_session(self.session_id)
+    │
+    ├─ LocalClient: ──────────────────────┐
+    │   return await self._service.       │
+    │       sessions.commit(session_id,   │
+    │       self._ctx)                    │
+    │                                      │
+    │   服务端完成：                        │
+    │   1. 归档当前消息到 history/         │
+    │   2. 提取长期记忆（如果有压缩器）   │
+    │   3. 写入 AGFS                      │
+    │   4. 创建关系                       │
+    │   5. 更新活跃计数                   │
+    │                                      │
+    └─ AsyncHTTPClient: ───────────────────┤
+        发送 HTTP POST 请求：              │
+        /api/v1/sessions/{session_id}/commit
+</code></pre>
+<hr />
+<h2>四、组件详解——每个类的作用</h2>
+<h3>4.1 Session（客户端包装类）</h3>
+<p><strong>位置</strong>：<code>openviking/client/session.py</code></p>
+<p><strong>核心职责</strong>：提供一个轻量级的、面向对象的会话操作接口。</p>
+<pre><code class="language-python">class Session:
+    &quot;&quot;&quot;Lightweight Session wrapper that delegates operations to Client.&quot;&quot;&quot;
+
+    def __init__(self, client: &quot;BaseClient&quot;, session_id: str, user: UserIdentifier):
+        self._client = client          # 底层客户端（LocalClient 或 AsyncHTTPClient）
+        self.session_id = session_id   # 会话标识
+        self.user = user               # 用户标识
+</code></pre>
+<p><strong>关键设计点</strong>：</p>
+<ol>
+<li><strong>无状态设计</strong>：Session 对象本身不存储消息列表或任何会话状态，它只是一个「句柄」</li>
+<li><strong>按需加载</strong>：每次操作都是实时调用底层客户端，不存在缓存不一致问题</li>
+<li><strong>委托一切</strong>：所有核心方法都直接转发给 <code>_client</code> 对应方法</li>
+</ol>
+<p><strong>方法一览</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>功能</th>
+<th>底层调用</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_message(role, content)</code></td>
+<td>添加消息</td>
+<td><code>client.add_message()</code></td>
+</tr>
+<tr>
+<td><code>commit()</code></td>
+<td>提交会话（归档+提取记忆）</td>
+<td><code>client.commit_session()</code></td>
+</tr>
+<tr>
+<td><code>delete()</code></td>
+<td>删除会话</td>
+<td><code>client.delete_session()</code></td>
+</tr>
+<tr>
+<td><code>load()</code></td>
+<td>加载会话数据</td>
+<td><code>client.get_session()</code></td>
+</tr>
+</tbody>
+</table>
+<h3>4.2 BaseClient（抽象接口）</h3>
+<p><strong>位置</strong>：<code>openviking_cli/client/base.py</code></p>
+<p><strong>核心职责</strong>：定义客户端的抽象接口，允许多种传输实现。</p>
+<p>这是整个客户端架构的核心抽象，它的 Session 相关方法包括：</p>
+<pre><code class="language-python">@abstractmethod
+async def create_session(self) -&gt; Dict[str, Any]:
+    &quot;&quot;&quot;创建一个新会话&quot;&quot;&quot;
+
+@abstractmethod
+async def get_session(self, session_id: str) -&gt; Dict[str, Any]:
+    &quot;&quot;&quot;获取会话详情&quot;&quot;&quot;
+
+@abstractmethod
+async def delete_session(self, session_id: str) -&gt; None:
+    &quot;&quot;&quot;删除会话&quot;&quot;&quot;
+
+@abstractmethod
+async def commit_session(self, session_id: str) -&gt; Dict[str, Any]:
+    &quot;&quot;&quot;提交会话（归档和提取记忆）&quot;&quot;&quot;
+
+@abstractmethod
+async def add_message(
+    self,
+    session_id: str,
+    role: str,
+    content: str | None = None,
+    parts: list[dict] | None = None,
+) -&gt; Dict[str, Any]:
+    &quot;&quot;&quot;添加消息到会话&quot;&quot;&quot;
+</code></pre>
+<h3>4.3 UserIdentifier（用户标识）</h3>
+<p><strong>位置</strong>：<code>openviking_cli/session/user_id.py</code></p>
+<p><strong>核心职责</strong>：唯一标识一个用户/账户/代理的三元组。</p>
+<pre><code class="language-python">class UserIdentifier:
+    def __init__(self, account_id: str, user_id: str, agent_id: str):
+        self._account_id = account_id  # 账户级别
+        self._user_id = user_id        # 用户级别
+        self._agent_id = agent_id      # 代理级别
+</code></pre>
+<p>这个类不仅仅是存储三个字符串，它还提供了：</p>
+<ul>
+<li><strong>空间计算</strong>：<code>user_space_name()</code>、<code>agent_space_name()</code> 用于计算存储路径</li>
+<li><strong>URI 生成</strong>：<code>memory_space_uri()</code>、<code>work_space_uri()</code> 生成 Viking URI</li>
+<li><strong>验证</strong>：确保 ID 格式正确（仅允许 <code>[a-zA-Z0-9_-]</code>）</li>
+</ul>
+<hr />
+<h2>五、设计决策与权衡分析</h2>
+<h3>5.1 委托模式 vs 继承模式</h3>
+<p><strong>决策</strong>：使用委托而非继承来实现 Session 包装类。</p>
+<p><strong>可能的替代方案</strong>：</p>
+<ul>
+<li>让 Session 继承自 BaseClient，然后代理方法调用</li>
+<li>或者让 Session 作为 Client 的Mixin</li>
+</ul>
+<p><strong>选择理由</strong>：</p>
+<ol>
+<li><strong>职责单一</strong>：Session 只负责会话相关的操作，不需要承担整个客户端的职责</li>
+<li><strong>接口清晰</strong>：Session 的 API 是针对会话场景优化过的，不是完整的客户端接口</li>
+<li><strong>避免菱形继承</strong>：如果再用继承，Client → Session 的继承关系会变得复杂</li>
+</ol>
+<h3>5.2 客户端返回不同类型的 Session</h3>
+<p><strong>观察到的现象</strong>：</p>
+<ul>
+<li>HTTP 客户端返回 <code>openviking.client.session.Session</code>（客户端包装类）</li>
+<li>本地客户端返回 <code>openviking.session.session.Session</code>（服务器端会话类）</li>
+</ul>
+<p><strong>设计意图</strong>：</p>
+<p>这实际上是<strong>有意为之</strong>的设计，原因如下：</p>
+<ol>
+<li>
+<p><strong>HTTP 模式需要包装</strong>：因为网络调用需要序列化和反序列化，客户端需要一个本地的 Session 对象来维护 <code>session_id</code> 和 <code>user</code> 状态，然后委托给 HTTP 客户端</p>
+</li>
+<li>
+<p><strong>本地模式可以直接返回服务端对象</strong>：因为 LocalClient 和服务在同一个进程，返回服务器端的 Session 对象可以让调用者直接访问更多服务端才有的方法（如 <code>session.messages</code>、<code>session.stats</code> 等）</p>
+</li>
+<li>
+<p><strong>透明的差异</strong>：调用者通常不需要关心底层是哪种模式，API 层面提供了统一的操作方法</p>
+</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>这种设计使得在某些边界场景下行为可能不一致（例如，本地模式可以访问 <code>session.messages</code>，HTTP 模式不行）</li>
+<li>但对于常见的 <code>add_message</code>、<code>commit</code>、<code>delete</code> 等操作，两种模式的行为是完全一致的</li>
+</ul>
+<h3>5.3 轻量级 Session 的选择</h3>
+<p><strong>决策</strong>：Session 对象不缓存任何状态，每次操作都是实时调用。</p>
+<p><strong>设计理由</strong>：</p>
+<ol>
+<li><strong>简单性</strong>：不需要考虑缓存失效、一致性等问题</li>
+<li><strong>网络场景</strong>：HTTP 模式下缓存客户端状态没有意义，因为真正的状态在服务器端</li>
+<li><strong>内存效率</strong>：对于大量会话的场景，每个 Session 对象只占用很小的内存</li>
+</ol>
+<p><strong>潜在缺点</strong>：</p>
+<ul>
+<li>每次操作都有一次额外的网络往返（HTTP 模式下）</li>
+<li>但这是可以接受的，因为会话操作本身就不是高频操作</li>
+</ul>
+<h3>5.4 同步方法中的异步调用</h3>
+<p><strong>观察</strong>：在 <code>BaseClient.session()</code> 方法中，使用了 <code>run_async()</code> 来处理异步调用：</p>
+<pre><code class="language-python">def session(self, session_id: Optional[str] = None, must_exist: bool = False):
+    if not session_id:
+        result = run_async(self.create_session())  # 同步方法中调用异步
+        session_id = result.get(&quot;session_id&quot;, &quot;&quot;)
+</code></pre>
+<p><strong>设计理由</strong>：
+这是因为 <code>session()</code> 方法被设计为<strong>同步方法</strong>，这是为了让开发者可以更方便地在同步代码中使用：</p>
+<pre><code class="language-python"># 同步代码中也能方便创建 Session
+session = client.session()  # 无需 await
+</code></pre>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：API 更易用，不需要总是用 async/await</li>
+<li>缺点：在已有 async 上下文中调用会有一些性能开销（虽然很小）</li>
+</ul>
+<hr />
+<h2>六、使用指南——如何正确使用这个模块</h2>
+<h3>6.1 基本用法</h3>
+<pre><code class="language-python">from openviking.client import LocalClient, Session
+
+# 方式一：创建一个新会话
+client = LocalClient()
+await client.initialize()
+
+session = client.session()  # 自动创建新会话
+await session.add_message(&quot;user&quot;, &quot;你好，请帮我分析这个代码库&quot;)
+await session.add_message(&quot;assistant&quot;, &quot;好的，让我先了解一下项目结构...&quot;)
+
+# 提交会话：归档消息并提取记忆
+result = await session.commit()
+print(f&quot;提取了 {result['memories_extracted']} 个记忆&quot;)
+
+# 方式二：加载已有会话
+existing_session = client.session(session_id=&quot;abc123&quot;)
+await existing_session.load()
+</code></pre>
+<h3>6.2 与 HTTP 客户端配合使用</h3>
+<pre><code class="language-python">from openviking.client import AsyncHTTPClient
+
+# HTTP 模式下的用法完全相同
+client = AsyncHTTPClient(url=&quot;http://localhost:1933&quot;, api_key=&quot;your-key&quot;)
+await client.initialize()
+
+session = client.session()  # 自动在服务器端创建会话
+await session.add_message(&quot;user&quot;, &quot;你好&quot;)
+await session.commit()
+
+await client.close()
+</code></pre>
+<h3>6.3 会话的生命周期管理</h3>
+<pre><code class="language-python"># 推荐的会话使用模式
+async with await client.initialize() as client:
+    session = client.session()
+    
+    try:
+        await session.add_message(&quot;user&quot;, &quot;问题1&quot;)
+        await session.add_message(&quot;assistant&quot;, &quot;回答1&quot;)
+        # ... 更多交互
+        
+        await session.commit()  # 提交以保存进度
+    except Exception as e:
+        # 发生错误时可能不需要提交
+        await session.delete()  # 清理会话
+        raise
+</code></pre>
+<hr />
+<h2>七、边缘情况与注意事项</h2>
+<h3>7.1 必须注意的边界情况</h3>
+<ol>
+<li>
+<p><strong>Session 对象不是线程安全的</strong></p>
+<p>Session 对象包含对客户端的引用，在多线程环境下需要谨慎使用。</p>
+</li>
+<li>
+<p><strong>HTTP 模式下 Session 的状态是「最终一致」的</strong></p>
+<p>由于真正的状态在服务器端，客户端的 Session 对象只是 一个句柄。如果你同时在多个地方操作同一个 session_id，需要注意状态同步问题。</p>
+</li>
+<li>
+<p><strong>commit() 会清空当前消息</strong></p>
+<p>服务器端的 Session.commit() 实现会：</p>
+<ul>
+<li>将当前消息归档到 <code>history/archive_NNN/</code></li>
+<li>清空 <code>messages.jsonl</code></li>
+<li>提取长期记忆</li>
+</ul>
+<p>所以 commit 之后，当前 Session 对象的 <code>messages</code> 列表会变空（如果是本地客户端）或者需要重新 load。</p>
+</li>
+<li>
+<p><strong>must_exist 参数的行为</strong></p>
+<pre><code class="language-python"># 如果会话不存在，会抛出 NotFoundError
+session = client.session(session_id=&quot;不存在的ID&quot;, must_exist=True)
+# 抛出: NotFoundError: Session '不存在的ID' not found
+
+# 如果不传 must_exist 或传 False，不会检查是否存在
+session = client.session(session_id=&quot;不存在的ID&quot;)
+# 不会报错，但后续操作可能会失败
+</code></pre>
+</li>
+</ol>
+<h3>7.2 常见错误</h3>
+<ol>
+<li>
+<p><strong>忘记 await 异步方法</strong></p>
+<pre><code class="language-python"># 错误：add_message 是异步方法
+session.add_message(&quot;user&quot;, &quot;hello&quot;)  # 返回一个 coroutine
+
+# 正确
+await session.add_message(&quot;user&quot;, &quot;hello&quot;)
+</code></pre>
+</li>
+<li>
+<p><strong>在同步上下文中使用异步客户端</strong></p>
+<pre><code class="language-python"># 错误
+session = client.session()
+await session.add_message(...)  # 如果 client 是同步的，这会失败
+
+# 对于同步客户端，可以使用 run_async
+from openviking_cli.utils import run_async
+run_async(session.add_message(...))
+</code></pre>
+</li>
+</ol>
+<h3>7.3 性能考量</h3>
+<ol>
+<li>
+<p><strong>避免频繁创建 Session 对象</strong></p>
+<p>如果你需要长期使用一个会话，建议复用 Session 对象：</p>
+<pre><code class="language-python"># 不推荐：每次操作都创建新对象
+await client.session(session_id).add_message(...)
+await client.session(session_id).commit()
+
+# 推荐：复用同一个对象
+session = client.session(session_id)
+await session.add_message(...)
+await session.commit()
+</code></pre>
+</li>
+<li>
+<p><strong>批量操作时注意网络开销</strong></p>
+<p>在 HTTP 模式下，每个方法调用都有网络开销。如果需要添加多条消息，可以考虑使用 <code>parts</code> 参数一次性添加：</p>
+<pre><code class="language-python">await session.add_message(&quot;user&quot;, parts=[
+    {&quot;type&quot;: &quot;text&quot;, &quot;text&quot;: &quot;第一个问题&quot;},
+    {&quot;type&quot;: &quot;context&quot;, &quot;uri&quot;: &quot;viking://resources/doc.md&quot;, &quot;abstract&quot;: &quot;...&quot;}
+])
+</code></pre>
+</li>
+</ol>
+<hr />
+<h2>八、相关模块参考</h2>
+<p>如果你想进一步了解相关模块，可以查看：</p>
+<ul>
+<li><strong><a href="./python_client_and_cli_utils-client_session_and_transport-base_client.html">base_client</a></strong>：客户端抽象接口，定义了 LocalClient 和 AsyncHTTPClient 需要实现的方法</li>
+<li><strong><a href="./server-api-contracts-session-message-contracts.html">server_api_contracts-session_message_contracts</a></strong>：服务器端 Session 模型的完整实现，包含消息存储、归档、记忆提取等功能</li>
+<li><strong><a href="./python_client_and_cli-utils-client_session_and_transport.html">client_session_and_transport</a></strong>：模块概览文档</li>
+</ul>
+<hr />
+<h2>九、总结</h2>
+<p><code>session_wrapper</code> 模块是 OpenViking 客户端架构中一个看似简单但至关重要的组件。它的核心价值在于：</p>
+<ol>
+<li><strong>统一接口</strong>：为会话操作提供了清晰的面向对象 API，隐藏了底层是本地调用还是 HTTP 调用的细节</li>
+<li><strong>轻量级</strong>：采用委托模式，不引入额外的状态管理复杂性</li>
+<li><strong>灵活性</strong>：支持两种客户端实现，调用者可以根据场景选择嵌入模式或 HTTP 模式</li>
+</ol>
+<p>理解这个模块的关键在于把握「门面模式 + 委托模式」的组合，以及认识到客户端 Session 和服务器端 Session 之间的微妙差异。当你需要在这个模块上进行开发时，始终记住：<strong>它是一个轻量级包装器，真正的业务逻辑在底层客户端和服务器端</strong>。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

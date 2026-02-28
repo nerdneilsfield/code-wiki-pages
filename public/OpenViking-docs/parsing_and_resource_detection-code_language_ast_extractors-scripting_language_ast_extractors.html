@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>scripting_language_ast_extractors 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-MiniMax-M2.5<br>
+    <b>Generated:</b> 2026-02-28T15:10<br>
+    <b>Components:</b> 4836<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/volcengine/OpenViking" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/volcengine/OpenViking" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="rust_cli_interface.html" class="nv">Rust Cli Interface</a>
+      <button class="nvcaret" data-nav="rust_cli_interface-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="rust_cli_interface-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="rust_cli_interface-cli_bootstrap_and_runtime_context.html" class="nv">Cli Bootstrap And Runtime Context</a>
+        <button class="nvcaret" data-nav="cli_bootstrap_and_runtime_context-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="cli_bootstrap_and_runtime_context-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cli Command Structure</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cli Runtime Context</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-cli_bootstrap_and_runtime_context-cli_configuration_management.html" class="nv">Cli Configuration Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Http Api And Tabular Output</span>
+        <button class="nvcaret" data-nav="http_api_and_tabular_output-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="http_api_and_tabular_output-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-http_api_and_tabular_output-http_client.html" class="nv">Http Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Output Formatting</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Tui Application Orchestration</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Tui Tree Navigation And View Model</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="python_client_and_cli_utils.html" class="nv">Python Client And Cli Utils</a>
+      <button class="nvcaret" data-nav="python_client_and_cli_utils-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="python_client_and_cli_utils-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-client_session_and_transport.html" class="nv">Client Session And Transport</a>
+        <button class="nvcaret" data-nav="client_session_and_transport-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="client_session_and_transport-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-base_client.html" class="nv">Base Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-session_wrapper.html" class="nv">Session Wrapper</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-configuration_models_and_singleton.html" class="nv">Configuration Models And Singleton</a>
+        <button class="nvcaret" data-nav="configuration_models_and_singleton-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="configuration_models_and_singleton-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-embedding_config.html" class="nv">Embedding Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-open_viking_config.html" class="nv">Open Viking Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-content_extraction_schema_and_strategies.html" class="nv">Content Extraction Schema And Strategies</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-llm_and_rerank_clients.html" class="nv">Llm And Rerank Clients</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-retrieval_trace_and_scoring_types.html" class="nv">Retrieval Trace And Scoring Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_context_prompts_and_sessions.html" class="nv">Core Context Prompts And Sessions</a>
+      <button class="nvcaret" data-nav="core_context_prompts_and_sessions-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_context_prompts_and_sessions-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-context_typing_and_levels.html" class="nv">Context Typing And Levels</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-prompt_template_metadata.html" class="nv">Prompt Template Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_memory_deduplication.html" class="nv">Session Memory Deduplication</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Session Runtime And Skill Discovery</span>
+        <button class="nvcaret" data-nav="session_runtime_and_skill_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="session_runtime_and_skill_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-session_runtime.html" class="nv">Session Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Skill Loader</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Session Runtime</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Skill Loader</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Directory Definition</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="parsing_and_resource_detection.html" class="nv">Parsing And Resource Detection</a>
+      <button class="nvcaret" data-nav="parsing_and_resource_detection-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="parsing_and_resource_detection-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy</span>
+        <button class="nvcaret" data-nav="resource_and_document_taxonomy-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_document_taxonomy-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Base Types</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Html Parser</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Parser Abstractions And Extension Points</span>
+        <button class="nvcaret" data-nav="parser_abstractions_and_extension_points-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="parser_abstractions_and_extension_points-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Code Language Ast Extractors</span>
+        <button class="nvcaret" data-nav="code_language_ast_extractors-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="code_language_ast_extractors-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Systems Programming Ast Extractors</span>
+          <button class="nvcaret" data-nav="systems_programming_ast_extractors-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="systems_programming_ast_extractors-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-cpp_extractor.html" class="nv">Cpp Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-rust_extractor.html" class="nv">Rust Extractor</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Application And Web Platform Ast Extractors</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-scripting_language_ast_extractors.html" class="nv on">Scripting Language Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Cpp Extractor</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Go Extractor</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Rust Extractor</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-resource_detection_traversal_metadata.html" class="nv">Resource Detection Traversal Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Base Types</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Resource And Document Taxonomy Html Parser</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Custom Parser Protocol And Wrappers</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Language Extractor Base</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Systems Programming Ast Extractors</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Application And Web Platform Ast Extractors</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="model_providers_embeddings_and_vlm.html" class="nv">Model Providers Embeddings And Vlm</a>
+      <button class="nvcaret" data-nav="model_providers_embeddings_and_vlm-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="model_providers_embeddings_and_vlm-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-embedder_base_contracts.html" class="nv">Embedder Base Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-openai_embedding_providers.html" class="nv">Openai Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-vikingdb_embedding_providers.html" class="nv">Vikingdb Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-volcengine_embedding_providers.html" class="nv">Volcengine Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-jina_embedding_provider.html" class="nv">Jina Embedding Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vlm Abstractions Factory And Structured Interface</span>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="retrieval_and_evaluation.html" class="nv">Retrieval And Evaluation</a>
+      <button class="nvcaret" data-nav="retrieval_and_evaluation-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="retrieval_and_evaluation-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-ragas_evaluation_core.html" class="nv">Ragas Evaluation Core</a>
+        <button class="nvcaret" data-nav="ragas_evaluation_core-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ragas_evaluation_core-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Base Evaluator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Dataset Generator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Ragas Config And Evaluator</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Data Types</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-retrieval_query_orchestration.html" class="nv">Retrieval Query Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Evaluation Recording And Storage Instrumentation</span>
+        <button class="nvcaret" data-nav="evaluation_recording_and_storage_instrumentation-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="evaluation_recording_and_storage_instrumentation-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Recorder Core</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval_and_evaluation-evaluation_recording_and_storage_instrumentation-recording_types.html" class="nv">Recording Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval_and_evaluation-evaluation_recording_and_storage_instrumentation-storage_wrappers.html" class="nv">Storage Wrappers</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="server_api_contracts.html" class="nv">Server Api Contracts</a>
+      <button class="nvcaret" data-nav="server_api_contracts-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="server_api_contracts-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-admin_user_and_role_contracts.html" class="nv">Admin User And Role Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-filesystem_mutation_contracts.html" class="nv">Filesystem Mutation Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-pack_import_export_contracts.html" class="nv">Pack Import Export Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-resource_and_relation_contracts.html" class="nv">Resource And Relation Contracts</a>
+        <button class="nvcaret" data-nav="resource_and_relation_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_relation_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-resource_request_contracts.html" class="nv">Resource Request Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-relation_request_contracts.html" class="nv">Relation Request Contracts</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-search_request_contracts.html" class="nv">Search Request Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_api_contracts-session_message_contracts.html" class="nv">Session Message Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">System And Usage Contracts</span>
+        <button class="nvcaret" data-nav="system_and_usage_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="system_and_usage_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">System Endpoint Contracts</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-system_and_usage_contracts-response_and_usage_models.html" class="nv">Response And Usage Models</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_core_and_runtime_primitives.html" class="nv">Storage Core And Runtime Primitives</a>
+      <button class="nvcaret" data-nav="storage_core_and_runtime_primitives-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="storage_core_and_runtime_primitives-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Storage Schema And Query Ranges</span>
+        <button class="nvcaret" data-nav="storage_schema_and_query_ranges-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="storage_schema_and_query_ranges-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Schemas</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Expr</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives.html" class="nv">Observer And Queue Processing Primitives</a>
+        <button class="nvcaret" data-nav="observer_and_queue_processing_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="observer_and_queue_processing_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-base_observer.html" class="nv">Base Observer</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-named_queue_and_handlers.html" class="nv">Named Queue And Handlers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives-embedding_msg_converter.html" class="nv">Embedding Msg Converter</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-kv_store_interfaces_and_operation_model.html" class="nv">Kv Store Interfaces And Operation Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-store_value_typing_and_ttl.html" class="nv">Store Value Typing And Ttl</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-runtime_support_utilities.html" class="nv">Runtime Support Utilities</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectordb_domain_models_and_service_schemas.html" class="nv">Vectordb Domain Models And Service Schemas</a>
+      <button class="nvcaret" data-nav="vectordb_domain_models_and_service_schemas-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectordb_domain_models_and_service_schemas-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Domain Models And Contracts</span>
+        <button class="nvcaret" data-nav="domain_models_and_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="domain_models_and_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Contracts And Results</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-index_domain_models_and_interfaces.html" class="nv">Index Domain Models And Interfaces</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-metadata_dictionary_models.html" class="nv">Metadata Dictionary Models</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb_domain_models_and_service_schemas-domain_models_and_contracts-project_domain_models_and_interfaces.html" class="nv">Project Domain Models And Interfaces</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-volcengine_data_api_integration.html" class="nv">Volcengine Data Api Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-service_api_models_collection_and_index_management.html" class="nv">Service Api Models Collection And Index Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-service_api_models_data_operations.html" class="nv">Service Api Models Data Operations</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Service Api Models Search Requests</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb_domain_models_and_service_schemas-schema_validation_and_constants.html" class="nv">Schema Validation And Constants</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectorization_and_storage_adapters.html" class="nv">Vectorization And Storage Adapters</a>
+      <button class="nvcaret" data-nav="vectorization_and_storage_adapters-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectorization_and_storage_adapters-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-vectorization_contracts_and_metadata.html" class="nv">Vectorization Contracts And Metadata</a>
+        <button class="nvcaret" data-nav="vectorization_contracts_and_metadata-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="vectorization_contracts_and_metadata-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Vectorizer Factory And Model Typing</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Volcengine Vectorization Provider</span>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vectorizer Factory And Model Typing</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Collection Adapters Abstraction And Backends</span>
+        <button class="nvcaret" data-nav="collection_adapters_abstraction_and_backends-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="collection_adapters_abstraction_and_backends-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Collection Adapter Abstractions</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Local And Http Collection Backends</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Provider Specific Managed Collection Backends</span>
+          <button class="nvcaret" data-nav="provider_specific_managed_collection_backends-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="provider_specific_managed_collection_backends-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <span class="nv-missing" title="Documentation not yet generated">Vikingdb Private Adapter</span>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <span class="nv-missing" title="Documentation not yet generated">Volcengine Adapter</span>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="native_engine_and_python_bindings.html" class="nv">Native Engine And Python Bindings</a>
+      <button class="nvcaret" data-nav="native_engine_and_python_bindings-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="native_engine_and_python_bindings-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native_engine_and_python_bindings-python_bytes_row_bindings.html" class="nv">Python Bytes Row Bindings</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Native Bytes Row Schema And Field Layout</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Vector Recall And Sparse Ann Primitives</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Search Context And Fetch State Models</span>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Scalar Bitmap And Field Dictionary Structures</span>
+        <button class="nvcaret" data-nav="scalar_bitmap_and_field_dictionary_structures-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="scalar_bitmap_and_field_dictionary_structures-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native_engine_and_python_bindings-scalar_bitmap_and_field_dictionary_structures-fields_dict.html" class="nv">Fields Dict</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <span class="nv-missing" title="Documentation not yet generated">Dir Index</span>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native_engine_and_python_bindings-scalar_bitmap_and_field_dictionary_structures-ranged_map.html" class="nv">Ranged Map</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="build_and_packaging.html" class="nv">Build And Packaging</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>scripting_language_ast_extractors 模块技术深度解析</h1>
+<h2>模块概述</h2>
+<p><code>scripting_language_ast_extractors</code> 是 OpenViking 系统中专门负责从脚本语言源代码中提取代码结构骨架（Code Skeleton）的模块。该模块的核心组件是 <code>PythonExtractor</code> 类，它利用 tree-sitter-python 解析器将 Python 源代码转换为结构化的代码骨架表示。这个骨架包含了文件级别的文档字符串、导入语句、类定义（包括基类和成员方法）以及顶层函数签名，为后续的向量化 embedding 和 LLM 上下文理解提供了精简但语义完整的代码摘要。</p>
+<p>理解这个模块的关键在于认识到它解决的是一个<strong>效率与精度的权衡问题</strong>：直接将完整源代码送入 LLM 或进行 embedding 会产生过高的 token 消耗和噪声，而简单的正则匹配又无法处理 Python 复杂的语法结构。Tree-sitter 作为一个增量式的 AST 解析库，能够在保持语法精确性的同时提供足够轻量的结构提取，这使得大规模代码库的语义索引成为可能。</p>
+<h2>架构角色与数据流向</h2>
+<h3>在系统中的定位</h3>
+<p>该模块位于 OpenViking 解析管道的中间层，其上游是被称为 <code>ASTExtractor</code> 的调度器（参见 <a href="./python_ast_extractor.html">Python AST 提取器</a> 模块文档），下游则是向量存储和 LLM 调用层。当用户请求处理一个 Python 源文件时，调度器首先通过文件扩展名（<code>.py</code>）检测语言类型，然后路由到对应的 <code>PythonExtractor</code> 实例。</p>
+<div class="mermaid">flowchart TD
+    A[用户代码文件] --> B[ASTExtractor 调度器]
+    B --> C{语言检测}
+    C -->|Python| D[PythonExtractor]
+    C -->|其他| E[其他语言 Extractor]
+    D --> F[CodeSkeleton 结构]
+    F --> G[to_text 序列化]
+    G --> H[向量 embedding / LLM 上下文]
+    
+    F --> I[向量化存储]
+    H --> J[检索与回答]
+</div>
+<h3>数据流动全过程</h3>
+<p>理解数据在模块中的转换过程是掌握该模块的核心。以下是完整的处理流水线：</p>
+<p><strong>第一步：文本到字节序列的转换</strong>。调用者传入的 <code>content: str</code> 参数被编码为 UTF-8 字节序列（<code>content_bytes = content.encode(&quot;utf-8&quot;)</code>）。这个转换是必要的，因为 tree-sitter 的 AST 节点使用字节偏移量（<code>start_byte</code> / <code>end_byte</code>）来定位源码位置，而非字符偏移量。</p>
+<p><strong>第二步：AST 解析</strong>。Tree-sitter Parser 接收字节序列并生成一棵抽象语法树。树的根节点（<code>root_node</code>）代表整个模块，其子节点对应顶层的语句和声明。值得注意的是，tree-sitter 生成的 AST 是<strong>位置感知</strong>的——每个节点都携带源码中的起始和结束位置信息，这为后续提取代码片段提供了精确的坐标。</p>
+<p><strong>第三步：遍历与提取</strong>。提取器遍历根节点的直接子节点，针对不同类型的节点采用不同的提取策略：</p>
+<ul>
+<li><code>expression_statement</code> 节点可能包含模块级文档字符串</li>
+<li><code>import_statement</code> 和 <code>import_from_statement</code> 节点被解析为导入列表</li>
+<li><code>class_definition</code> 节点触发对类名、基类、文档字符串和成员方法的完整提取</li>
+<li><code>function_definition</code> 节点提取函数签名、参数和返回类型注解</li>
+<li><code>decorated_definition</code> 节点处理带有装饰器的函数或类</li>
+</ul>
+<p><strong>第四步：结构组装</strong>。所有提取出的信息被组装进 <code>CodeSkeleton</code> 数据结构，这是一个包含文件元信息、导入列表、类列表和函数列表的容器对象。</p>
+<p><strong>第五步：文本序列化</strong>。最后调用 <code>skeleton.to_text(verbose=verbose)</code> 将结构化数据转换为文本表示。这个方法支持两种模式：verbose 模式保留完整文档字符串（供 LLM 使用），而非 verbose 模式只保留每条文档字符串的首行（供 embedding 使用）。</p>
+<h2>核心组件详解</h2>
+<h3>PythonExtractor 类</h3>
+<p><code>PythonExtractor</code> 是该模块的唯一公共组件，它实现了 <code>LanguageExtractor</code> 抽象基类定义的接口。理解这个类的设计需要关注以下几个关键点：</p>
+<p><strong>延迟初始化的语言和解析器</strong>。在 <code>__init__</code> 方法中，解析器和语言对象被创建并缓存为实例变量。这种设计的好处是避免了在模块加载时立即导入 tree-sitter 库——这是一个相对昂贵的操作，因为 tree-sitter 需要加载编译好的 WASM 或共享库。延迟初始化意味着只有当实际需要解析 Python 代码时才会触发这一开销。</p>
+<pre><code class="language-python">def __init__(self):
+    import tree_sitter_python as tspython
+    from tree_sitter import Language, Parser
+
+    self._language = Language(tspython.language())
+    self._parser = Parser(self._language)
+</code></pre>
+<p><strong>单次解析原则</strong>。<code>extract</code> 方法接收文件名字符串和内容字符串作为参数，返回一个 <code>CodeSkeleton</code> 对象。需要注意的是，这个方法是<strong>无状态的</strong>——每次调用都会从头解析整个文件内容，没有利用 tree-sitter 的增量解析能力。这意味着该提取器适用于离线批处理场景，而非实时编辑场景。</p>
+<h3>辅助函数的协作模式</h3>
+<p>模块定义了四个关键的私有辅助函数，它们各自承担特定职责：</p>
+<p><strong><code>_node_text(node, content_bytes)</code></strong> 是最基础的工具函数，它接受一个 AST 节点和字节内容，返回该节点对应的源码文本。使用字节偏移量而非字符偏移量是 tree-sitter 的惯例，因为 Python 字符串的 <code>encode()</code> 操作可能在不同语言环境下产生不同的字节长度（例如包含非 ASCII 字符时）。函数中的 <code>errors=&quot;replace&quot;</code> 参数确保了即使遇到无效的 UTF-8 序列也不会抛出异常，而是用替换字符填充。</p>
+<p><strong><code>_first_string_child(body_node, content_bytes)</code></strong> 专门用于从函数或类体中提取文档字符串。其实现逻辑值得仔细分析：它遍历 body 的直接子节点，寻找第一个 <code>expression_statement</code> 类型节点，然后在该节点内查找 <code>string</code> 或 <code>concatenated_string</code> 类型的子节点。一旦找到字符串节点，它会尝试识别常见的引号模式（三引号或单引号）并将其剥离，只返回实际的文档内容。这种设计假设 Python 的文档字符串总是出现在函数或类的第一个语句位置——这是一个合理的约定，但并非语言强制要求。</p>
+<p><strong><code>_extract_function(node, content_bytes)</code></strong> 负责从 <code>function_definition</code> 节点中提取完整的函数签名信息。它遍历节点的子节点，识别并提取：</p>
+<ul>
+<li><code>identifier</code> 类型子节点作为函数名</li>
+<li><code>parameters</code> 类型子节点作为参数列表（并额外移除包围的括号）</li>
+<li><code>type</code> 类型子节点作为返回类型注解</li>
+<li><code>block</code> 类型子节点作为函数体（用于提取文档字符串）</li>
+</ul>
+<p><strong><code>_extract_class(node, content_bytes)</code></strong> 的逻辑与函数提取类似，但增加了对类成员方法的处理。它不仅提取类名、基类和文档字符串，还会递归遍历类体，识别其中的 <code>function_definition</code> 和 <code>decorated_definition</code> 节点，将成员方法收集到 <code>methods</code> 列表中。</p>
+<p><strong><code>_extract_imports(node, content_bytes)</code></strong> 处理 Python 两种导入语句的复杂性。对于 <code>import</code> 语句，它提取所有的 <code>dotted_name</code> 节点；对于 <code>from ... import</code> 语句，它需要处理模块前缀和导入名称列表，还要识别相对导入（<code>import_prefix</code> 节点）和通配符导入（<code>wildcard_import</code> 节点）。该函数的返回值是一个扁平的字符串列表，每个元素是一个完整的模块路径或 <code>module.name</code> 格式的导入目标。</p>
+<h2>设计决策与权衡</h2>
+<h3>为什么选择 tree-sitter 而不是内置的 ast 模块？</h3>
+<p>Python 标准库提供了 <code>ast</code> 模块，能够将 Python 源码解析为 AST。之所以选择 tree-sitter，是基于以下几个实际考量：</p>
+<p><strong>语言无关的统一接口</strong>。OpenViking 需要支持多种编程语言（Python、JavaScript、Java、C++、Go、Rust 等）。如果使用各语言的标准 AST 库，每个语言的提取逻辑都需要单独编写。而 tree-sitter 提供了统一的 Parser API 和节点遍历接口，使得新增语言支持的成本大幅降低。虽然当前实现中各个语言提取器仍然各自定义了提取逻辑，但底层的解析机制已经统一。</p>
+<p><strong>位置信息的精确性</strong>。Tree-sitter 的 AST 节点包含精确的字节偏移量，这在需要提取代码片段（如文档字符串、注释）的场景下非常有用。Python 的 <code>ast</code> 模块虽然也提供位置信息，但不如 tree-sitter 细致。</p>
+<p><strong>增量解析能力</strong>。虽然当前实现没有利用这一特性，但 tree-sitter 支持增量解析——即在源码发生部分修改时，可以基于已有解析结果只更新受影响的部分，而非全量重新解析。这为未来支持实时编辑场景留下了扩展空间。</p>
+<h3>文档字符串提取的简化策略</h3>
+<p>当前实现对文档字符串的提取采用了相对简化的策略：只提取<strong>第一个</strong>表达式语句中的字符串字面量。这基于一个常见的编码约定（PEP 257），即文档字符串应该是函数或类的第一个语句。然而，这种策略在以下情况会出现问题：</p>
+<pre><code class="language-python">def example():
+    # 这是一个注释，会被跳过
+    &quot;&quot;&quot;这才是文档字符串&quot;&quot;&quot;
+    pass
+</code></pre>
+<p>由于 <code>_first_string_child</code> 只检查 <code>expression_statement</code> 节点，注释会被完全忽略，这实际上是<strong>符合预期的行为</strong>，因为注释不应该成为文档字符串。但如果文档字符串不是第一个表达式（比如在某些高级模式中），提取就会失败。这是一种<strong>有意的简化</strong>，以换取实现复杂度和正确性的平衡。</p>
+<h3>返回类型注解的处理</h3>
+<p>当前的实现将返回类型注解作为节点的文本直接提取，而不是进行进一步的语义解析。这意味着对于复杂类型注解：</p>
+<pre><code class="language-python">def foo() -&gt; Optional[Dict[str, List[int]]]:
+    pass
+</code></pre>
+<p>返回类型字段将包含完整的字符串 <code>&quot;Optional[Dict[str, List[int]]]&quot;</code>，而非被解析为结构化的类型对象。这种设计决策反映了该模块的核心目标：<strong>生成可读的结构化摘要，而非完整的类型信息</strong>。如果需要精确的类型语义，应该使用 <code>ast</code> 模块或专门的类型检查工具。</p>
+<h3>错误处理策略</h3>
+<p>Tree-sitter 解析失败（例如源码包含语法错误）会抛出异常。当前实现选择让异常向上传播，由调用者（<code>ASTExtractor</code>）捕获并记录警告日志，同时返回 <code>None</code> 表示提取失败，触发回退到 LLM 方案。这种<strong>失败透明</strong>的设计意味着提取器的错误不会导致整个解析流程崩溃，而是优雅地降级。</p>
+<h2>依赖关系分析</h2>
+<h3>上游依赖</h3>
+<p>该模块依赖以下外部组件：</p>
+<p><strong>tree-sitter-python</strong>。这是 tree-sitter 为 Python 语言定义的语法定义和查询接口。它提供了 <code>language()</code> 函数返回一个 tree-sitter <code>Language</code> 对象，该对象知道如何将 Python 源码解析为 AST。</p>
+<p><strong>tree-sitter</strong>（核心库）。提供了 <code>Parser</code> 和 <code>Language</code> 基础类，以及节点遍历的接口。</p>
+<p><strong>CodeSkeleton 数据结构</strong>。定义在 <code>openviking.parse.parsers.code.ast.skeleton</code> 模块中，是提取结果的容器对象。该数据结构的 <code>to_text</code> 方法负责将结构化输出序列化为文本。</p>
+<h3>下游消费者</h3>
+<p><strong>ASTExtractor 调度器</strong>是该模块的主要调用者。它负责语言检测、解析器缓存和异常处理。当需要处理一个 Python 文件时，它会：</p>
+<pre><code class="language-python">skeleton: CodeSkeleton = extractor.extract(file_name, content)
+return skeleton.to_text(verbose=verbose)
+</code></pre>
+<p><strong>向量化管道</strong>。提取出的骨架文本被送往 embedding 模型进行向量化。verbose 模式（完整文档字符串）和非 verbose 模式（单行摘要）的区分，正是为了平衡 embedding 的语义丰富度和向量维度。</p>
+<p><strong>LLM 上下文构建</strong>。在某些场景下，骨架文本会被拼接到 LLM 的提示词中，为模型提供代码的结构化上下文。</p>
+<h2>扩展点与扩展指南</h2>
+<h3>添加新的提取目标</h3>
+<p>当前实现关注四类代码元素：导入、类、函数和模块级文档字符串。如果需要扩展提取范围（例如提取全局变量、常量定义、类型别名），可以按照现有模式添加新的处理分支：</p>
+<ol>
+<li>在 <code>extract</code> 方法的遍历循环中添加对新节点类型的识别</li>
+<li>如有需要，定义新的数据类来承载提取结果</li>
+<li>将新字段添加到 <code>CodeSkeleton</code> 类中</li>
+<li>更新 <code>to_text</code> 方法以序列化新字段</li>
+</ol>
+<h3>支持语法变体</h3>
+<p>Python 语言本身在持续演进，新语法特性（如结构化模式匹配 <code>match...case</code>、析构赋值 <code>with ... as (a, b)</code> 等）当前可能未被提取。如果需要支持这些新语法，需要：</p>
+<ol>
+<li>更新 tree-sitter-python 到支持新语法的版本</li>
+<li>在遍历循环中添加对应的节点类型处理</li>
+<li>定义相应的数据结构来承载新语法元素的信息</li>
+</ol>
+<h3>缓存策略优化</h3>
+<p>当前实现中，每个 <code>PythonExtractor</code> 实例在其生命周期内只会被创建一次（由 <code>ASTExtractor</code> 的实例变量 <code>_cache</code> 管理）。对于长期运行的服务进程，这种设计是合理的。但如果需要支持动态重新加载提取器（例如在运行时更新语言定义），可以引入基于文件修改时间戳的缓存失效机制。</p>
+<h2>常见问题与调试指南</h2>
+<h3>为什么某些文档字符串没有被提取？</h3>
+<p>最常见的原因是文档字符串不是函数或类的第一个语句。检查源码结构，确保文档字符串紧跟在 <code>def</code> 或 <code>class</code> 行之后，且之前没有其他表达式语句。</p>
+<p>另一个可能的原因是文档字符串使用了不支持的引号格式。当前实现处理三引号和单引号，但如果文档字符串是原始字符串（<code>r&quot;&quot;&quot;...&quot;&quot;&quot;</code>）或字节字符串（<code>b&quot;&quot;&quot;...&quot;&quot;&quot;</code>），则不会被识别。</p>
+<h3>如何处理编码问题？</h3>
+<p>如果文件包含非 UTF-8 编码的字符，解析可能失败或产生乱码。确保上游调用者已经正确处理了文件编码检测（<code>BaseParser._read_file</code> 方法已经实现了多编码尝试的逻辑）。</p>
+<h3>为什么导入语句没有被完全提取？</h3>
+<p>检查导入语句是否符合标准形式。当前实现对以下形式有良好支持：</p>
+<ul>
+<li><code>import os, sys</code></li>
+<li><code>from typing import List, Dict</code></li>
+<li><code>from . import local_module</code></li>
+<li><code>from ..package import module</code></li>
+</ul>
+<p>对于复杂的动态导入（如 <code>getattr(__import__('os'), 'path')</code>），提取会失败，因为这类代码无法通过静态分析确定导入目标。</p>
+<h3>提取结果与源码不一致？</h3>
+<p>Tree-sitter 解析器基于特定的语法版本。如果使用的 <code>tree-sitter-python</code> 版本与目标源码的 Python 版本不匹配，可能会产生不同的 AST 结构。检查依赖版本是否与目标代码环境一致。</p>
+<h2>相关模块参考</h2>
+<ul>
+<li><strong><a href="./python_ast_extractor.html">Python AST 提取器</a></strong>：PythonExtractor 的详细技术文档</li>
+<li><strong><a href="./scripting_language_ast_extractors.html">Scripting Language AST Extractors</a></strong>：完整的 Python 提取系统概览</li>
+<li><strong><a href="./code-language-ast-extractors.html">Code Language AST Extractors</a></strong>：所有语言提取器的架构概览</li>
+<li><strong><a href="./parser_abstractions_and_extension_points.html">Parser Abstractions</a></strong>：LanguageExtractor 基类和接口定义</li>
+<li><strong><a href="./systems_programming_ast_extractors.html">Systems Programming AST Extractors</a></strong>：C++、Go、Rust 等系统编程语言的实现模式</li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

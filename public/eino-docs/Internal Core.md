@@ -2,6 +2,8 @@
 
 `Internal Core` 是整套可中断执行体系的“交通中枢”：它不负责真正跑业务节点，而是负责回答两个最关键的问题——**现在执行到哪了（Address）**，以及**中断后该从哪恢复、带什么状态恢复（Interrupt + Resume routing）**。如果把 [Compose Graph Engine](Compose Graph Engine.md) 看作发动机，那 `Internal Core` 就是导航与黑匣子协议层；没有它，恢复只能靠粗暴重跑，或者让每个上层模块各自发明一套不兼容的中断语义。
 
+在构建复杂的分布式系统和工作流引擎时，我们经常会遇到这样的问题：**如何在执行过程中优雅地中断，保存完整的上下文状态，并在之后精确地恢复执行**？这正是 Internal Core 模块要解决的核心挑战。想象一下，你正在处理一个由多个 Agent、Graph 节点和工具调用组成的复杂工作流，执行到一半时需要暂停。你不能简单地停止进程丢失所有状态，也不能重新从头执行浪费时间。Internal Core 模块就像是一个**智能的执行快照系统**，它能在任意时刻"冻结"整个执行状态树，然后在需要时精确地"解冻"并恢复执行。
+
 ## 1) 问题空间：这个模块为什么存在
 
 在 Eino 这类嵌套编排系统里（graph 调 node，node 调 tool，tool 内可能再调子 graph/agent），中断恢复的难点不是“抛个 error”，而是：
@@ -45,6 +47,41 @@ flowchart LR
     I --> J[core.GetResumeContext]
 ```
 
+### 核心数据模型
+
+Internal Core 的核心是两个紧密关联的数据模型：
+
+**地址系统**：
+```go
+// Address 表示执行结构中某个点的完整层次化地址
+type Address []AddressSegment
+
+// AddressSegment 表示执行点层次化地址中的单个段
+type AddressSegment struct {
+    ID    string              // 该段的唯一标识符，如节点键或工具名
+    Type  AddressSegmentType  // 指示地址段的类型：图节点、工具调用、Agent 等
+    SubID string              // 用于保证唯一性的子ID，如并行工具调用时
+}
+```
+
+**中断信号**：
+```go
+// InterruptSignal 表示一个中断信号
+type InterruptSignal struct {
+    ID             string
+    Address
+    InterruptInfo
+    InterruptState
+    Subs           []*InterruptSignal  // 子中断信号，形成中断树
+}
+
+// InterruptState 保存中断点的状态
+type InterruptState struct {
+    State                any  // 组件的核心状态
+    LayerSpecificPayload any  // 层特定的元数据
+}
+```
+
 ### 流程解读（端到端）
 
 1. 上层中断入口（`compose.interrupt.Interrupt` / `StatefulInterrupt` / `CompositeInterrupt`）调用 `core.Interrupt` 构造 `InterruptSignal`。  
@@ -53,6 +90,30 @@ flowchart LR
 4. 调用方通过 `compose.resume.Resume` 或 `compose.resume.ResumeWithData`（内部调用 `core.BatchResumeWithData`）注入“目标恢复 ID -> 恢复数据”。  
 5. 执行链每深入一层调用 `core.AppendAddressSegment`，按当前地址匹配恢复状态和恢复数据，并更新 `isResumeTarget`。  
 6. 组件通过 `core.GetResumeContext`（定义在 `internal/core/resume`）读取结果，决定是否恢复执行。
+
+### 内部工作原理与实现细节
+
+#### 地址匹配与恢复目标识别
+
+`AppendAddressSegment()` 函数中有一个巧妙的设计：它不仅检查当前地址是否为恢复目标，还检查是否有任何后代地址是恢复目标。这允许复合组件（如包含嵌套图的工具）知道它们应该执行子组件以到达实际的恢复目标。
+
+```go
+// 标记后代地址为恢复目标
+if !runCtx.isResumeTarget {
+    for id_, addr := range rInfo.id2Addr {
+        if len(addr) > len(currentAddress) && addr[:len(currentAddress)].Equals(currentAddress) {
+            if !rInfo.id2ResumeDataUsed[id_] {
+                runCtx.isResumeTarget = true
+                break
+            }
+        }
+    }
+}
+```
+
+#### 中断信号与用户上下文的转换
+
+模块提供了 `ToInterruptContexts()` 和 `FromInterruptContexts()` 两个关键函数，用于在内部中断信号树和用户友好的中断上下文列表之间转换。这种分离允许内部实现灵活变化，同时保持稳定的用户 API。
 
 ## 4) 关键设计决策与取舍
 

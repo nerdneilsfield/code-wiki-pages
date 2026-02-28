@@ -1,10 +1,21 @@
-# Callbacks System
+# Callbacks System 模块
 
 ## 模块概述
 
 Callbacks System 是一个灵活的事件回调系统，它允许开发者在组件执行的各个关键节点（开始、结束、错误、流式输入/输出）插入自定义逻辑，而无需修改组件本身的代码。想象一下它就像一个组件执行过程中的"监控系统"，可以在组件工作的每个阶段自动触发预先注册的回调函数，而无需修改组件本身的代码。
 
 这个模块解决了一个常见的架构问题：如何在不侵入核心业务逻辑的情况下，实现横切关注点（cross-cutting concerns）如日志记录、性能监控、错误追踪、数据审计等功能。
+
+### 问题背景
+
+在构建复杂的 AI 应用时，我们经常会遇到以下需求：
+- 记录每个模型调用的输入输出和耗时
+- 追踪工具调用的参数和结果
+- 在某个组件出错时发送告警
+- 监控整个系统的执行流程
+- 实现请求级别的追踪和日志关联
+
+如果没有一个统一的回调系统，这些需求会导致代码中充满了重复的日志和监控代码，使得核心业务逻辑变得混乱难以维护。Callbacks System 正是为了解决这个问题而设计的。
 
 ## 架构设计
 
@@ -259,17 +270,12 @@ type manager struct {
 
 Callbacks System 模块包含以下主要子模块：
 
-- **handler_builder**：提供了 `HandlerBuilder` 和 `handlerImpl`，用于构建自定义回调处理器
-- **interface**：定义了核心接口和类型，如 `Handler`、`RunInfo`、`CallbackInput`、`CallbackOutput` 等
-- **manager**：实现了回调管理器，负责管理回调处理器的注册和调用
-- **template**：提供了预定义的组件回调模板，如 `ModelCallbackHandler`、`ToolCallbackHandler` 等
+- **[handler_builder](handler_builder.md)**：提供了 `HandlerBuilder` 和 `handlerImpl`，用于构建自定义回调处理器
+- **[interface](interface.md)**：定义了核心接口和类型，如 `Handler`、`RunInfo`、`CallbackInput`、`CallbackOutput` 等
+- **[manager](manager.md)**：实现了回调管理器，负责管理回调处理器的注册和调用
+- **[template](template.md)**：提供了预定义的组件回调模板，如 `ModelCallbackHandler`、`ToolCallbackHandler` 等
 
-更多详细信息，请参考各子模块的文档：
-
-- [handler_builder](handler_builder.md) - 构建自定义回调处理器的建造者模式实现
-- [interface](interface.md) - 定义回调系统的核心接口和类型
-- [manager](manager.md) - 管理回调处理器的注册和调用
-- [template](template.md) - 提供预定义的组件回调模板
+每个子模块都有详细的技术深度文档，包含设计意图、内部机制、使用示例和常见陷阱等内容。建议按顺序阅读这些文档，以全面了解 Callbacks System 的工作原理。
 
 ## 与其他模块的关系
 
@@ -367,6 +373,147 @@ func main() {
 }
 ```
 
+### 完整实战示例：请求追踪和性能监控
+
+下面是一个更完整的实战示例，展示如何使用 Callbacks System 实现请求追踪和性能监控：
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "sync"
+    "time"
+
+    "github.com/cloudwego/eino/callbacks"
+    "github.com/cloudwego/eino/compose"
+    "github.com/cloudwego/eino/components/model"
+    "github.com/cloudwego/eino/components/tool"
+    template "github.com/cloudwego/eino/utils/callbacks"
+)
+
+// TraceInfo 存储追踪信息
+type TraceInfo struct {
+    RequestID   string
+    Component   string
+    StartTime   time.Time
+    EndTime     time.Time
+    Duration    time.Duration
+    HasError    bool
+    Error       error
+}
+
+// TraceManager 管理追踪信息
+type TraceManager struct {
+    mu     sync.Mutex
+    traces map[string][]*TraceInfo
+}
+
+func NewTraceManager() *TraceManager {
+    return &TraceManager{
+        traces: make(map[string][]*TraceInfo),
+    }
+}
+
+func (tm *TraceManager) AddTrace(requestID string, trace *TraceInfo) {
+    tm.mu.Lock()
+    defer tm.mu.Unlock()
+    tm.traces[requestID] = append(tm.traces[requestID], trace)
+}
+
+func (tm *TraceManager) GetTraces(requestID string) []*TraceInfo {
+    tm.mu.Lock()
+    defer tm.mu.Unlock()
+    return tm.traces[requestID]
+}
+
+func main() {
+    // 创建追踪管理器
+    traceManager := NewTraceManager()
+    
+    // 创建请求 ID（实际应用中通常从请求上下文获取）
+    requestID := "req-123456"
+    
+    // 使用 HandlerHelper 创建回调处理器
+    handler := template.NewHandlerHelper().
+        ChatModel(&template.ModelCallbackHandler{
+            OnStart: func(ctx context.Context, runInfo *callbacks.RunInfo, input *model.CallbackInput) context.Context {
+                // 记录模型调用开始
+                trace := &TraceInfo{
+                    RequestID: requestID,
+                    Component: runInfo.Name,
+                    StartTime: time.Now(),
+                }
+                ctx = context.WithValue(ctx, "current_trace", trace)
+                log.Printf("[%s] Model %s started", requestID, runInfo.Name)
+                return ctx
+            },
+            OnEnd: func(ctx context.Context, runInfo *callbacks.RunInfo, output *model.CallbackOutput) context.Context {
+                // 记录模型调用结束
+                if trace, ok := ctx.Value("current_trace").(*TraceInfo); ok {
+                    trace.EndTime = time.Now()
+                    trace.Duration = trace.EndTime.Sub(trace.StartTime)
+                    traceManager.AddTrace(requestID, trace)
+                    log.Printf("[%s] Model %s ended, duration: %v", requestID, runInfo.Name, trace.Duration)
+                }
+                return ctx
+            },
+            OnError: func(ctx context.Context, runInfo *callbacks.RunInfo, err error) context.Context {
+                // 记录模型调用错误
+                if trace, ok := ctx.Value("current_trace").(*TraceInfo); ok {
+                    trace.EndTime = time.Now()
+                    trace.Duration = trace.EndTime.Sub(trace.StartTime)
+                    trace.HasError = true
+                    trace.Error = err
+                    traceManager.AddTrace(requestID, trace)
+                    log.Printf("[%s] Model %s error: %v, duration: %v", requestID, runInfo.Name, err, trace.Duration)
+                }
+                return ctx
+            },
+        }).
+        Tool(&template.ToolCallbackHandler{
+            OnStart: func(ctx context.Context, info *callbacks.RunInfo, input *tool.CallbackInput) context.Context {
+                // 类似的工具调用追踪逻辑
+                log.Printf("[%s] Tool %s started", requestID, info.Name)
+                return ctx
+            },
+            OnEnd: func(ctx context.Context, info *callbacks.RunInfo, output *tool.CallbackOutput) context.Context {
+                log.Printf("[%s] Tool %s ended", requestID, info.Name)
+                return ctx
+            },
+            OnError: func(ctx context.Context, info *callbacks.RunInfo, err error) context.Context {
+                log.Printf("[%s] Tool %s error: %v", requestID, info.Name, err)
+                return ctx
+            },
+        }).
+        Handler()
+    
+    // 假设这里有一个 graph
+    // graph := compose.NewGraph(...)
+    // 然后使用回调处理器
+    // result, err := graph.Invoke(ctx, input, compose.WithCallbacks(handler))
+    
+    // 请求结束后，打印追踪信息
+    fmt.Printf("\n=== Trace Info for Request %s ===\n", requestID)
+    for _, trace := range traceManager.GetTraces(requestID) {
+        status := "SUCCESS"
+        if trace.HasError {
+            status = fmt.Sprintf("ERROR: %v", trace.Error)
+        }
+        fmt.Printf("Component: %-20s Duration: %-10v Status: %s\n", 
+            trace.Component, trace.Duration, status)
+    }
+}
+```
+
+这个示例展示了如何使用 Callbacks System 实现一个完整的请求追踪和性能监控系统，包括：
+- 为每个组件调用记录开始和结束时间
+- 追踪错误信息
+- 收集和展示性能数据
+- 使用 context 在回调之间传递数据
+
 ## 注意事项与常见陷阱
 
 1. **Context 传递**：
@@ -389,8 +536,89 @@ func main() {
    - 使用 `HandlerHelper` 时，确保类型断言是安全的，避免运行时 panic
    - 在自定义回调中，对 `CallbackInput` 和 `CallbackOutput` 进行类型断言时，要做好错误处理
 
+## 高级话题
+
+### 全局回调 vs 局部回调
+
+Callbacks System 支持两种级别的回调：全局回调和局部回调。
+
+**全局回调**：
+- 通过 `callbacks.GlobalHandlers` 注册
+- 会在所有组件的执行过程中被调用
+- 适用于跨整个系统的监控和日志记录
+
+**局部回调**：
+- 通过 `compose.WithCallbacks` 等选项注册
+- 只在特定的图或组件执行过程中被调用
+- 适用于特定场景的监控和逻辑
+
+**选择建议**：
+- 如果回调逻辑适用于整个系统，使用全局回调
+- 如果回调逻辑只适用于特定场景，使用局部回调
+- 可以同时使用全局和局部回调，它们会被依次调用
+
+### 回调链的执行顺序
+
+当有多个回调处理器注册时，它们的执行顺序是：
+1. 全局回调处理器（按照注册顺序）
+2. 局部回调处理器（按照注册顺序）
+
+在每个回调处理器内部，回调方法的执行顺序是：
+- `OnStart` → 组件执行 → `OnEnd`/`OnError`
+- 如果是流式处理，还会有 `OnStartWithStreamInput` 和 `OnEndWithStreamOutput`
+
+### 性能优化建议
+
+1. **使用 `Needed` 方法**：
+   - 如果你的回调处理器只关心某些特定的事件时机，实现 `TimingChecker` 接口的 `Needed` 方法
+   - 这可以避免不必要的回调调用，提高性能
+
+2. **保持回调函数简洁**：
+   - 回调函数会在组件执行的关键路径上调用，确保它们的执行时间很短
+   - 避免在回调函数中执行耗时的 IO 操作或复杂计算
+
+3. **合理使用 context**：
+   - 避免在 context 中存储过大的数据结构
+   - 如果需要在回调之间传递大量数据，考虑使用其他方式
+
+### 测试回调
+
+测试回调处理器时，可以考虑以下策略：
+
+1. **单元测试**：
+   - 直接调用回调处理器的方法，传入测试数据
+   - 验证回调函数的行为是否符合预期
+
+2. **集成测试**：
+   - 在实际的组件执行过程中测试回调
+   - 验证回调是否在正确的时机被调用，并且传递了正确的数据
+
+3. **使用 Mock 组件**：
+   - 使用 mock 组件来模拟各种场景，如成功、错误、流式输出等
+   - 验证回调在各种场景下的行为
+
+## 常见问题解答
+
+### Q: 回调函数中的错误会影响组件的执行吗？
+
+A: 一般来说，回调函数中的错误不会影响组件的执行。回调系统的设计理念是回调逻辑不应该干扰核心业务逻辑。但是，如果你在回调函数中 panic，那么它会传播并影响组件的执行。
+
+### Q: 如何在回调之间传递数据？
+
+A: 可以通过 `context.Context` 来传递数据。在一个回调函数中使用 `context.WithValue` 存储数据，然后在后续的回调函数中从 context 中获取数据。
+
+### Q: 可以修改回调中的输入输出数据吗？
+
+A: 回调函数接收的输入输出数据是可以修改的，但是要小心这样做可能会影响组件的执行。一般来说，建议只观察数据，而不是修改数据。
+
+### Q: 如何处理流式输出？
+
+A: 对于流式输出，你可以使用 `OnEndWithStreamOutput` 回调。这个回调会在流式输出开始时被调用，你可以通过传入的 `StreamReader` 来观察流式数据。注意不要消费这个 `StreamReader`，否则组件将无法获取到数据。
+
 ## 总结
 
 Callbacks System 是一个强大而灵活的事件回调系统，它通过清晰的抽象和分层设计，让开发者能够在不修改组件代码的情况下，实现各种横切关注点。它的构建器模式和模板化设计平衡了灵活性和易用性，而与 context 的集成则保持了组件的纯净性。
 
-虽然使用回调系统需要注意一些细节（如 context 传递、性能影响等），但它为构建可观察、可扩展的 AI 应用提供了坚实的基础。
+这个模块解决了在构建复杂 AI 应用时的一个常见问题：如何在不侵入核心业务逻辑的情况下，实现日志记录、性能监控、错误追踪等功能。通过使用 Callbacks System，你可以保持代码的整洁和可维护性，同时实现强大的监控和观察能力。
+
+虽然使用回调系统需要注意一些细节（如 context 传递、性能影响等），但它为构建可观察、可扩展的 AI 应用提供了坚实的基础。希望这个文档能帮助你更好地理解和使用 Callbacks System！

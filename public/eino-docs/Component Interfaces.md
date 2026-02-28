@@ -84,13 +84,11 @@ graph TD
 *   **[Chat Model 接口规范](./model_interfaces.md)**
     深入解析 `BaseChatModel` 与 `ToolCallingChatModel`。了解文本生成、流式输出以及如何安全地为模型赋予工具调用能力。
 *   **[Tools 工具链接口规范](./tool_interfaces.md)**
-    涵盖从基础 `BaseTool` 到多模态 `EnhancedInvokableTool` 的完整演进路径。了解如何为大模型打造功能强大的“外设”。
+    涵盖从基础 `BaseTool` 到多模态 `EnhancedInvokableTool` 的完整演进路径。了解如何为大模型打造功能强大的"外设"。
 *   **[文档处理接口规范](./document_interfaces.md)**
     聚焦物理世界数据到 AI 世界的桥梁：从 `Source` 的定位，到 `Parser` 的解析，了解文档处理的核心接口。
-*   **[嵌入接口规范](./embedding_interfaces.md)**
-    了解 `Embedder` 接口如何将文本转换为向量表示，是 RAG 系统和语义搜索的基础。
-*   **[提示模板接口规范](./prompt_interfaces.md)**
-    揭秘 `ChatTemplate` 如何管理 Prompt 上下文，将变量格式化为标准化的消息列表。
+*   **[嵌入与提示模板接口规范](./embedding_and_prompt_interfaces.md)**
+    了解 `Embedder` 接口如何将文本转换为向量表示（RAG 系统和语义搜索的基础），以及 `ChatTemplate` 如何管理 Prompt 上下文。
 *   **[组件类型规范](./component_types.md)**
     了解 `Typer` 和 `Checker` 等底层切面辅助接口的作用，以及组件类型系统如何支持回调和组件管理。
 

@@ -175,13 +175,33 @@ ReAct 在工程上有四个硬问题：
 
 聚焦 `react.go` 的图构建与执行核心：`NewAgent` 如何组装 chat/tools 节点、如何分支、如何短路返回、`SetReturnDirectly` 如何写 state、工具结果中间件如何采集四类工具输出（普通/流式/增强）。如果你要改执行路径，这个文档是第一站。
 
+**在这个文档中你会找到**：
+- `Agent` 结构体如何封装 `compose.Graph`
+- `state` 结构体的设计细节
+- `toolResultSenders` 四种变体的具体实现
+- `NewPersonaModifier` 的使用和弃用原因
+- `SetReturnDirectly` 的底层工作原理
+
 ### 2. [react_runtime_options_and_message_future](react_runtime_options_and_message_future.md)
 
 聚焦 `option.go`：`WithTools` / `WithToolOptions` / `WithChatModelOptions` 如何桥接到底层 compose 选项，以及 `WithMessageFuture` 如何把 graph/model/tool 的输出统一喂给 `Iterator`。如果你要做可观测性扩展或运行时选项增强，这里最关键。
 
+**在这个文档中你会找到**：
+- `WithTools` 和已弃用的 `WithToolList` 的详细对比
+- `MessageFuture` 接口的设计和 `Iterator` 的使用方式
+- `cbHandler` 如何通过回调系统收集消息
+- `internal.UnboundedChan` 在异步消息传递中的角色
+- 不同类型工具调用结果的收集策略
+
 ### 3. [agent_option_bridge](agent_option_bridge.md)
 
 聚焦通用 `AgentOption` 机制：`WithComposeOptions`、`GetComposeOptions`、`WrapImplSpecificOptFn`、`GetImplSpecificOptions`。这是 Flow/ADK 侧很多 Agent 共享的参数分拣底座。
+
+**在这个文档中你会找到**：
+- `AgentOption` 如何优雅地桥接通用和特定实现的选项
+- 类型安全的实现特定选项处理机制
+- `WrapImplSpecificOptFn` 和 `GetImplSpecificOptions` 的类型转换细节
+- 为什么这种设计比直接暴露实现细节更好
 
 ---
 

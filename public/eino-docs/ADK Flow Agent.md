@@ -326,21 +326,39 @@ mainAgent, err := SetSubAgents(ctx, analyzerWithTransfer, []Agent{writerWithTran
 
 ## 9. 子模块总览
 
-> 快速跳转：
-> - [flow_agent_orchestration](flow_agent_orchestration.md)
-> - [deterministic_transfer_wrapper](deterministic_transfer_wrapper.md)
+本模块分为两个核心子模块，分别负责不同的职责：
+
+> **快速跳转**：
+> - [flow_agent_orchestration.md](flow_agent_orchestration.md) — Flow Agent 核心编排逻辑
+> - [deterministic_transfer_wrapper.md](deterministic_transfer_wrapper.md) — 确定性转移包装器
 
 ### 9.1 `flow_agent_orchestration`
 
+**核心组件**：`flowAgent`, `HistoryEntry`, `DeterministicTransferConfig`
+
 聚焦 `flowAgent` 主体逻辑：子 agent 拓扑构建（`SetSubAgents`）、输入重写（`genAgentInput` + `HistoryRewriter`）、事件归属（`RunPath` 匹配）、transfer 执行与 resume 路由。这个子模块是 Flow Agent 的主引擎。
 
-详见：[flow_agent_orchestration](flow_agent_orchestration.md)
+**关键职责**：
+- 管理 Agent 层级关系（父子/兄弟）
+- 重写对话历史以适应不同 Agent 的上下文需求
+- 精确控制事件流的归属和记录
+- 处理中断恢复时的路由决策
+
+**详见**：[flow_agent_orchestration.md](flow_agent_orchestration.md)
 
 ### 9.2 `deterministic_transfer_wrapper`
 
+**核心组件**：`agentWithDeterministicTransferTo`, `deterministicTransferState`, `resumableAgentWithDeterministicTransferTo`
+
 提供 `AgentWithDeterministicTransferTo(...)` 包装器：在 agent 正常结束后，按预设顺序追加 transfer 事件。对 `*flowAgent` 还有 isolated session 特化，保证 interrupt/resume 一致性（`deterministicTransferState`）。
 
-详见：[deterministic_transfer_wrapper](deterministic_transfer_wrapper.md)
+**关键职责**：
+- 为任意 Agent 添加确定性转移能力
+- 管理转移过程中的会话隔离
+- 持久化中断状态以支持恢复
+- 自动生成转移消息和动作
+
+**详见**：[deterministic_transfer_wrapper.md](deterministic_transfer_wrapper.md)
 
 ---
 

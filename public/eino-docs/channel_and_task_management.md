@@ -47,6 +47,11 @@ flowchart LR
 
 ## 组件深潜
 
+想要更深入了解各个组件的实现细节，请参考以下子模块文档：
+- [channel_implementations](channel_implementations.md) - 深入剖析 `channel` 接口及其两种实现（`dagChannel` 和 `pregelChannel`）
+- [channel_management](channel_management.md) - 详细解析 `channelManager` 及各类 handler 管理器的设计与实现
+- [task_management](task_management.md) - 全面解读 `task` 和 `taskManager` 的任务调度机制
+
 ### 1) `channel` 接口：统一状态机协议
 
 `channel` 定义了运行时通道最小契约：
@@ -245,6 +250,12 @@ _, err := runnable.Invoke(ctx, input)
 
 ## 参考阅读
 
+### 子模块深入
+- [channel_implementations](channel_implementations.md) - 深入剖析 `channel` 接口及其两种实现
+- [channel_management](channel_management.md) - 详细解析 `channelManager` 及各类 handler 管理器
+- [task_management](task_management.md) - 全面解读 `task` 和 `taskManager` 的任务调度机制
+
+### 相关模块
 - [runtime_execution_engine](runtime_execution_engine.md)：`runner.run` 主循环与本模块的集成点
 - [graph_construction_and_compilation](graph_construction_and_compilation.md)：前驱关系、分支和 handler 如何在编译期生成
 - [state_and_call_control](state_and_call_control.md)：`WithGraphInterrupt`、取消语义与恢复控制

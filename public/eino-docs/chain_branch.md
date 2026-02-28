@@ -159,14 +159,12 @@ func (cb *ChainBranch) addNode(key string, node *graphNode, options *graphAddNod
 
 ### 依赖的模块
 
-- **[compose.branch](branch.md)**：提供底层 `GraphBranch` 实现
-- **[compose.graph_node](graph_node.md)**：定义 `graphNode` 结构
-- **[compose.graph_add_node_options](graph_add_node_options.md)**：节点添加选项
-- **[components.*](component_interfaces.md)**：各种组件接口（ChatModel、Retriever 等）
+- **[Compose Graph Engine](Compose Graph Engine.md)**：提供底层 `GraphBranch` 实现
+- **[Component Interfaces](Component Interfaces.md)**：各种组件接口（ChatModel、Retriever 等）
 
 ### 被依赖的模块
 
-- **[compose.workflow](workflow.md)**：`Workflow` 使用 `ChainBranch` 构建工作流分支
+- **[Compose Workflow](Compose Workflow.md)**：`Workflow` 使用 `ChainBranch` 构建工作流分支
 
 ## 设计决策与权衡
 

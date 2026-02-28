@@ -2,20 +2,63 @@
 
 ## 1. 模块概览
 
-**ADK Reduction Middleware** 是一个专门用于解决 LLM 对话上下文膨胀问题的工具集合。在 Agent 系统中，随着对话的进行，工具调用结果会不断累积，导致 Token 数量急剧增长，最终触发上下文窗口限制或降低推理效率。
-
-这个模块采用了**双管齐下**的策略：
-- **大结果转储（Offloading）**：单个工具结果过大时，将其保存到文件系统，只返回摘要和路径
-- **旧结果清理（Clearing）**：总工具结果 Token 超出阈值时，用占位符替换旧结果，同时保留最近的消息
+**ADK Reduction Middleware** 是 ADK Agent 系统中的**上下文流量控制器**。它的核心职责是管理工具结果对 token 预算的消耗，通过两种互补的策略确保对话既能保持信息完整性，又不会超出上下文窗口限制。
 
 ### 核心问题与动机
 
-想象一下：Agent 执行 `grep` 查找匹配结果，返回了 1000 行代码；接着又执行了 `cat` 读取大文件，又返回几千行数据。几轮对话后，上下文可能已经包含数万个 Token 的工具输出，而真正重要的信息却淹没其中。
+想象一个场景：你的 Agent 正在帮助开发者分析一个大型代码库。它执行了以下操作：
 
-**为什么这是个问题？**
-1. **Token 成本**：每个输入 Token 都要计费，累积的大结果会显著增加成本
-2. **上下文限制**：大多数模型有明确的上下文窗口限制（如 128K、200K），超限会导致请求失败
-3. **推理质量**：过多的无关信息会干扰模型的注意力机制，降低输出质量
+1. 调用 `grep` 搜索某个函数的所有引用 → 返回 500 行匹配结果
+2. 调用 `cat` 读取三个相关文件 → 每个文件 2000 行
+3. 调用 `ast_parse` 分析代码结构 → 返回 3000 行的 JSON AST
+
+三轮对话后，上下文已经积累了**超过 10,000 行**的工具输出。这会导致什么问题？
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  问题 1: Token 成本                                      │
+│  每个输入 token 都要计费，10K 行代码 ≈ 50K+ tokens       │
+│  一次对话的成本可能超过 $0.50                            │
+├─────────────────────────────────────────────────────────┤
+│  问题 2: 上下文窗口限制                                  │
+│  大多数模型有 128K-200K token 限制                       │
+│  继续对话会触发"context length exceeded"错误             │
+├─────────────────────────────────────────────────────────┤
+│  问题 3: 注意力稀释                                      │
+│  过多的历史噪音会干扰模型的注意力机制                    │
+│  关键信息被淹没，输出质量下降                            │
+└─────────────────────────────────────────────────────────┘
+```
+
+**这个模块的设计哲学**：不是所有信息都同等重要。我们需要一个**分层的存储策略**：
+- **热数据**（最近的对话）→ 保留在上下文中
+- **温数据**（大但重要的结果）→ 卸载到外部存储，按需读取
+- **冷数据**（历史工具结果）→ 用占位符标记，释放空间
+
+这类似于操作系统的**虚拟内存管理**：RAM 是昂贵的上下文窗口，磁盘是廉价的文件系统，页面置换算法决定什么留在内存中。
+
+### 双策略架构
+
+```
+                    ┌──────────────────────────────────────┐
+                    │     ADK Reduction Middleware         │
+                    └──────────────────────────────────────┘
+                                   │
+              ┌────────────────────┴────────────────────┐
+              │                                         │
+              ▼                                         ▼
+    ┌─────────────────┐                     ┌─────────────────┐
+    │   Offloading    │                     │    Clearing     │
+    │   (转储策略)     │                     │    (清理策略)    │
+    ├─────────────────┤                     ├─────────────────┤
+    │ 触发：单结果过大 │                     │ 触发：累积过多   │
+    │ 动作：写文件     │                     │ 动作：占位符替换 │
+    │ 数据：可恢复     │                     │ 数据：永久丢失   │
+    │ 阶段：工具调用后 │                     │ 阶段：模型调用前 │
+    └─────────────────┘                     └─────────────────┘
+```
+
+两种策略解决的是**不同维度**的问题，组合使用才能实现最优的 token 管理。
 
 ## 2. 架构总览
 
@@ -243,15 +286,77 @@ graph LR
 
 ## 7. 子模块详解
 
-本模块由三个核心子模块组成，每个子模块负责一部分特定功能：
+本模块由两个核心子模块组成，每个子模块负责一部分特定功能：
 
-- **[middleware_entrypoint_and_contracts](middleware_entrypoint_and_contracts.md)**：统一入口与契约定义，包含 `ToolResultConfig`、`Backend` 接口等核心类型
-- **[tool_result_clearing_policy](tool_result_clearing_policy.md)**：历史工具结果清理策略，实现了基于阈值和保护窗口的清理算法  
-- **[tool_result_offloading_pipeline](tool_result_offloading_pipeline.md)**：大结果转储管线，负责检测、保存和摘要生成
+### 7.1 tool_result_offloading - 大结果转储管线
 
-详细实现和用法请参考各子模块文档。
+**核心组件**：`toolResultOffloadingConfig`, `toolResultOffloading`
 
-## 8. 总结
+这个子模块负责检测和处理单个过大的工具结果。当工具返回的内容超过配置的 token 阈值时，它会：
+1. 将完整结果写入配置的 Backend
+2. 生成包含文件路径和前 10 行预览的摘要消息
+3. 指导 LLM 使用 `read_file` 工具按需读取详细内容
+
+**详细文档**：[tool_result_offloading.md](tool_result_offloading.md)
+
+### 7.2 tool_result_clearing - 历史结果清理策略
+
+**核心组件**：`ClearToolResultConfig`, `ToolResultConfig`, `Backend`
+
+这个子模块实现了基于 token 阈值的清理算法。它会在 ChatModel 调用前检查所有工具结果的总 token 数，如果超过阈值则：
+1. 从对话末尾向前计算保护范围（`KeepRecentTokens`）
+2. 将保护范围外的旧工具结果替换为占位符
+3. 支持排除特定工具不被清理
+
+**详细文档**：[tool_result_clearing.md](tool_result_clearing.md)
+
+---
+
+## 8. 与其他模块的依赖关系
+
+### 上游依赖
+
+- **[ADK ChatModel Agent](ADK ChatModel Agent.md)** — Reduction Middleware 作为 `AgentMiddleware` 注入到 ChatModelAgent 中，通过 `BeforeChatModel` 和 `WrapToolCall` hooks 介入 Agent 生命周期
+- **[ADK Filesystem Middleware](ADK Filesystem Middleware.md)** — 卸载策略依赖 `Backend` 接口写入文件。如果使用了 Filesystem Middleware，可以直接复用其 `read_file` 工具
+- **[Compose Tool Node](Compose Tool Node.md)** — `WrapToolCall` hook 在 Tool Node 执行后被调用，拦截 `compose.ToolOutput`
+- **[Schema Core Types](Schema Core Types.md)** — 使用 `schema.Message`、`schema.ToolMessage` 等类型表示消息和工具结果
+
+### 下游被依赖
+
+- **ADK Agent Interface** — 中间件通过 `adk.AgentMiddleware` 类型暴露给 Agent 使用
+- **用户自定义工具** — 用户需要提供 `read_file` 工具（或使用 Filesystem Middleware 提供的）来读取卸载的内容
+
+### 耦合分析
+
+```mermaid
+graph LR
+    subgraph Reduction["Reduction Middleware"]
+        RM[ToolResultMiddleware]
+    end
+    
+    subgraph ADK["ADK Core"]
+        Agent[ChatModelAgent]
+        ToolNode[Tool Node]
+    end
+    
+    subgraph FS["Filesystem"]
+        Backend[Backend Interface]
+        ReadFile[read_file Tool]
+    end
+    
+    RM -- "BeforeChatModel Hook" --> Agent
+    RM -- "WrapToolCall Hook" --> ToolNode
+    RM -- "Write()" --> Backend
+    ReadFile -- "Read from same Backend" --> Backend
+```
+
+**关键耦合点**：
+1. **Backend 接口** — Reduction Middleware 只依赖 `Write()` 方法，但 `read_file` 工具需要能读取相同存储。这是一个**隐式契约**：用户必须确保两者使用兼容的 Backend。
+2. **Token 估算** — 默认使用字符数/4，但如果用户有精确的 tokenizer，应该注入自定义 `TokenCounter` 以保持一致性。
+
+---
+
+## 9. 总结
 
 ADK Reduction Middleware 是一个**务实的解决方案**，它不追求完美的信息保留，而是在以下三个目标之间做出明智的权衡：
 1. ✅ 控制 Token 成本

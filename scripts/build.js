@@ -351,8 +351,9 @@ function render(subsites) {
 
 // ── 主流程 ────────────────────────────────────────────────────────────────────
 const subsites = scan();
+
 writeFileSync(OUT, render(subsites), "utf-8");
 
 console.log(`✅  生成 ${OUT}`);
-console.log(`   共 ${subsites.length} 个子站点：`);
+console.log(`   共 ${subsites.length} 个子站点`);
 subsites.forEach(s => console.log(`   · /${s.path}/  →  ${s.title}`));

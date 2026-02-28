@@ -730,7 +730,6 @@ Workflow 模块体现了一个重要的设计理念：**让简单的事情保持
 
 ### 详细子模块文档
 
-- [workflow_core](workflow_core.md)：Workflow 核心模块，包含 `Workflow`、`WorkflowNode`、`WorkflowBranch` 等核心组件的详细实现分析
 - [chain_branch](chain_branch.md)：ChainBranch 模块，专门为链式工作流设计的条件分支结构
 - [parallel_execution](parallel_execution.md)：Parallel 执行模块，用于定义和管理并行执行的节点组
 

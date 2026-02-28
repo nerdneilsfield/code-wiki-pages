@@ -1,197 +1,283 @@
 
 # 分支与字段映射模块 (branching_and_field_mapping)
 
-## 1. 模块概览
+## 模块概述
 
-在构建复杂的图计算流程时，我们经常面临两个核心问题：
-1. **如何根据数据动态选择执行路径**（条件分支）
-2. **如何在节点之间灵活地传递数据**（字段映射）
+想象你正在设计一个智能工作流系统：用户输入一条消息，系统需要决定是调用代码解释器、文档检索器还是对话模型来处理它；处理完成后，又需要把结果中的特定字段提取出来传递给下一个节点。**branching_and_field_mapping** 模块正是解决这两个核心问题的"交通控制系统"——它决定数据走哪条路（分支），以及在路上如何重新打包（字段映射）。
 
-`branching_and_field_mapping` 模块正是为了解决这两个问题而设计的。它为 Compose Graph Engine 提供了动态路由和数据转换的能力，使图结构能够根据输入数据的特性智能地选择执行路径，并在节点之间精确地传递和转换数据。
+这个模块存在的根本原因是：**在复杂的 AI 工作流中，数据流从来不是线性的**。你需要根据运行时数据动态选择路径，需要在节点之间转换数据结构，需要在流式场景下提前做出决策。如果把这些逻辑硬编码在每个节点里，系统会变得难以维护和组合。本模块将这些通用模式抽象成可复用的原语，让工作流编排变得声明式和可预测。
 
-**核心功能**：
-- 支持单分支和多分支条件选择
-- 支持流式和非流式数据的分支判断
-- 提供灵活的字段映射机制，支持嵌套字段和自定义提取器
-- 支持多输入值的合并策略
+**核心问题空间**：
+- **条件路由**：当分类器输出"这是代码问题"时，如何让数据自动流向代码解释器而非文档检索器？
+- **数据转换**：当上游输出 `{result: {answer: "42"}}` 而下游需要 `{question: string, answer: string}` 时，如何声明式地定义转换规则？
+- **流式决策**：当 LLM 开始输出时，如何只根据第一个 token 就决定路由，而不必等待完整响应？
+- **多路扇出**：如何让同一份数据同时流向翻译服务和摘要服务进行并行处理？
 
 ---
 
-## 2. 架构设计
+## 架构设计
 
-### 2.1 核心组件关系图
+### 架构全景图
 
 ```mermaid
 graph TB
-    subgraph "分支系统"
-        GB[GraphBranch]
-        NBC[NewGraphBranch]
-        NSB[NewStreamGraphBranch]
-        NMB[NewGraphMultiBranch]
-        NSMB[NewStreamGraphMultiBranch]
+    subgraph "分支决策层 Branch System"
+        GB[GraphBranch<br/>分支核心结构体]
+        NBC[NewGraphBranch<br/>单分支构造]
+        NMB[NewGraphMultiBranch<br/>多分支构造]
+        NSB[NewStreamGraphBranch<br/>流式单分支]
+        NSMB[NewStreamGraphMultiBranch<br/>流式多分支]
     end
     
-    subgraph "字段映射系统"
-        FM[FieldMapping]
-        FF[FromField]
-        TF[ToField]
-        MF[MapFields]
-        FFP[FromFieldPath]
-        TFP[ToFieldPath]
-        MFP[MapFieldPaths]
-        WCE[WithCustomExtractor]
+    subgraph "字段映射层 Field Mapping System"
+        FM[FieldMapping<br/>映射核心结构体]
+        FF[FromField<br/>提取字段→完整输入]
+        TF[ToField<br/>完整输出→目标字段]
+        MF[MapFields<br/>字段→字段]
+        WCE[WithCustomExtractor<br/>自定义提取器]
     end
     
-    subgraph "值合并系统"
-        MO[mergeOptions]
-        RVMF[RegisterValuesMergeFunc]
+    subgraph "类型验证层 Type Validation"
+        CC[Compile-time Checker<br/>编译期检查]
+        RC[Runtime Checker<br/>运行期检查]
+        UST[UncheckedSourcePath<br/>接口类型延迟检查]
+    end
+    
+    subgraph "图执行引擎 Graph Engine"
+        GE[Graph Executor<br/>执行调度]
+        CM[Channel Manager<br/>通道管理]
+        TM[Task Manager<br/>任务管理]
     end
     
     NBC --> GB
-    NSB --> GB
     NMB --> GB
+    NSB --> GB
     NSMB --> GB
     
     FF --> FM
     TF --> FM
     MF --> FM
-    FFP --> FM
-    TFP --> FM
-    MFP --> FM
     WCE --> FM
     
-    RVMF -.-> MO
-
-    style GB fill:#e1f5ff
-    style FM fill:#fff4e1
-    style MO fill:#f4fff4
+    CC --> GB
+    CC --> FM
+    RC --> FM
+    UST -.-> RC
+    
+    GB --> GE
+    FM --> GE
+    GE --> CM
+    GE --> TM
+    
+    style GB fill:#e1f5fe,stroke:#0288d1
+    style FM fill:#fff3e0,stroke:#f57c00
+    style CC fill:#f3e5f5,stroke:#7b1fa2
+    style GE fill:#e8f5e9,stroke:#388e3c
 ```
 
-### 2.2 架构解析
+### 架构解读
 
-该模块由三个相互协作的子系统组成：
+该模块由四个相互协作的层次组成，每一层都有明确的职责边界：
 
-1. **分支系统**：由 `GraphBranch` 结构体主导，提供条件路由能力
-2. **字段映射系统**：由 `FieldMapping` 结构体主导，处理数据转换
-3. **值合并系统**：由 `mergeOptions` 配置和 `RegisterValuesMergeFunc` 组成，处理多输入合并
+**1. 分支决策层（蓝色）**：这是模块的"决策大脑"
+- `GraphBranch` 是核心抽象，封装了条件判断逻辑和目标节点白名单
+- 四种构造函数覆盖了两组正交维度：**单选择 vs 多选择** × **批处理 vs 流式处理**
+- 关键设计：分支条件函数返回的是**目标节点名称列表**，而非直接执行逻辑，这使得决策与执行解耦
 
-这些组件共同工作，使图计算引擎能够：
-- 根据输入数据动态选择执行路径
-- 在节点之间精确传递和转换数据
-- 合并来自多个前驱节点的输出
+**2. 字段映射层（橙色）**：这是模块的"数据转换器"
+- `FieldMapping` 定义了从源字段到目标字段的映射规则
+- 支持三种映射模式：`FromField`（提取部分）、`ToField`（注入部分）、`MapFields`（点对点）
+- 关键设计：使用反射动态访问字段，支持嵌套路径（如 `user.profile.name`）和 map 键访问
+
+**3. 类型验证层（紫色）**：这是模块的"质量守门员"
+- 编译期检查：在图编译阶段验证字段路径存在性和类型可赋值性
+- 运行期检查：对于 `interface{}` 类型，延迟到实际执行时验证
+- `uncheckedSourcePath` 机制：记录因接口类型无法在编译期验证的路径，在运行时插入 checker
+
+**4. 图执行引擎（绿色）**：这是模块的"消费者"
+- 消费分支和映射配置，实际调度数据流动
+- `Channel Manager` 处理多分支场景下的数据分发
+- `Task Manager` 管理分支后的并行任务执行
+
+### 数据流追踪：端到端示例
+
+让我们追踪一个典型场景的完整数据流：
+
+**场景**：用户输入 → 分类器 → （分支）→ 代码解释器 → 结果提取 → 输出
+
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as 分类器节点
+    participant B as GraphBranch
+    participant E as 代码解释器
+    participant M as FieldMapping
+    participant O as 输出节点
+    
+    U->>C: 输入："写个 Python 排序函数"
+    C->>B: 分类结果：{category: "code", query: "..."}
+    Note over B: 执行条件函数<br/>检查 endNodes 白名单
+    B->>E: 路由到"code_interpreter"
+    E->>M: 执行结果：{code: "...", output: "42"}
+    Note over M: 提取 output 字段<br/>验证类型可赋值
+    M->>O: 传递：{answer: "42"}
+    O->>U: 最终响应
+```
+
+**关键观察点**：
+1. 分支决策发生在分类器完成后，但代码解释器执行前——这是**控制流**的转折点
+2. 字段映射发生在代码解释器完成后，但输出节点执行前——这是**数据流**的转换点
+3. 每个转换点都有类型检查（编译期或运行期）——这是**安全网**
 
 ---
 
-## 3. 核心组件详解
+## 核心设计决策与权衡
 
-### 3.1 GraphBranch - 动态路由核心
+### 决策 1：为什么区分单分支和多分支？
 
-`GraphBranch` 是分支系统的核心结构体，它封装了条件判断逻辑和执行路径选择。
-
-#### 设计意图
-
-想象一下图计算流程中的"决策点"：当数据到达某个节点后，我们需要根据数据的内容决定下一步走向哪个节点。`GraphBranch` 就像是这个决策点的"交通信号灯"，它根据预设的条件和输入数据，指挥数据流向下一个或多个节点。
-
-#### 核心特性
-
-1. **类型安全的条件判断**：使用泛型确保条件函数接收正确类型的输入
-2. **支持单分支和多分支**：既可以选择单一执行路径，也可以同时选择多个路径
-3. **流式与非流式支持**：可以处理完整数据，也可以处理流式数据
-4. **端点验证**：确保分支条件返回的节点名称在预定义的允许列表中
-
-#### 关键构造函数
+**设计选择**：模块提供了 `NewGraphBranch`（单选）和 `NewGraphMultiBranch`（多选）两套 API。
 
 ```go
-// 单分支选择 - 返回单个节点名称
-NewGraphBranch[T any](condition GraphBranchCondition[T], endNodes map[string]bool) *GraphBranch
+// 单分支：返回单个节点名
+type GraphBranchCondition[T any] func(ctx context.Context, in T) (endNode string, err error)
 
-// 多分支选择 - 返回多个节点名称
-NewGraphMultiBranch[T any](condition GraphMultiBranchCondition[T], endNodes map[string]bool) *GraphBranch
-
-// 流式单分支选择
-NewStreamGraphBranch[T any](condition StreamGraphBranchCondition[T], endNodes map[string]bool) *GraphBranch
-
-// 流式多分支选择
-NewStreamGraphMultiBranch[T any](condition StreamGraphMultiBranchCondition[T], endNodes map[string]bool) *GraphBranch
+// 多分支：返回多个节点名的集合
+type GraphMultiBranchCondition[T any] func(ctx context.Context, in T) (endNode map[string]bool, err error)
 ```
 
-#### 内部实现机制
+**背后的权衡**：
+- **单选分支**语义清晰：数据只走一条路，适合互斥的场景（如"分类为 A 则走路径 A，分类为 B 则走路径 B"）
+- **多选分支**支持扇出：数据可以同时走多条路，适合并行处理（如"同时调用翻译服务和摘要服务"）
 
-`GraphBranch` 内部维护了两个核心函数：
-- `invoke`：处理非流式输入，返回目标节点列表
-- `collect`：处理流式输入，返回目标节点列表
+**为什么不是只用多选分支**：单选分支的 API 更简单（返回 `string` 而非 `map[string]bool`），减少了用户的认知负担和出错概率。这是一种"为常见场景优化，为特殊场景留后门"的设计。
 
-这种设计使得同一个 `GraphBranch` 实例可以同时支持流式和非流式两种执行模式。
+**实现细节**：注意 `NewGraphBranch` 内部实际上调用了 `NewGraphMultiBranch`，将单值包装成 map：
+```go
+func NewGraphBranch[T any](condition GraphBranchCondition[T], endNodes map[string]bool) *GraphBranch {
+    return NewGraphMultiBranch(func(ctx context.Context, in T) (endNode map[string]bool, err error) {
+        ret, err := condition(ctx, in)
+        if err != nil {
+            return nil, err
+        }
+        return map[string]bool{ret: true}, nil  // 包装成 map
+    }, endNodes)
+}
+```
+这种"薄包装"设计减少了代码重复，同时保持了 API 的清晰性。
 
 ---
 
-### 3.2 FieldMapping - 数据转换的桥梁
+### 决策 2：为什么流式分支需要独立的类型？
 
-`FieldMapping` 是字段映射系统的核心，它定义了如何从前驱节点的输出中提取数据，并将其映射到后继节点的输入中。
+**设计选择**：`StreamGraphBranchCondition` 接收 `*schema.StreamReader[T]` 而非普通值。
 
-#### 设计意图
-
-在图计算中，不同节点通常有不同的输入输出格式。如果没有字段映射，我们需要在每个节点内部编写大量的转换代码，这会导致节点耦合度高、复用性差。
-
-`FieldMapping` 就像是节点之间的"适配器"，它将数据转换逻辑从节点内部剥离出来，放在边（Edge）上定义，使节点本身更加专注于自己的核心逻辑。
-
-#### 核心特性
-
-1. **灵活的映射方式**：
-   - `FromField`：从前驱节点的某个字段映射到后继节点的整个输入
-   - `ToField`：从前驱节点的整个输出映射到后继节点的某个字段
-   - `MapFields`：从前驱节点的某个字段映射到后继节点的某个字段
-
-2. **嵌套字段支持**：使用 `FieldPath` 可以访问嵌套的字段，如 `user.profile.name`
-
-3. **自定义提取器**：通过 `WithCustomExtractor` 可以定义复杂的数据提取逻辑
-
-4. **编译时类型检查**：在图编译阶段尽可能验证字段映射的正确性
-
-#### 字段路径表示
-
-`FieldMapping` 使用特殊的 Unit Separator 字符 (`\x1F`) 作为路径分隔符，这是一个极少在用户定义的字段名中出现的字符，避免了与常见分隔符（如 `.`）的冲突。
+**背后的原因**：在 LLM 输出场景中，你可能只想消费第一个 token 就决定路由（例如看到"```"就路由到代码解释器），而不必等待完整响应。
 
 ```go
-// 示例：访问嵌套字段
-FieldPath{"user", "profile", "name"}  // 表示 user.profile.name
+// 流式分支条件：可以只读取第一个 chunk 就做决策
+condition := func(ctx context.Context, in *schema.StreamReader[T]) (string, error) {
+    firstChunk, err := in.Recv()  // 只消费一个 chunk
+    if err != nil {
+        return "", err
+    }
+    if strings.HasPrefix(firstChunk, "```") {
+        return "code_handler", nil
+    }
+    return "text_handler", nil
+}
 ```
 
-#### 内部工作流程
+**代价与陷阱**：
+- 一旦消费了 stream，原始数据就被消耗了
+- 下游节点将**收不到已被条件函数消费的 chunk**
+- 这是有意为之的设计——流式分支的本质就是"提前消费部分数据做决策"
 
-1. **编译时验证**：
-   - 检查前驱节点类型是否有指定字段
-   - 检查后继节点类型是否有目标字段
-   - 验证字段类型是否可赋值
-
-2. **运行时转换**：
-   - 从前驱输出中提取指定字段
-   - （可选）通过自定义提取器处理数据
-   - 将数据赋值到后继输入的指定位置
+**替代方案**：可以设计一个"peek"接口让用户预览 stream 而不消耗它，但这会增加实现复杂度和内存开销（需要缓冲已 peek 的数据）。当前设计把控制权完全交给用户，假设他们清楚自己在做什么。
 
 ---
 
-### 3.3 值合并系统 - 多输入协调
+### 决策 3：字段映射的"全量映射独占"规则
 
-当一个节点有多个前驱节点时，我们需要一种机制来合并这些前驱的输出。值合并系统正是为此而设计的。
+**设计选择**：一旦使用了 `FromField`（将单个字段映射到整个后继输入），就不能再添加其他映射。
 
-#### 设计意图
+**背后的原因**：这是一个逻辑约束——如果你已经把字段 A 的值作为整个输入传递给下一个节点，那么再映射字段 B 就没有意义了（下一个节点只能接收一个输入）。
 
-想象一个"汇总节点"，它需要从多个来源收集数据然后进行处理。值合并系统就像是这个汇总节点的"数据整理员"，它按照预设的规则将来自不同来源的数据整合成一个统一的输入。
+```go
+// 合法：只映射一个字段到整个输入
+mapping1 := compose.FromField("result")
 
-#### 核心组件
+// 非法：已经映射了整个输入，不能再映射其他字段
+mapping2 := compose.MapFields("metadata", "meta")  // 运行时会冲突
+```
 
-1. **RegisterValuesMergeFunc**：为特定类型注册自定义合并函数
-2. **mergeOptions**：配置合并行为，如是否在流式合并中保留来源信息
+这种约束在编译期捕获用户的逻辑错误，避免运行时困惑。
 
-#### 合并策略
+---
 
-系统支持两种主要的合并场景：
+### 决策 4：编译期检查 vs 运行期检查的平衡
 
-1. **非流式值合并**：当所有前驱都是非流式节点时，直接合并它们的最终输出
-2. **流式值合并**：当前驱是流式节点时，合并它们的流数据
+**设计选择**：模块尽可能在编译期验证字段路径和类型匹配，但对于 `interface{}` 类型会延迟到运行期检查。
 
-对于 map 类型，系统提供了默认的合并行为；对于其他类型，用户需要通过 `RegisterValuesMergeFunc` 注册自定义合并函数。
+```go
+// 编译期可以验证：具体结构体类型
+type Input struct {
+    Name string  // ✓ 可以验证字段存在
+}
+
+// 运行期才能验证：接口类型
+type Input struct {
+    Data interface{}  // ✗ 无法在编译期知道实际类型
+}
+```
+
+**实现机制**：`validateFieldMapping` 函数会遍历所有映射，尝试解析字段路径。如果遇到 `interface{}`，它会记录 `uncheckedSourcePath`，并在实际执行时插入 runtime checker。
+
+**背后的权衡**：
+- **编译期检查**：快速失败，开发体验好，但要求类型信息完整
+- **运行期检查**：支持动态类型和接口，但错误发现晚
+
+这是一种"能早则早，不能早则晚"的务实策略。
+
+---
+
+### 决策 5：路径分隔符的选择
+
+**设计选择**：使用 `\x1F`（Unit Separator，ASCII 31）作为字段路径的分隔符，而非更常见的 `.`。
+
+```go
+// 内部表示：user\x1Fprofile\x1Fname
+// 用户 API：FieldPath{"user", "profile", "name"}
+```
+
+**背后的原因**：用户定义的字段名可能包含 `.`（虽然不常见但合法），但几乎不可能包含 ASCII 控制字符。这避免了转义逻辑的复杂性，是一种"选择用户不会用的字符"的简单方案。
+
+**注意事项**：
+- 不要直接在字符串中使用 `\x1F` 来构造路径，应该使用 `FieldPath` 类型
+- 如果字段名真的包含特殊字符，使用 `WithCustomExtractor` 绕过标准路径解析
+
+---
+
+### 决策 6：endNodes 白名单约束
+
+**设计选择**：创建分支时必须指定允许的 `endNodes` 白名单，条件函数返回的节点必须在这个集合中。
+
+```go
+endNodes := map[string]bool{
+    "code_interpreter": true,
+    "doc_retriever": true,
+}
+branch := compose.NewGraphBranch(condition, endNodes)
+```
+
+**如果条件函数返回了不在白名单中的节点**：
+```go
+// 条件函数返回了"unknown_node"
+// 运行时会报错：branch invocation returns unintended end node: unknown_node
+```
+
+**设计意图**：这是安全约束，防止条件函数逻辑错误导致数据路由到意外节点。将白名单声明在分支创建处，使得允许的路径在代码中一目了然。
+
+**替代方案**：可以不设白名单，让条件函数返回任意节点名。但这会增加调试难度——当拼写错误导致路由到不存在的节点时，错误可能在很晚才暴露。
 
 ---
 
@@ -377,13 +463,12 @@ compose.RegisterValuesMergeFunc(func(results []SearchResult) (SearchResult, erro
 
 ## 7. 子模块与相关组件
 
-该模块由三个主要子系统组成，每个都有详细的专门文档：
+该模块由两个核心子系统组成，每个都有详细的专门文档：
 
-- [分支系统](branch_system.md)：详细介绍 `GraphBranch` 的实现机制、条件判断逻辑和内部工作原理
-- [字段映射系统](field_mapping_system.md)：深入解析 `FieldMapping` 的字段提取、赋值逻辑和类型检查机制
-- [值合并系统](value_merge_system.md)：解释多输入值合并的策略、自定义合并函数的注册和使用方式
+- [graph_branch](graph_branch.md)：智能路由系统，详细介绍 `GraphBranch` 的实现机制、条件判断逻辑、流式分支支持和内部工作原理
+- [field_mapping](field_mapping.md)：数据结构转换器，深入解析 `FieldMapping` 的字段提取、赋值逻辑、类型检查机制和自定义提取器
 
-该模块也是 [Compose Graph Engine](compose_graph_engine.md) 的核心组成部分，与以下子模块紧密协作：
+该模块也是 [Compose Graph Engine](graph_construction_and_compilation.md) 的核心组成部分，与以下子模块紧密协作：
 
 - [Graph Construction and Compilation](graph_construction_and_compilation.md)：负责图的构建和编译，在编译阶段会验证分支和字段映射的正确性
 - [Runtime Execution Engine](runtime_execution_engine.md)：负责图的运行时执行，实际应用分支逻辑和字段映射

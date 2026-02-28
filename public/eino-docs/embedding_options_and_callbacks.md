@@ -6,6 +6,16 @@
 
 这个模块在整个架构中扮演着**配置提供者和事件观察者**的角色：它不直接执行嵌入计算，而是为嵌入组件提供标准化的选项定义和回调数据结构，使得不同的嵌入实现可以以统一的方式被配置和监控。
 
+### 为什么这个模块很重要？
+
+在实际的生产环境中，嵌入组件通常涉及以下问题：
+1. **多模型支持**：不同的嵌入模型（OpenAI、Cohere、本地模型等）有不同的参数和特性
+2. **成本控制**：嵌入操作通常按 token 计费，需要追踪使用量
+3. **可观测性**：需要监控嵌入操作的性能、错误率和延迟
+4. **灵活性**：不同的应用场景需要不同的配置（如不同的向量维度、编码格式等）
+
+这个模块通过提供统一的选项机制和回调系统，优雅地解决了这些问题。
+
 ## 核心组件解析
 
 本模块分为两个主要子模块，每个子模块都有详细的文档：
@@ -193,9 +203,20 @@ graph TD
 
 ### 依赖关系
 
-- **被依赖**：[embedding interface](component_interfaces.md#other_component_interfaces) - 嵌入组件接口使用这些选项和回调结构
-- **依赖**：[callbacks system](callbacks_system.md) - 基于通用回调系统构建
+- **被依赖**：[embedding_and_prompt_interfaces](embedding_and_prompt_interfaces.md) - 嵌入组件接口使用这些选项和回调结构
+- **依赖**：[Callbacks System](callbacks_system.md) - 基于通用回调系统构建
 - **被使用**：[Flow Retrievers](flow_retrievers.md), [Flow Indexers](flow_indexers.md) - 这些模块中的嵌入组件会使用这些选项和回调
+
+### 在更大架构中的位置
+
+这个模块是整个组件选项和回调框架的一部分，与以下模块并列：
+- [model_options_and_callbacks](model_options_and_callbacks.md) - 模型组件的选项和回调
+- [tool_options_and_utilities](tool_options_and_utilities.md) - 工具组件的选项和工具
+- [retriever_indexer_options_and_callbacks](retriever_indexer_options_and_callbacks.md) - 检索器和索引器的选项和回调
+- [prompt_options_and_callbacks](prompt_options_and_callbacks.md) - 提示模板的选项和回调
+- [document_options_and_callbacks](document_options_and_callbacks.md) - 文档处理的选项和回调
+
+这些模块共同构成了一个统一的组件配置和监控框架，使得不同类型的组件可以以一致的方式被配置和监控。
 
 ### 交互示例
 
@@ -207,6 +228,202 @@ graph TD
 4. 嵌入组件处理选项并执行嵌入
 5. 嵌入组件触发回调，传递 `CallbackInput` 和 `CallbackOutput`
 6. 回调处理器接收并处理这些回调数据
+
+## 实际使用示例
+
+### 示例 1: 基本嵌入配置
+
+```go
+import (
+    "context"
+    "github.com/cloudwego/eino/components/embedding"
+)
+
+func BasicEmbeddingExample(embedder embedding.Embedder) error {
+    ctx := context.Background()
+    texts := []string{"hello world", "goodbye world"}
+    
+    // 配置嵌入模型
+    embeddings, err := embedder.EmbedStrings(ctx, texts, 
+        embedding.WithModel("text-embedding-3-small"))
+    
+    if err != nil {
+        return err
+    }
+    
+    // 使用嵌入向量...
+    _ = embeddings
+    return nil
+}
+```
+
+### 示例 2: 结合默认值的选项配置
+
+```go
+func WithDefaultsExample(embedder embedding.Embedder, userOpts ...embedding.Option) error {
+    ctx := context.Background()
+    texts := []string{"hello world"}
+    
+    // 设置默认选项
+    defaultModel := "text-embedding-3-small"
+    baseOpts := &embedding.Options{
+        Model: &defaultModel,
+    }
+    
+    // 合并用户选项
+    finalOpts := embedding.GetCommonOptions(baseOpts, userOpts...)
+    
+    // 这里 finalOpts.Model 会是用户指定的模型，或者默认值
+    embeddings, err := embedder.EmbedStrings(ctx, texts, userOpts...)
+    
+    // ...
+    _ = finalOpts
+    _ = embeddings
+    return err
+}
+```
+
+### 示例 3: 实现自定义嵌入器的选项处理
+
+```go
+// CustomEmbedder 是一个自定义嵌入器实现
+type CustomEmbedder struct {
+    defaultModel string
+}
+
+// CustomOptions 是自定义嵌入器的特定选项
+type CustomOptions struct {
+    Timeout    time.Duration
+    BatchSize  int
+    RetryCount int
+}
+
+// WithCustomTimeout 创建自定义超时选项
+func WithCustomTimeout(d time.Duration) embedding.Option {
+    return embedding.WrapImplSpecificOptFn(func(opts *CustomOptions) {
+        opts.Timeout = d
+    })
+}
+
+// WithBatchSize 创建批处理大小选项
+func WithBatchSize(size int) embedding.Option {
+    return embedding.WrapImplSpecificOptFn(func(opts *CustomOptions) {
+        opts.BatchSize = size
+    })
+}
+
+// EmbedStrings 实现 Embedder 接口
+func (e *CustomEmbedder) EmbedStrings(ctx context.Context, texts []string, opts ...embedding.Option) ([][]float64, error) {
+    // 提取通用选项
+    commonOpts := embedding.GetCommonOptions(nil, opts...)
+    
+    // 确定使用的模型
+    model := e.defaultModel
+    if commonOpts.Model != nil {
+        model = *commonOpts.Model
+    }
+    
+    // 提取特定选项，设置默认值
+    customOpts := embedding.GetImplSpecificOptions(&CustomOptions{
+        Timeout:    30 * time.Second,
+        BatchSize:  100,
+        RetryCount: 3,
+    }, opts...)
+    
+    // 创建回调输入
+    callbackInput := &embedding.CallbackInput{
+        Texts: texts,
+        Config: &embedding.Config{
+            Model: model,
+        },
+    }
+    
+    // ... 这里执行实际的嵌入逻辑，使用 customOpts 中的配置 ...
+    
+    // 模拟结果
+    embeddings := make([][]float64, len(texts))
+    for i := range texts {
+        embeddings[i] = []float64{0.1, 0.2, 0.3} // 示例向量
+    }
+    
+    // 创建回调输出
+    callbackOutput := &embedding.CallbackOutput{
+        Embeddings: embeddings,
+        Config: &embedding.Config{
+            Model: model,
+        },
+        TokenUsage: &embedding.TokenUsage{
+            PromptTokens: len(texts) * 5, // 估算
+            TotalTokens:  len(texts) * 5,
+        },
+    }
+    
+    return embeddings, nil
+}
+```
+
+### 示例 4: 使用回调处理器监控嵌入操作
+
+```go
+import (
+    "context"
+    "log"
+    "time"
+    
+    "github.com/cloudwego/eino/callbacks"
+    "github.com/cloudwego/eino/components/embedding"
+    "github.com/cloudwego/eino/utils/callbacks/template"
+)
+
+func EmbeddingWithCallbacksExample(embedder embedding.Embedder) error {
+    // 创建回调处理器
+    handler := &template.EmbeddingCallbackHandler{
+        OnStart: func(ctx context.Context, runInfo *callbacks.RunInfo, input *embedding.CallbackInput) context.Context {
+            log.Printf("[Embedding] Starting to embed %d texts", len(input.Texts))
+            if input.Config != nil {
+                log.Printf("[Embedding] Model: %s", input.Config.Model)
+            }
+            // 可以在 ctx 中存储开始时间
+            return context.WithValue(ctx, "start_time", time.Now())
+        },
+        OnEnd: func(ctx context.Context, runInfo *callbacks.RunInfo, output *embedding.CallbackOutput) context.Context {
+            // 计算耗时
+            if startTime, ok := ctx.Value("start_time").(time.Time); ok {
+                duration := time.Since(startTime)
+                log.Printf("[Embedding] Completed in %v", duration)
+            }
+            
+            log.Printf("[Embedding] Generated %d embeddings", len(output.Embeddings))
+            if output.TokenUsage != nil {
+                log.Printf("[Embedding] Token usage - Prompt: %d, Total: %d", 
+                    output.TokenUsage.PromptTokens, 
+                    output.TokenUsage.TotalTokens)
+            }
+            
+            return ctx
+        },
+        OnError: func(ctx context.Context, runInfo *callbacks.RunInfo, err error) context.Context {
+            log.Printf("[Embedding] Error occurred: %v", err)
+            return ctx
+        },
+    }
+    
+    // 注意：实际使用时，需要将回调处理器注册到回调管理器中
+    // 这里只是展示回调处理器的结构和用法
+    
+    // 执行嵌入操作
+    ctx := context.Background()
+    texts := []string{"hello world", "goodbye world"}
+    embeddings, err := embedder.EmbedStrings(ctx, texts, embedding.WithModel("text-embedding-3-small"))
+    
+    if err != nil {
+        return err
+    }
+    
+    _ = embeddings
+    return nil
+}
+```
 
 ## 最佳实践与注意事项
 

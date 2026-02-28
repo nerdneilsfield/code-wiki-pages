@@ -123,10 +123,14 @@ type Backend interface {
 
 ## 子模块导航
 
-- 核心协议与工具装配：[`skill_middleware_core.md`](skill_middleware_core.md)
-- 本地文件系统后端实现：[`local_backend_filesystem.md`](local_backend_filesystem.md)
+本模块的详细实现细节分布在两个子模块文档中：
 
-这些子模块文档详细介绍了各个组件的实现细节、API 使用方法和扩展点。`skill_middleware_core` 包含中间件的核心逻辑和 `Backend` 接口定义，而 `local_backend_filesystem` 提供了基于本地文件系统的具体实现。
+| 子模块 | 文件 | 核心职责 |
+|--------|------|----------|
+| **技能核心** | [`skill_middleware_core.md`](skill_middleware_core.md) | `Backend` 接口定义、`skillTool` 工具实现、中间件装配逻辑 |
+| **本地后端** | [`local_backend_filesystem.md`](local_backend_filesystem.md) | 基于文件系统的 `Backend` 实现、SKILL.md 解析逻辑 |
+
+建议阅读顺序：先理解主文档的架构概览，再根据需求深入对应子模块。如果你要扩展自定义 Backend，重点阅读 `skill_middleware_core`；如果你要修改技能存储格式或优化文件扫描性能，重点阅读 `local_backend_filesystem`。
 
 ## 6) 跨模块依赖关系（How it connects）
 

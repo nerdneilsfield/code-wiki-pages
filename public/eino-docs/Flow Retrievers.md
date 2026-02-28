@@ -1,147 +1,396 @@
-# Flow Retrievers 模块技术深度解析
+# Flow Retrievers 模块深度解析
 
-## 模块概述
+## 30 秒速览
 
-Flow Retrievers 是一个高级检索编排层，它不是简单的文档检索器，而是一套用于构建复杂检索策略的"积木"。就像搜索引擎不会只用一种查询方式一样，Flow Retrievers 提供了多种策略来解决"如何从知识库中找到最相关的信息"这个难题——包括查询扩展、子文档检索后父文档还原、以及多检索器的智能路由与融合。
+Flow Retrievers 是 Eino 框架中的**检索增强层**，它解决了单一检索策略在面对复杂查询时的局限性。想象你正在一个庞大的图书馆找资料：传统的检索就像只问一个管理员；而 Flow Retrievers 则像是组建了一支专业的检索团队——有人负责把问题换个角度问（MultiQuery）、有人专门查找原始档案（Parent）、还有人同时询问多个部门并整合答案（Router）。这个模块通过组合多种检索模式，显著提升了召回率和结果质量，同时保持与 Eino 组件生态的无缝集成。
 
-这个模块解决了单一检索器的局限性：
-- 单一查询可能因为表述方式不同而遗漏相关文档
-- 向量检索在小块文本上效果好，但用户需要完整上下文
-- 不同检索器各有所长（向量 vs 关键词 vs 混合），需要协同工作
+---
 
-## 架构总览
+## 问题空间：为什么需要这个模块？
+
+在 RAG（检索增强生成）系统中，检索质量直接决定生成质量。但单一检索器面临三个核心挑战：
+
+### 1. 查询表达多样性问题
+用户提问"如何构建 Agent"和"Eino 框架的入门指南"可能指向同一批文档，但传统向量检索难以捕捉这种语义关联。这导致**低召回率**——相关文档就在库中，但查询向量没找对方向。
+
+### 2. 粒度不匹配问题
+向量数据库通常存储文本块（chunks）以便语义匹配，但用户需要的是完整的原始文档。检索到子文档后，如何高效获取其父文档，是 Parent Retriever 要解决的核心问题。
+
+### 3. 多源异构检索问题
+生产环境中，数据往往分散在向量数据库（语义检索）、Elasticsearch（全文检索）、图数据库（关系检索）等多个系统中。如何智能路由查询、并发检索、并融合多源结果，是 Router Retriever 的设计动机。
+
+**替代方案考量**：
+- 在应用层手动组合多个检索器？可行，但需要处理并发控制、错误处理、结果融合、回调追踪等横切关注点，代码会快速膨胀。
+- 使用外部编排工具？引入了额外的运维复杂度。
+
+Flow Retrievers 选择在框架层提供声明式的检索组合能力，利用 [Compose Graph Engine](Compose Graph Engine.md) 的基础设施，让复杂的检索逻辑像搭积木一样组合。
+
+---
+
+## 心智模型：把检索想象成分布式查询系统
+
+理解 Flow Retrievers 的关键是接受**"检索即数据流转换"**这一心智模型：
+
+```
+原始查询 → [查询变换] → [并发检索] → [结果融合] → 最终文档列表
+```
+
+每个 Retriever 都是这个管道的一个特定实现：
+
+| Retriever 类型 | 核心能力 | 类比 |
+|--------------|---------|------|
+| **MultiQuery** | 查询重写与扩展 | 翻译官团队——把一个问题翻译成多个等价表述 |
+| **Parent** | 子文档→父文档溯源 | 档案管理员——找到摘要卡后调取完整卷宗 |
+| **Router** | 多路检索与结果融合 | 调度中心——同时询问多个部门，加权汇总 |
+
+这些 Retriever 都实现了统一的 `retriever.Retriever` 接口，意味着它们可以：
+1. 互相嵌套（Router 可以路由到 MultiQuery）
+2. 被 [Compose Graph Engine](Compose Graph Engine.md) 的 Chain/Graph 消费
+3. 享受统一的回调追踪和指标采集
+
+---
+
+## 架构设计与数据流
+
+### 整体架构图
 
 ```mermaid
 graph TB
-    UserQuery[用户查询] --> MultiQuery[多查询检索器<br/>MultiQueryRetriever]
-    UserQuery --> Parent[父文档检索器<br/>ParentRetriever]
-    UserQuery --> Router[路由检索器<br/>RouterRetriever]
+    subgraph "Flow Retrievers 层"
+        MQ[MultiQuery Retriever]
+        PR[Parent Retriever]
+        RR[Router Retriever]
+    end
     
-    MultiQuery --> QueryRewrite[查询重写链<br/>使用 LLM 或自定义逻辑]
-    QueryRewrite --> Utils[并发检索工具<br/>RetrieveTask]
-    Utils --> BaseRetriever1[基础检索器 1..n]
-    Utils --> Fusion1[结果融合<br/>去重或自定义]
+    subgraph "基础设施层"
+        CU[utils<br/>并发检索工具]
+        CB[callbacks<br/>追踪与指标]
+        CO[compose<br/>图编排]
+    end
     
-    Parent --> SubRetriever[子文档检索器]
-    SubRetriever --> ParentIDExtract[父文档 ID 提取]
-    ParentIDExtract --> OrigDocGetter[原始文档获取器]
+    subgraph "组件接口层"
+        RI[retriever.Retriever<br/>统一接口]
+        CM[model.ChatModel<br/>查询重写]
+        CT[prompt.ChatTemplate<br/>提示模板]
+    end
     
-    Router --> RouterFunc[路由函数<br/>选择适用检索器]
-    RouterFunc --> Utils2[并发检索工具]
-    Utils2 --> NamedRetrievers[命名检索器集合]
-    NamedRetrievers --> Fusion2[结果融合<br/>RRF 排序或自定义]
+    MQ --> CU
+    RR --> CU
+    MQ --> CO
+    MQ --> CB
+    RR --> CB
+    PR --> RI
     
-    BaseRetriever1 -.->|实现| RetrieverInterface[retriever.Retriever 接口]
-    SubRetriever -.->|实现| RetrieverInterface
-    NamedRetrievers -.->|实现| RetrieverInterface
+    MQ -.-> CM
+    MQ -.-> CT
+    
+    style MQ fill:#e1f5fe
+    style RR fill:#e1f5fe
+    style PR fill:#e1f5fe
 ```
 
-从架构角色看，这个模块是一个 **retrieval orchestration layer（检索编排层）**，包含三类能力：
+### 关键数据流详解
 
-1. **查询侧扩展**：`multiQueryRetriever` 先改写 query，再并发查同一个 `OrigRetriever`。
-2. **执行侧分发**：`routerRetriever` 先选 retriever，再并发查多个 retriever。
-3. **结果侧还原**：`parentRetriever` 把子文档召回结果映射回父文档。
-4. **共用执行底座**：`utils.ConcurrentRetrieveWithCallback` 负责并发、回调埋点、panic 兜底。
+#### 1. MultiQuery Retriever 数据流
 
-换个比喻：`Flow Retrievers` 像一个物流调度中心——有"改写地址的客服"（multi-query）、"分单系统"（router）、"子包裹回溯主订单"（parent）、"统一车队调度"（utils）。
+```mermaid
+sequenceDiagram
+    participant User
+    participant MQR as MultiQuery Retriever
+    participant RC as Rewrite Chain
+    participant OR as Orig Retriever
+    participant Fusion as Fusion Func
+    
+    User->>MQR: Retrieve(query)
+    MQR->>RC: Invoke(query)
+    
+    alt 使用自定义 Handler
+        RC->>RC: RewriteHandler(query) → [q1, q2, q3]
+    else 使用 LLM 重写
+        RC->>RC: Converter(query) → map{var: query}
+        RC->>RC: ChatTemplate → Message
+        RC->>RC: ChatModel.Generate → Response
+        RC->>RC: OutputParser → [q1, q2, q3]
+    end
+    
+    RC-->>MQR: queries[]
+    
+    par 并发检索
+        MQR->>OR: Retrieve(q1)
+        MQR->>OR: Retrieve(q2)
+        MQR->>OR: Retrieve(q3)
+    end
+    
+    OR-->>MQR: docs[][]
+    MQR->>Fusion: FusionFunc(docs)
+    Fusion-->>MQR: mergedDocs[]
+    MQR-->>User: mergedDocs[]
+```
 
-## 核心设计理念
+**关键设计点**：
+- **查询重写链**：利用 [Compose Graph Engine](Compose Graph Engine.md) 的 Chain API 构建，支持自定义 Handler 或 LLM 驱动的重写
+- **并发控制**：通过 `utils.ConcurrentRetrieveWithCallback` 并行执行多个检索任务
+- **去重策略**：默认按 Document ID 去重，支持自定义 Fusion 函数
 
-### 1. 组合优于继承
-Flow Retrievers 没有构建一个庞大的"全能检索器"，而是采用了装饰器模式和组合模式。每个检索器都包装另一个 `retriever.Retriever`，在不改变基础检索器的前提下增强其能力。这种设计使得你可以轻松堆叠多种策略，例如：先用 `ParentRetriever` 还原完整文档，再用 `RouterRetriever` 混合不同检索来源。
+#### 2. Parent Retriever 数据流
 
-### 2. 职责分离：检索、路由、融合
-模块清晰地分离了三个关注点：
-- **检索**：由底层 `retriever.Retriever` 负责，关注"如何找到文档"
-- **路由/扩展**：由 `Router` 或 `MultiQuery` 负责，关注"用什么查询/从哪里找"
-- **融合**：由 `FusionFunc` 负责，关注"如何合并多个结果集"
+```mermaid
+sequenceDiagram
+    participant User
+    participant PR as Parent Retriever
+    participant SR as Sub-document Retriever
+    participant ODG as OrigDocGetter
+    
+    User->>PR: Retrieve(query)
+    PR->>SR: Retrieve(query)
+    SR-->>PR: subDocs[]
+    
+    PR->>PR: 提取 ParentIDKey
+    Note over PR: 遍历 subDocs 元数据<br/>收集 parent_id 列表
+    
+    PR->>ODG: GetByIDs(parentIDs)
+    ODG-->>PR: parentDocs[]
+    PR-->>User: parentDocs[]
+```
 
-### 3. 并发优先
-检索通常是 I/O 密集型操作，模块在设计时就考虑了并发。`utils.ConcurrentRetrieveWithCallback` 提供了安全的并发检索基础设施，自动处理 panic 恢复和回调通知，让多个检索请求并行执行而不会增加代码复杂度。
+**关键设计点**：
+- **两阶段检索**：先检索子文档（用于语义匹配），再获取父文档（用于完整上下文）
+- **元数据驱动**：依赖子文档的 `MetaData[ParentIDKey]` 字段建立关联
+- **去重逻辑**：自动去重相同的 parent ID，避免重复获取
 
-## 关键设计决策与取舍
+#### 3. Router Retriever 数据流
 
-### 决策 A：策略函数注入，而不是硬编码策略对象
-`Router`、`FusionFunc`、`RewriteHandler`、`OrigDocGetter` 都采用函数注入。好处是灵活、接入轻；代价是更多运行时契约（空函数、返回值格式）需要调用方自律。
+```mermaid
+sequenceDiagram
+    participant User
+    participant RR as Router Retriever
+    participant Router as Router Func
+    participant R1 as Retriever A
+    participant R2 as Retriever B
+    participant Fusion as Fusion Func
+    
+    User->>RR: Retrieve(query)
+    RR->>Router: Route(query)
+    Router-->>RR: ["A", "B"]
+    
+    par 并发检索
+        RR->>R1: Retrieve(query)
+        RR->>R2: Retrieve(query)
+    end
+    
+    R1-->>RR: docsA[]
+    R2-->>RR: docsB[]
+    
+    RR->>Fusion: FusionFunc({"A": docsA, "B": docsB})
+    Note over Fusion: 默认使用 RRF<br/>Reciprocal Rank Fusion
+    Fusion-->>RR: mergedDocs[]
+    RR-->>User: mergedDocs[]
+```
 
-### 决策 B：统一并发执行工具
-选择 `utils.ConcurrentRetrieveWithCallback` 做"一任务一 goroutine + WaitGroup"。好处是实现简单、延迟友好；代价是没有内建并发上限，任务规模大时可能冲击下游检索系统。
+**关键设计点**：
+- **动态路由**：Router 函数决定查询应该发送到哪些检索器
+- **命名空间隔离**：每个检索器的结果被标记名称，Fusion 函数可以区分来源
+- **RRF 融合**：默认使用 Reciprocal Rank Fusion 算法（$score = \sum_{i} \frac{1}{rank_i + 60}$）
 
-### 决策 C：默认融合策略保守
-- multiquery 默认：按 `Document.ID` 去重（稳定、低复杂度）
-- router 默认：`rrf`（跨异构 retriever 的 rank 融合更稳）
+---
 
-这是"先保证通用可用，再交给业务自定义排序"的取向。
+## 设计决策与权衡
 
-### 决策 D：错误处理偏"全有或全无"
-`multiQueryRetriever` 与 `routerRetriever` 都是任一 task 出错即返回错误，不做部分成功返回。语义简单、便于上层处理；但在高可用场景可能显得过严。
+### 1. 构建于 Compose 之上 vs. 独立实现
 
-### 决策 E：回调体系深度耦合可观测性
-该模块大量使用 `callbacks` 与 `RunInfo`（如 `Type: Router/FusionFunc`）。这提升了可调试性，但也意味着如果回调契约变化，检索链路观测会首先受影响。
+**选择**：MultiQuery 的查询重写链使用 [Compose Graph Engine](Compose Graph Engine.md) 的 Chain API 构建。
 
-## 子模块摘要
+**权衡分析**：
+- ✅ **复用**：自动获得图编排的回调追踪、错误处理、类型安全
+- ✅ **可组合**：用户可以替换 Chain 中的任意节点（自定义 Template、Model、Parser）
+- ⚠️ **依赖**：强依赖 Compose 模块，增加了模块耦合
 
-- [MultiQuery 检索器](multiquery_retriever.md)  
-  负责 query 改写 + 并发多次检索 + 融合。它是"提升召回覆盖率"的主力模块，支持 LLM 改写与自定义改写两条路径，并通过 `compose` 链式编排实现可替换性。
+**未选择的路径**：
+- 硬编码 LLM 调用逻辑：更简单，但失去灵活性
+- 完全独立实现：避免依赖，但会重复实现大量横切关注点
 
-- [Parent 检索器](parent_retriever.md)  
-  负责从 chunk 召回结果回捞 parent 文档。它是"检索结果语义升维"的适配层：检索阶段细粒度，输出阶段完整化。
+### 2. 默认 RRF 融合算法
 
-- [Router 检索器](router_retriever.md)  
-  负责 query 到 retriever 集合的路由，并对多路结果融合排序。它更像"检索网关"，把异构检索器统一封装到一个 `retriever.Retriever` 实现里。
+**RRF 公式**：
+$$RRF(d) = \sum_{r \in R} \frac{1}{k + rank_r(d)}$$
 
-- [检索工具模块](retrieval_utils.md)  
-  提供通用并发执行与回调埋点能力。它是整个模块族的"执行底盘"，减少重复并统一错误/观测语义。
+其中 $k=60$ 是平滑常数，$rank_r(d)$ 是文档 $d$ 在检索器 $r$ 中的排名。
 
-## 跨模块依赖关系
+**选择原因**：
+- 无需调参，对 score 分布不敏感（不同检索器的 score 可能不可比）
+- 对排名靠前的文档给予更高权重
+- 计算简单，适合实时场景
 
-`Flow Retrievers` 与以下模块存在直接耦合：
+**替代方案**：
+- 加权求和：需要人工调参，score 需归一化
+- 机器学习融合：效果更好但需要训练数据
 
-- [Component Interfaces](Component Interfaces.md)：核心依赖 `retriever.Retriever` 接口契约。
-- [Schema Core Types](Schema Core Types.md)：统一使用 `schema.Document` / `schema.Message` 数据结构。
-- [Compose Graph Engine](Compose Graph Engine.md)：`multiquery` 使用 `compose.NewChain`/`Runnable` 组装 query rewrite 流程。
-- [Callbacks System](Callbacks System.md)：router/multiquery/utils 都依赖回调生命周期事件与 `RunInfo`。
+### 3. 并发检索的错误处理策略
 
-隐含契约最关键的是：
-1. `Document.ID` 需要稳定（否则融合与去重失真）。
-2. Parent 场景中 metadata 的 `ParentIDKey` 需与索引侧一致。
-3. 路由输出名称必须在 `Retrievers` map 中注册。
+**当前行为**：
+```go
+for i, task := range tasks {
+    if task.Err != nil {
+        return nil, task.Err  // 任一失败即整体失败
+    }
+}
+```
 
-## 新贡献者最该注意的坑
+**权衡分析**：
+- ✅ **简单明确**：调用方知道结果是完整的
+- ⚠️ **可用性**：单个检索器故障会导致整体失败
 
-1. **router 默认路由实现存在实现风险**：`NewRetriever` 内计算了本地 `router` 默认值，但返回结构体时字段赋值是 `config.Router`。当 `config.Router == nil` 时，`Retrieve` 可能调用空函数（panic 风险）。
-2. **multiquery 的 `opts ...retriever.Option` 当前未透传到底层任务**：`RetrieveTask` 构造时未填 `RetrieveOptions`，传入 option 可能被静默忽略。
-3. **默认 `LLMOutputParser` 仅按换行 split**：不会自动过滤空行，可能产生空 query。
-4. **parent 去重是 O(n²)**：`inList` 线性查重在大召回量下会成为热点。
-5. **并发无内建限流**：上游若放大 query 数/路由数，可能压垮底层 retriever。
+**可能的改进**：
+- 部分成功模式：返回成功检索的结果 + 错误信息
+- 降级策略：失败时重试或使用备用检索器
 
-## 使用建议与注意事项
+### 4. Parent Retriever 的接口设计
 
-### 使用场景选择指南
-- 当你的查询可能有多种表述方式时 → 使用 **MultiQueryRetriever**
-- 当你索引的是文档片段但需要返回完整文档时 → 使用 **ParentRetriever**
-- 当你有多个检索源且需要智能选择或融合时 → 使用 **RouterRetriever**
+**关键决策**：`OrigDocGetter` 是一个函数类型，而非检索器接口：
 
-### 常见陷阱
-1. **MultiQuery 成本控制**：LLM 查询重写会增加延迟和成本，考虑设置合理的 `MaxQueriesNum`（默认 5），或在成本敏感场景使用自定义 `RewriteHandler`
-2. **ParentRetriever 元数据约定**：确保子文档元数据中确实有 `ParentIDKey` 字段，否则会静默过滤掉结果
-3. **RouterRetriever 命名一致性**：路由函数返回的名字必须与 `Retrievers` 映射中的键完全匹配，否则会报错
-4. **融合函数中的错误处理**：自定义 `FusionFunc` 应该优雅处理空结果，而不是直接返回错误
+```go
+OrigDocGetter func(ctx context.Context, ids []string) ([]*schema.Document, error)
+```
 
-### 扩展点
-- 所有三个检索器都支持自定义融合策略
-- MultiQueryRetriever 支持完全替换查询重写逻辑
-- RouterRetriever 支持完全自定义路由决策
+**理由**：
+- 父文档获取通常基于主键精确查找，与语义检索的接口语义不同
+- 允许直接使用文档存储（如数据库、对象存储），不强制包装成 Retriever
+- 批量获取接口（`[]string` → `[]*Document`）减少 IO 往返
 
-## 实践建议（如何安全扩展）
+### 5. 回调追踪的粒度设计
 
-- 想增强召回：优先改 `RewriteHandler`/`LLMOutputParser`，不要先改并发底座。
-- 想增强排序：优先自定义 `FusionFunc`，并明确 `Document.ID` 去重策略。
-- 想提升可用性：在上层实现"部分失败容忍"策略（当前默认是 fail-fast）。
-- 想加观测：沿用现有 `callbacks.RunInfo` 命名风格，保证链路可比性。
+每个 Retriever 在关键节点注入回调：
 
-如果你第一次改这个模块，建议顺序是：先读 [检索工具模块](retrieval_utils.md) -> 再读 [Router 检索器](router_retriever.md) 与 [MultiQuery 检索器](multiquery_retriever.md) -> 最后看 [Parent 检索器](parent_retriever.md) 的结果升维逻辑。
+| 阶段 | Callback 类型 | 携带数据 |
+|------|--------------|---------|
+| Router 决策 | OnStart/OnEnd | query / retrieverNames[] |
+| 单个检索 | OnStart/OnEnd | query / docs[] |
+| Fusion | OnStart/OnEnd | docs[][] / mergedDocs[] |
+
+**设计意图**：
+- 细粒度追踪每个子检索器的性能
+- Fusion 阶段可观测输入输出的文档数量变化
+- 通过 `RunInfo` 区分不同组件类型（ComponentOfLambda vs ComponentOfRetriever）
+
+---
+
+## 子模块导航
+
+| 子模块 | 职责 | 复杂度 |
+|--------|------|--------|
+| [multiquery](multiquery.md) | 查询重写与多路并发检索 | 高 |
+| [parent](parent.md) | 子文档到父文档的溯源检索 | 中 |
+| [router](router.md) | 多检索器路由与结果融合 | 高 |
+| [utils](utils.md) | 并发检索基础设施 | 低 |
+
+---
+
+## 跨模块依赖
+
+### 上游依赖（本模块依赖谁）
+
+```mermaid
+graph LR
+    FR[Flow Retrievers] --> CO[Compose Graph Engine]
+    FR --> CB[Callbacks System]
+    FR --> CI[Component Interfaces]
+    FR --> COO[Component Options and Extras]
+    FR --> SCT[Schema Core Types]
+    
+    CO -.->|MultiQuery 构建重写链| FR
+    CB -.->|追踪检索过程| FR
+    CI -.->|实现 Retriever 接口| FR
+```
+
+**详细依赖关系**：
+
+| 依赖模块 | 使用方式 | 耦合强度 |
+|---------|---------|---------|
+| [Compose Graph Engine](Compose Graph Engine.md) | MultiQuery 使用 `compose.Chain` 构建查询重写管道 | 强 |
+| [Callbacks System](Callbacks System.md) | 所有 Retriever 通过 `callbacks.OnStart/OnEnd/OnError` 注入追踪点 | 强 |
+| [Component Interfaces](Component Interfaces.md) | 实现 `components/retriever.Retriever` 接口 | 强 |
+| [Schema Core Types](Schema Core Types.md) | 使用 `schema.Document`, `schema.Message` | 强 |
+| [Component Options and Extras](Component Options and Extras.md) | 透传 `retriever.Option` 到下游检索器 | 中 |
+
+### 下游依赖（谁依赖本模块）
+
+目前 Flow Retrievers 是顶层模块，主要被用户代码直接使用，或嵌入到 [Flow React Agent](Flow React Agent.md) 等 Agent 实现中作为知识检索组件。
+
+---
+
+## 新贡献者必读：陷阱与最佳实践
+
+### 1. 元数据契约（Parent Retriever）
+
+**隐性契约**：使用 Parent Retriever 时，索引阶段必须在子文档的 `MetaData` 中写入 `ParentIDKey` 指定的字段。
+
+```go
+// 索引时
+chunk.MetaData["parent_id"] = originalDoc.ID  // 必须与 Config.ParentIDKey 一致
+```
+
+**常见错误**：配置 `ParentIDKey: "source_id"`，但索引时写入 `parent_id`，导致检索结果为空。
+
+### 2. Fusion 函数的幂等性
+
+MultiQuery 和 Router 都接受自定义 `FusionFunc`。这个函数会被并发调用（每个查询上下文一次），应确保：
+- 无外部副作用（不要在此写数据库）
+- 对输入的 `[][]*schema.Document` 只做读取和重组
+
+### 3. Query 变量名一致性（MultiQuery）
+
+使用自定义 `RewriteTemplate` 时，`QueryVar` 必须与模板变量名完全匹配：
+
+```go
+// 正确
+tpl := prompt.FromMessages(schema.Jinja2, schema.UserMessage("{{question}}"))
+config := &multiquery.Config{
+    RewriteTemplate: tpl,
+    QueryVar: "question",  // 与模板一致
+}
+
+// 错误 - 将导致变量未替换
+config := &multiquery.Config{
+    RewriteTemplate: tpl,
+    QueryVar: "query",  // 与模板中的 {{question}} 不匹配
+}
+```
+
+### 4. 并发数控制
+
+`utils.ConcurrentRetrieveWithCallback` 使用裸 goroutine 并发，没有限制并发数。当：
+- MultiQuery 生成大量查询（`MaxQueriesNum` 设置过大）
+- Router 注册了大量检索器
+
+可能导致下游系统（如向量数据库）过载。建议：
+- 合理设置 `MaxQueriesNum`（默认 5）
+- 监控下游系统负载
+
+### 5. Router 的返回值契约
+
+Router 函数返回的 retriever 名称必须在 `Config.Retrievers` map 中存在：
+
+```go
+router := func(ctx context.Context, query string) ([]string, error) {
+    return []string{"milvus", "es"}, nil  // "milvus" 和 "es" 必须已注册
+}
+```
+
+返回未注册的名称会导致运行时错误：
+```
+router output[unknown_retriever] has not registered
+```
+
+### 6. 错误处理的级联效应
+
+当前实现中，任一子检索器失败会导致整个检索失败。在生产环境中，建议：
+- 包装 Retriever 添加重试逻辑
+- 或使用自定义 Router 实现熔断降级
+
+---
 
 ## 总结
 
-Flow Retrievers 模块展示了如何通过组合和装饰来构建强大的检索系统。它不 reinvent the wheel——而是通过智能的编排让现有的检索器更强大。无论是需要提高召回率、还原完整上下文，还是混合多种检索来源，这个模块都提供了即插即用的解决方案，同时保持了足够的灵活性以适应特殊需求。
+Flow Retrievers 是 Eino 框架在 RAG 领域的核心能力体现。它通过三种检索模式（MultiQuery、Parent、Router）解决了查询多样性、粒度匹配和多源异构的问题，同时借助 [Compose Graph Engine](Compose Graph Engine.md) 的基础设施保持了良好的可扩展性和可观测性。
+
+理解这个模块的关键是把握**"检索即数据流"**的心智模型：原始查询经过变换、分发、并发执行、结果融合，最终产出高质量的上下文文档。每个 Retriever 都是这个管道的一个特定实现，它们可以嵌套组合，构建出复杂的检索策略。

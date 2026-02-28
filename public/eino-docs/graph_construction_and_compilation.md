@@ -159,12 +159,20 @@ r, err := g.Compile(ctx,
 
 最后，`WithEagerExecution()` 是兼容 API（无行为），不要把它当成性能调优开关。
 
+## 子模块深度解读
+
+本模块的功能是由多个高度内聚的子模块协同完成的，每个子模块解决一个特定的问题域：
+
+- **[节点抽象与选项](node_abstraction_and_options.md)**：定义了图中节点的统一抽象，以及添加节点时的配置选项
+- **[运行时执行引擎](runtime_execution_engine.md)**：负责图在运行时的实际执行逻辑和调度
+- **[通道与任务管理](channel_and_task_management.md)**：处理节点间的通信、任务调度和处理器管理
+- **[分支与字段映射](branching_and_field_mapping.md)**：提供条件分支能力和字段级别的数据映射
+- **[可运行与类型系统](runnable_and_type_system.md)**：定义统一的可运行接口和类型安全基础设施
+- **[状态与调用控制](state_and_call_control.md)**：管理图执行过程中的状态共享和调用控制
+
 ## 参考阅读
 
-- [runtime_execution_engine](runtime_execution_engine.md)
-- [channel_and_task_management](channel_and_task_management.md)
-- [node_abstraction_and_options](node_abstraction_and_options.md)
-- [runnable_and_type_system](runnable_and_type_system.md)
-- [branching_and_field_mapping](branching_and_field_mapping.md)
-- [state_and_call_control](state_and_call_control.md)
+除上述子模块外，还可参考：
 - [compose_checkpoint](compose_checkpoint.md)
+- [compose_interrupt](compose_interrupt.md)
+- [compose_tool_node](compose_tool_node.md)

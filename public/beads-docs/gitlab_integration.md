@@ -370,9 +370,10 @@ gitlab.mapping.type.type::feature = "feature"
 - **依赖**：
   - [Tracker Integration Framework](tracker_integration_framework.md)：提供通用的同步引擎和接口契约
   - [Core Domain Types](core_domain_types.md)：定义 `Issue`、`Dependency` 等核心数据结构
-  - [Dolt Storage](dolt_storage_backend.md)：提供持久化存储
+  - [Dolt Storage Backend](dolt_storage_backend.md)：提供持久化存储
 - **被依赖**：
   - CLI 命令层：`cmd.bd.gitlab` 是用户使用此模块的主要入口
+  - [CLI Routing Commands](cli_routing_commands.md)：通过 `cmd.bd.gitlab.GitLabConfig` 集成到路由系统中
 
 ---
 

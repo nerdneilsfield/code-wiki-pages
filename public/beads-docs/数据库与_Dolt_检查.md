@@ -241,6 +241,25 @@ type DoctorCheck struct {
 
 所有检查函数必须返回这个结构体，确保诊断输出的一致性。
 
+## 核心组件实现细节
+
+### `CheckSchemaCompatibility` 函数的实现
+
+这个函数的设计非常巧妙——它不直接检查表结构，而是通过"锻炼"核心查询来验证 schema 的兼容性。它只调用 `store.GetStatistics(ctx)，这个方法在内部会查询多个表和视图。如果这个调用成功，就意味着所有必需的表和列都存在，并且 schema 是兼容的。
+
+这种方法的优势在于：
+1. 更简单：不需要维护一个必需表和列的列表
+2. 更可靠：直接验证实际使用的查询，而不是理论上的 schema
+3. 更易维护：当 schema 演进时，只需要确保 `GetStatistics` 能正常工作
+
+### `CheckDatabaseIntegrity` 函数
+
+这个函数执行两个基本查询：
+1. 读取 `bd_version` 元数据
+2. 获取统计信息
+
+如果这两个操作都成功，就认为数据库至少是可读的。这是一个"最小公分母"检查——它不保证数据库完全正常，但能快速发现严重问题。
+
 ## 设计决策与权衡
 
 ### 1. 连接复用 vs 独立连接
@@ -294,6 +313,26 @@ type DoctorCheck struct {
 **为什么这样设计**：wisp 表的设计就是临时的、不版本化的。报告它们的未提交变更没有意义，只会增加噪音。这是一种"了解你的领域"的设计——代码反映了业务逻辑的特殊性。
 
 ## 使用指南
+
+### 作为开发者调用
+
+虽然通常通过 `bd doctor` 命令使用，但作为开发者，你也可以在代码中直接调用这些检查：
+
+```go
+import "github.com/steveyegge/beads/cmd/bd/doctor"
+
+// 检查数据库版本
+versionCheck := doctor.CheckDatabaseVersion(".", "1.0.0")
+if versionCheck.Status != doctor.StatusOK {
+    fmt.Printf("Version check %s: %s\n", versionCheck.Status, versionCheck.Message)
+}
+
+// 运行所有 Dolt 健康检查
+doltChecks := doctor.RunDoltHealthChecks(".")
+for _, check := range doltChecks {
+    fmt.Printf("%-20s %s: %s\n", check.Name, check.Status, check.Message)
+}
+```
 
 ### 基本用法
 

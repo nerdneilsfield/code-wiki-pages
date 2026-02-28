@@ -484,6 +484,7 @@ if err != nil {
 
 ## 相关模块
 
+- **[服务器与迁移验证](../服务器与迁移验证.md)** — 父模块，聚合服务器检查和迁移验证的完整诊断系统
 - [Dolt Storage Backend](internal_storage_dolt_store.md)：Dolt 数据库的底层实现
 - [CLI Doctor Commands](cmd_bd_doctor.md)：验证结果的 CLI 展示
 - [Configuration](internal_config_config.md)：后端类型检测和配置管理

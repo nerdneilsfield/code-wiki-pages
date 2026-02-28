@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>migration_safety 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T15:44<br>
+    <b>Components:</b> 5498<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/steveyegge/beads" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Core Domain Types.html" class="nv">Core Domain Types</a>
+      <button class="nvcaret" data-nav="Core-Domain-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Core-Domain-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_domain_model.html" class="nv">Issue Domain Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Core-Domain-Types-query_and_projection_types.html" class="nv">Query And Projection Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_aux_types.html" class="nv">Storage Aux Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="provider_and_lock_contracts.html" class="nv">Provider And Lock Contracts</a>
+        <button class="nvcaret" data-nav="provider_and_lock_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="provider_and_lock_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal-types-orphans-issue_provider_contract.html" class="nv">Issue Provider Contract</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-domain-types-provider-and-lock-contracts-exclusive-lock-structure.html" class="nv">Exclusive Lock Structure</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Storage Interfaces.html" class="nv">Storage Interfaces</a>
+      <button class="nvcaret" data-nav="Storage-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Storage-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_interfaces-storage_contracts.html" class="nv">Storage Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="versioning_and_sync_types.html" class="nv">Versioning And Sync Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="metadata_validation.html" class="nv">Metadata Validation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="batch_creation_options.html" class="nv">Batch Creation Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dolt Storage Backend.html" class="nv">Dolt Storage Backend</a>
+      <button class="nvcaret" data-nav="Dolt-Storage-Backend-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Dolt-Storage-Backend-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-storage-dolt-transaction-management.html" class="nv">Transaction Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="history_and_conflicts.html" class="nv">History And Conflicts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="migration_system.html" class="nv">Migration System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adaptive_id.html" class="nv">Adaptive Id</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-storage-dolt-federation_sync.html" class="nv">Federation Sync</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dolt-Server.html" class="nv">Dolt Server</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Formula Engine.html" class="nv">Formula Engine</a>
+      <button class="nvcaret" data-nav="Formula-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Formula-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_types.html" class="nv">Formula Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_condition.html" class="nv">Formula Condition</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_range.html" class="nv">Formula Range</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_parser.html" class="nv">Formula Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Query_Engine.html" class="nv">Query Engine</a>
+      <button class="nvcaret" data-nav="Query-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Query-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_lexer.html" class="nv">Query Lexer</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_parser_ast.html" class="nv">Query Parser Ast</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_evaluator.html" class="nv">Query Evaluator</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Tracker Integration Framework.html" class="nv">Tracker Integration Framework</a>
+      <button class="nvcaret" data-nav="Tracker-Integration-Framework-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Tracker-Integration-Framework-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tracker-plugin-contracts.html" class="nv">Tracker Plugin Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Tracker-Integration-Framework-sync_orchestration_engine.html" class="nv">Sync Orchestration Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tracker-sync_data_models_and_options.html" class="nv">Sync Data Models And Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="GitLab Integration.html" class="nv">Gitlab Integration</a>
+      <button class="nvcaret" data-nav="GitLab-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="GitLab-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_types.html" class="nv">Gitlab Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_tracker.html" class="nv">Gitlab Tracker</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_fieldmapper.html" class="nv">Gitlab Fieldmapper</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_mapping.html" class="nv">Gitlab Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Jira_Integration.html" class="nv">Jira Integration</a>
+      <button class="nvcaret" data-nav="Jira-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Jira-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Jira-Integration-jira_client_api.html" class="nv">Jira Client Api</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jira_tracker_adapter.html" class="nv">Jira Tracker Adapter</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jira_field_mapping.html" class="nv">Jira Field Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="linear_integration.html" class="nv">Linear Integration</a>
+      <button class="nvcaret" data-nav="Linear-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Linear-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-linear-linear_types.html" class="nv">Linear Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-linear-linear_tracker.html" class="nv">Linear Tracker</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_fieldmapper.html" class="nv">Linear Fieldmapper</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_mapping.html" class="nv">Linear Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Configuration.html" class="nv">Configuration</a>
+      <button class="nvcaret" data-nav="Configuration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Configuration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="configuration-configuration_engine.html" class="nv">Configuration Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Configuration-repository_configuration.html" class="nv">Repository Configuration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="metadata_configuration.html" class="nv">Metadata Configuration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Routing.html" class="nv">Routing</a>
+      <button class="nvcaret" data-nav="Routing-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Routing-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing-routing_core.html" class="nv">Routing Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing_config.html" class="nv">Routing Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compaction.html" class="nv">Compaction</a>
+      <button class="nvcaret" data-nav="Compaction-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compaction-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compaction_orchestration.html" class="nv">Compaction Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="haiku_summarization_client.html" class="nv">Haiku Summarization Client</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Molecules.html" class="nv">Molecules</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Recipes.html" class="nv">Recipes</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Hooks.html" class="nv">Hooks</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Beads Repository Context.html" class="nv">Beads Repository Context</a>
+      <button class="nvcaret" data-nav="Beads-Repository-Context-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Beads-Repository-Context-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-beads-beads.html" class="nv">Beads</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="context.html" class="nv">Context</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Audit.html" class="nv">Audit</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Telemetry.html" class="nv">Telemetry</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Validation.html" class="nv">Validation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="UI-Utilities.html" class="nv">Ui Utilities</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="MCP Integration.html" class="nv">Mcp Integration</a>
+      <button class="nvcaret" data-nav="MCP-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="MCP-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_models_and_data_contracts.html" class="nv">Mcp Models And Data Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="integrations-beads-mcp-src-beads_mcp-cli_transport_client.html" class="nv">Cli Transport Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="daemon_transport_client.html" class="nv">Daemon Transport Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_runtime_config.html" class="nv">Mcp Runtime Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Command Context.html" class="nv">Cli Command Context</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Swarm Commands.html" class="nv">Cli Swarm Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI_Formula_Commands.html" class="nv">Cli Formula Commands</a>
+      <button class="nvcaret" data-nav="CLI-Formula-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Formula-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cook_command_pipeline.html" class="nv">Cook Command Pipeline</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_catalog_commands.html" class="nv">Formula Catalog Commands</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Molecule Commands.html" class="nv">Cli Molecule Commands</a>
+      <button class="nvcaret" data-nav="CLI-Molecule-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Molecule-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_progress_and_dispatch.html" class="nv">Molecule Progress And Dispatch</a>
+        <button class="nvcaret" data-nav="molecule_progress_and_dispatch-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="molecule_progress_and_dispatch-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="molecule_progress_and_dispatch-progress_tracking.html" class="nv">Progress Tracking</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parallel_analysis.html" class="nv">Parallel Analysis</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ready_work_query.html" class="nv">Ready Work Query</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="gate_discovery.html" class="nv">Gate Discovery</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_lifecycle_cleanup.html" class="nv">Molecule Lifecycle Cleanup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_composition_and_extraction.html" class="nv">Molecule Composition And Extraction</a>
+        <button class="nvcaret" data-nav="molecule_composition_and_extraction-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="molecule_composition_and_extraction-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cmd-bd-mol_bond-bond_polymorphic_orchestration.html" class="nv">Bond Polymorphic Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="distill_reverse_template_extraction.html" class="nv">Distill Reverse Template Extraction</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Doctor Commands.html" class="nv">Cli Doctor Commands</a>
+      <button class="nvcaret" data-nav="CLI-Doctor-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Doctor-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="诊断核心.html" class="nv">诊断核心</a>
+        <button class="nvcaret" data-nav="诊断核心-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="诊断核心-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="数据库与_Dolt_检查.html" class="nv">数据库与 Dolt 检查</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="服务器与迁移验证.html" class="nv">服务器与迁移验证</a>
+          <button class="nvcaret" data-nav="服务器与迁移验证-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="服务器与迁移验证-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="server_health_checks.html" class="nv">Server Health Checks</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-migration_validation.html" class="nv">Migration Validation</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="migration_detection.html" class="nv">Migration Detection</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="深度验证.html" class="nv">深度验证</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="维护与修复.html" class="nv">维护与修复</a>
+          <button class="nvcaret" data-nav="维护与修复-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="维护与修复-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="诊断核心.html" class="nv">诊断核心</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="hook 集成检测与修复.html" class="nv">Hook 集成检测与修复</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="维护清理执行.html" class="nv">维护清理执行</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-fix-maintenance.html" class="nv">Cmd Bd Doctor Fix Maintenance</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-fix-hooks.html" class="nv">Cmd Bd Doctor Fix Hooks</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd_bd_doctor_fix_cleanup.html" class="nv">Cmd Bd Doctor Fix Cleanup</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="遗留文件与性能诊断.html" class="nv">遗留文件与性能诊断</a>
+          <button class="nvcaret" data-nav="遗留文件与性能诊断-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="遗留文件与性能诊断-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="遗留文件扫描.html" class="nv">遗留文件扫描</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="Dolt 性能诊断.html" class="nv">Dolt 性能诊断</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="验证 CLI 集成.html" class="nv">验证 Cli 集成</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="数据库与_Dolt_检查.html" class="nv">数据库与 Dolt 检查</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="服务器与迁移验证.html" class="nv">服务器与迁移验证</a>
+        <button class="nvcaret" data-nav="服务器与迁移验证-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="服务器与迁移验证-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_health_checks.html" class="nv">Server Health Checks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cmd-bd-doctor-migration_validation.html" class="nv">Migration Validation</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="migration_detection.html" class="nv">Migration Detection</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="深度验证.html" class="nv">深度验证</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="维护与修复.html" class="nv">维护与修复</a>
+        <button class="nvcaret" data-nav="维护与修复-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="维护与修复-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="诊断核心.html" class="nv">诊断核心</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="hook 集成检测与修复.html" class="nv">Hook 集成检测与修复</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="维护清理执行.html" class="nv">维护清理执行</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="遗留文件与性能诊断.html" class="nv">遗留文件与性能诊断</a>
+        <button class="nvcaret" data-nav="遗留文件与性能诊断-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="遗留文件与性能诊断-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="遗留文件扫描.html" class="nv">遗留文件扫描</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Dolt 性能诊断.html" class="nv">Dolt 性能诊断</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="验证 CLI 集成.html" class="nv">验证 Cli 集成</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI-Hook-Commands.html" class="nv">Cli Hook Commands</a>
+      <button class="nvcaret" data-nav="CLI-Hook-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Hook-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hook_runtime_and_status.html" class="nv">Hook Runtime And Status</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="init_hook_bootstrap_and_detection.html" class="nv">Init Hook Bootstrap And Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Gate Commands.html" class="nv">Cli Gate Commands</a>
+      <button class="nvcaret" data-nav="CLI-Gate-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Gate-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gate_status_evaluation_models.html" class="nv">Gate Status Evaluation Models</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="github_run_discovery_model.html" class="nv">Github Run Discovery Model</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Graph Commands.html" class="nv">Cli Graph Commands</a>
+      <button class="nvcaret" data-nav="CLI-Graph-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Graph-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_command_core.html" class="nv">Graph Command Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_export_formats.html" class="nv">Graph Export Formats</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-graph_visual_terminal_dag.html" class="nv">Graph Visual Terminal Dag</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Issue Management Commands.html" class="nv">Cli Issue Management Commands</a>
+      <button class="nvcaret" data-nav="CLI-Issue-Management-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Issue-Management-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_creation_inputs.html" class="nv">Issue Creation Inputs</a>
+        <button class="nvcaret" data-nav="issue_creation_inputs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="issue_creation_inputs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="interactive_form_components.html" class="nv">Interactive Form Components</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="markdown_parsing_components.html" class="nv">Markdown Parsing Components</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_taxonomy_and_validation_views.html" class="nv">Issue Taxonomy And Validation Views</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="dependency_and_label_operations.html" class="nv">Dependency And Label Operations</a>
+        <button class="nvcaret" data-nav="dependency_and_label_operations-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="dependency_and_label_operations-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="label_management.html" class="nv">Label Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="dependency_management.html" class="nv">Dependency Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="maintenance_and_repository_hygiene.html" class="nv">Maintenance And Repository Hygiene</a>
+        <button class="nvcaret" data-nav="maintenance_and_repository_hygiene-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="maintenance_and_repository_hygiene-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="repository_reset.html" class="nv">Repository Reset</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="issue_cleanup.html" class="nv">Issue Cleanup</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="pollution_detection.html" class="nv">Pollution Detection</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="preflight_checks.html" class="nv">Preflight Checks</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="diagnostics_and_discovery.html" class="nv">Diagnostics And Discovery</a>
+        <button class="nvcaret" data-nav="diagnostics_and_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="diagnostics_and_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="where_discovery.html" class="nv">Where Discovery</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="info_diagnostics.html" class="nv">Info Diagnostics</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="prefix_management.html" class="nv">Prefix Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="tip_system.html" class="nv">Tip System</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Migration Commands.html" class="nv">Cli Migration Commands</a>
+      <button class="nvcaret" data-nav="CLI-Migration-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Migration-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="inter_repo_migration.html" class="nv">Inter Repo Migration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_import.html" class="nv">Data Import</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="migration_safety.html" class="nv on">Migration Safety</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI_Import_Export_Commands.html" class="nv">Cli Import/Export Commands</a>
+      <button class="nvcaret" data-nav="CLI-Import-Export-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Import-Export-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="import_shared.html" class="nv">Import Shared</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backup_export.html" class="nv">Backup Export</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backup_restore.html" class="nv">Backup Restore</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI-Template-Commands.html" class="nv">Cli Template Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Wisp Commands.html" class="nv">Cli Wisp Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Orphan & Duplicate Commands.html" class="nv">Cli Orphan & Duplicate Commands</a>
+      <button class="nvcaret" data-nav="CLI-Orphan-&-Duplicate-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Orphan-&-Duplicate-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-orphans-orphan_detection_command.html" class="nv">Orphan Detection Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="exact_duplicate_detection_and_merge.html" class="nv">Exact Duplicate Detection And Merge</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="semantic_duplicate_detection.html" class="nv">Semantic Duplicate Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Routing Commands.html" class="nv">Cli Routing Commands</a>
+      <button class="nvcaret" data-nav="CLI-Routing-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Routing-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing_core.html" class="nv">Routing Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_integration.html" class="nv">Linear Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="GitLab Integration.html" class="nv">Gitlab Integration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Setup Commands.html" class="nv">Cli Setup Commands</a>
+      <button class="nvcaret" data-nav="CLI-Setup-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Setup-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agents_markdown_integration.html" class="nv">Agents Markdown Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-setup-claude_hooks_setup.html" class="nv">Claude Hooks Setup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gemini_hooks_setup.html" class="nv">Gemini Hooks Setup</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Worktree & Dolt Commands.html" class="nv">Cli Worktree & Dolt Commands</a>
+      <button class="nvcaret" data-nav="CLI-Worktree-&-Dolt-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Worktree-&-Dolt-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="worktree_command_flow.html" class="nv">Worktree Command Flow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-dolt_autocommit_policy.html" class="nv">Dolt Autocommit Policy</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>migration_safety 模块技术深度解析</h1>
+<blockquote>
+<p><strong>Status</strong>: Implementation complete
+<strong>Date</strong>: 2026
+<strong>Scope</strong>: Beads SQLite to Dolt migration safety</p>
+</blockquote>
+<hr />
+<h2>1. 问题背景与模块定位</h2>
+<p>想象一下，你正在负责一个从 SQLite 到 Dolt 数据库的迁移系统。这不是一个简单的数据导出导入——它是一个<strong>原子性、可回滚、安全第一</strong>的迁移过程，必须保证：</p>
+<ol>
+<li><strong>用户数据绝不丢失</strong>：迁移失败时，原始数据必须完整保留</li>
+<li><strong>不会写入错误的服务器</strong>：在多项目环境中，确保迁移到正确的 Dolt 实例</li>
+<li><strong>数据完整性验证</strong>：不仅要迁移，还要确保迁移后的数据与源数据一致</li>
+<li><strong>原子性切换</strong>：从 SQLite 到 Dolt 的切换必须是瞬时的，不能出现中间状态</li>
+</ol>
+<p>这就是 <code>migration_safety</code> 模块存在的原因。它是整个迁移系统的<strong>安全防护层</strong>，负责处理从 SQLite 到 Dolt 迁移过程中的所有安全保障、验证和回滚逻辑。</p>
+<h2>2. 核心心智模型</h2>
+<p>这个模块的设计基于一个<strong>多阶段管道</strong>的心智模型：</p>
+<pre><code>[备份] → [服务器验证] → [数据导入] → [数据验证] → [原子切换]
+         ↓                    ↓                    ↓
+      回滚点               回滚点               回滚点
+</code></pre>
+<p>每个阶段都是<strong>幂等且可验证的</strong>，如果任何阶段失败，系统都可以安全回滚到之前的状态。关键设计理念是：</p>
+<ol>
+<li><strong>先验证，后操作</strong>：在执行任何不可逆操作前，先验证所有前置条件</li>
+<li><strong>独立验证通道</strong>：使用与迁移不同的连接路径来验证数据，避免&quot;自证清白&quot;</li>
+<li><strong>原子化切换</strong>：只有在所有验证都通过后，才执行最终的元数据更新</li>
+</ol>
+<h2>3. 架构与数据流</h2>
+<p>让我们通过 Mermaid 图来可视化这个模块的架构和数据流：</p>
+<div class="mermaid">flowchart TD
+    A[迁移入口] --> B[backupSQLite<br>创建SQLite备份]
+    B --> C[verifyServerTarget<br>验证目标服务器]
+    C --> D[dolt.New<br>创建Dolt存储]
+    D --> E[importToDolt<br>导入数据]
+    E --> F[doltStore.Commit<br>提交迁移]
+    F --> G[verifyMigrationData<br>独立验证数据]
+    G --> H[finalizeMigration<br>原子化切换]
+    
+    C -->|失败| I[回滚：保留备份]
+    E -->|失败| J[回滚：删除Dolt目录]
+    G -->|失败| K[回滚：删除Dolt目录<br>恢复元数据]
+    
+    style B fill:#e1f5e1
+    style C fill:#e1f5e1
+    style G fill:#e1f5e1
+    style I fill:#ffe1e1
+    style J fill:#ffe1e1
+    style K fill:#ffe1e1
+</div>
+<h3>组件角色说明</h3>
+<ol>
+<li><strong>backupSQLite</strong>：安全网层，在任何操作前创建时间戳备份</li>
+<li><strong>verifyServerTarget</strong>：验证层，确保不会写入错误的 Dolt 服务器</li>
+<li><strong>verifyMigrationCounts / verifyMigrationData</strong>：验证层，从不同维度验证数据完整性</li>
+<li><strong>runMigrationPhases</strong>：编排层，协调所有迁移阶段并处理回滚</li>
+<li><strong>finalizeMigration</strong>：原子切换层，只有在所有验证通过后才执行</li>
+</ol>
+<h3>关键数据流</h3>
+<ol>
+<li><strong>数据导入路径</strong>：SQLite → migrationData → DoltStore → Dolt 数据库</li>
+<li><strong>独立验证路径</strong>：直接通过 MySQL 驱动连接 Dolt 服务器查询，不经过 DoltStore</li>
+<li><strong>元数据更新路径</strong>：beadsDir/metadata.json → 更新后端配置 → 重命名 SQLite 文件</li>
+</ol>
+<h2>4. 核心组件深度解析</h2>
+<h3>4.1 backupSQLite：时间戳备份函数</h3>
+<p><strong>设计意图</strong>：在迁移开始前创建一个带时间戳的 SQLite 备份，作为最终的安全网。</p>
+<p><strong>核心机制</strong>：</p>
+<ul>
+<li>使用 <code>20060102-150405</code> 格式的时间戳确保唯一性</li>
+<li>如果同一秒内多次调用，会自动添加 <code>-1</code>、<code>-2</code> 等后缀</li>
+<li>使用 <code>O_EXCL</code> 标志防止 TOCTOU（检查时间到使用时间）竞争条件</li>
+<li>文件权限设为 <code>0600</code> 保证只有用户可读写</li>
+</ul>
+<p><strong>设计决策</strong>：为什么不直接使用 SQLite 的备份 API？</p>
+<ul>
+<li>选择简单文件复制是为了<strong>最大化兼容性</strong>——不依赖 SQLite 版本或特定的 CGO 功能</li>
+<li>在迁移场景中，SQLite 文件通常是关闭的，简单复制足够安全</li>
+</ul>
+<h3>4.2 verifyServerTarget：服务器目标验证</h3>
+<p><strong>设计意图</strong>：防止迁移数据写入错误的 Dolt 服务器，这在多项目环境中是一个真实风险。</p>
+<p><strong>验证逻辑</strong>：</p>
+<pre><code>1. 检查端口是否有服务监听
+   ├─ 无监听 → 安全（稍后会启动）
+   └─ 有监听 → 继续验证
+   
+2. 连接并执行 SHOW DATABASES
+   ├─ 找到目标数据库 → 安全（幂等）
+   ├─ 只有系统数据库 → 安全（新服务器）
+   └─ 有其他用户数据库 → 记录警告但继续（共享服务器模型）
+</code></pre>
+<p><strong>设计决策</strong>：为什么允许有其他用户数据库的情况？</p>
+<ul>
+<li>这是为了支持&quot;Gas Town&quot;共享服务器模型——一个 Dolt 实例可以托管多个项目的数据库</li>
+<li>关键点：我们只检查<strong>是否存在我们的数据库</strong>，而不排他性地要求服务器只属于我们</li>
+</ul>
+<h3>4.3 verifyMigrationData：独立数据验证</h3>
+<p><strong>设计意图</strong>：使用独立于迁移路径的连接来验证数据，避免&quot;自己验证自己&quot;的问题。</p>
+<p><strong>验证层次</strong>：</p>
+<ol>
+<li><strong>数量验证</strong>：Issue 数量 ≥ 源数量，Dependency 数量 ≥ 源数量</li>
+<li><strong>抽样验证</strong>：检查第一个和最后一个 Issue 的 ID 和标题是否匹配</li>
+</ol>
+<p><strong>设计决策</strong>：</p>
+<ul>
+<li>为什么使用 <code>≥</code> 而不是 <code>==</code>？因为 Dolt 数据库中可能已经有一些数据</li>
+<li>为什么只抽样检查首尾？这是在<strong>验证成本</strong>和<strong>错误捕获概率</strong>之间的权衡——首尾不匹配通常意味着整个导入都有问题</li>
+</ul>
+<h3>4.4 migrationParams：迁移参数结构体</h3>
+<p><strong>设计意图</strong>：封装所有迁移阶段需要的参数，实现 CGO 和非 CGO 路径的代码复用。</p>
+<p><strong>核心字段</strong>：</p>
+<pre><code class="language-go">type migrationParams struct {
+    beadsDir      string          // beads 目录路径
+    sqlitePath    string          // SQLite 数据库路径
+    backupPath    string          // 备份文件路径
+    data          *migrationData  // 提取的源数据
+    doltCfg       *dolt.Config    // Dolt 配置
+    dbName        string          // 目标数据库名
+    serverHost    string          // 独立验证用的服务器主机
+    serverPort    int             // 独立验证用的服务器端口
+    serverUser    string          // 独立验证用的用户名
+    serverPassword string         // 独立验证用的密码
+}
+</code></pre>
+<h3>4.5 runMigrationPhases：迁移阶段编排</h3>
+<p><strong>设计意图</strong>：这是模块的核心编排函数，实现了完整的迁移流水线和回滚逻辑。</p>
+<p><strong>阶段分解</strong>：</p>
+<ol>
+<li><strong>服务器验证</strong>：调用 <code>verifyServerTarget</code> 确保目标正确</li>
+<li><strong>配置保存</strong>：保存原始配置用于回滚</li>
+<li><strong>Dolt 创建</strong>：创建 Dolt 存储实例</li>
+<li><strong>数据导入</strong>：调用 <code>importToDolt</code> 导入数据</li>
+<li><strong>数据验证</strong>：调用 <code>verifyMigrationData</code> 独立验证</li>
+<li><strong>最终切换</strong>：调用 <code>finalizeMigration</code> 完成切换</li>
+</ol>
+<p><strong>回滚策略</strong>：</p>
+<ul>
+<li>验证失败 → 保留备份，提示用户</li>
+<li>导入失败 → 删除 Dolt 目录，保留备份</li>
+<li>验证失败 → 删除 Dolt 目录，恢复元数据</li>
+</ul>
+<h3>4.6 finalizeMigration：原子化切换</h3>
+<p><strong>设计意图</strong>：这是迁移的&quot;最后一公里&quot;，必须是原子性的——要么全部成功，要么全部失败。</p>
+<p><strong>操作顺序</strong>：</p>
+<ol>
+<li>加载并更新 <code>metadata.json</code></li>
+<li>设置 <code>Backend = BackendDolt</code></li>
+<li>设置 <code>DoltDatabase = dbName</code></li>
+<li>尝试更新 <code>config.yaml</code> 中的 <code>sync.mode</code>（最佳努力）</li>
+<li>重命名 SQLite 文件为 <code>.migrated</code></li>
+</ol>
+<p><strong>设计决策</strong>：为什么重命名 SQLite 是最后一步？</p>
+<ul>
+<li>这是<strong>不可逆转的信号</strong>——只有在所有其他操作都成功后才执行</li>
+<li>重命名是文件系统级的原子操作，保证了切换的原子性</li>
+</ul>
+<h2>5. 依赖关系分析</h2>
+<h3>5.1 被哪些模块调用</h3>
+<p>从模块树可以看出，<code>migration_safety</code> 被以下模块依赖：</p>
+<ul>
+<li><strong>CLI Migration Commands</strong> 模块的其他子模块，特别是 <code>migrate_auto.go</code> 和 <code>migrate_shim.go</code></li>
+</ul>
+<h3>5.2 调用哪些模块</h3>
+<pre><code>migration_safety
+├─ configfile → 加载/保存 metadata.json
+├─ config → 保存 config.yaml 配置
+├─ dolt → Dolt 存储实现
+└─ debug → 调试日志
+</code></pre>
+<h3>5.3 数据契约</h3>
+<p><strong>输入契约</strong>：</p>
+<ul>
+<li><code>migrationData</code> 必须包含完整的 issues 和 depsMap</li>
+<li><code>sqlitePath</code> 必须指向有效的 SQLite 数据库文件</li>
+<li><code>doltCfg.Path</code> 必须是可写的目录路径</li>
+</ul>
+<p><strong>输出契约</strong>：</p>
+<ul>
+<li>成功时返回 <code>(imported, skipped, nil)</code></li>
+<li>失败时返回 <code>(0, 0, error)</code> 并确保可回滚</li>
+</ul>
+<h2>6. 设计决策与权衡</h2>
+<h3>6.1 独立验证 vs 性能</h3>
+<p><strong>决策</strong>：使用独立的 MySQL 连接验证数据，而不是信任 DoltStore 的返回值</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>避免&quot;自证清白&quot;——如果 DoltStore 有 bug，它可能会报告成功但实际写入失败</li>
+<li>独立验证可以发现配置错误（如连接到了错误的服务器）</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>增加了一次完整的数据库连接和查询开销</li>
+<li>但在迁移场景中，安全性比这一点性能损失更重要</li>
+</ul>
+<h3>6.2 部分验证 vs 完全验证</h3>
+<p><strong>决策</strong>：只验证数量和首尾抽样，而不是逐行比较所有数据</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>逐行验证对于大型数据库来说太慢了</li>
+<li>首尾不匹配通常意味着整个导入过程有问题</li>
+<li>数量验证已经能捕获大多数严重错误</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>理论上可能漏过一些中间行的错误</li>
+<li>但在实践中，这种验证策略在安全性和性能之间取得了很好的平衡</li>
+</ul>
+<h3>6.3 最佳努力 vs 严格要求</h3>
+<p><strong>决策</strong>：某些操作（如设置 <code>sync.mode</code>）是&quot;最佳努力&quot;的，失败不会中断迁移</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li><code>metadata.json</code> 中的 <code>Backend</code> 字段是权威性的，<code>config.yaml</code> 只是辅助</li>
+<li>如果设置失败，用户可以后续手动修复，或者 <code>bd doctor --fix</code> 可以修复</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>避免了因为非关键问题而中断整个迁移</li>
+<li>但可能导致配置不一致，需要后续的一致性检查</li>
+</ul>
+<h2>7. 使用指南与常见模式</h2>
+<h3>7.1 基本使用流程</h3>
+<pre><code class="language-go">// 1. 创建备份
+backupPath, err := backupSQLite(sqlitePath)
+if err != nil {
+    // 处理错误
+}
+
+// 2. 准备参数
+params := &amp;migrationParams{
+    beadsDir:      beadsDir,
+    sqlitePath:    sqlitePath,
+    backupPath:    backupPath,
+    data:          extractedData,
+    doltCfg:       doltConfig,
+    dbName:        dbName,
+    serverHost:    &quot;127.0.0.1&quot;,
+    serverPort:    port,
+    serverUser:    &quot;root&quot;,
+    serverPassword: &quot;&quot;,
+}
+
+// 3. 运行迁移
+imported, skipped, err := runMigrationPhases(ctx, params)
+if err != nil {
+    // 错误已经包含了回滚提示
+    log.Fatal(err)
+}
+</code></pre>
+<h3>7.2 错误处理模式</h3>
+<p>这个模块的错误消息设计得非常用户友好，通常包含：</p>
+<ol>
+<li>技术错误原因</li>
+<li>用户可操作的修复步骤</li>
+<li>备份文件位置提示</li>
+</ol>
+<p>示例错误处理：</p>
+<pre><code class="language-go">if err != nil {
+    // 错误消息已经包含了完整的上下文和修复建议
+    fmt.Fprintln(os.Stderr, err)
+    os.Exit(1)
+}
+</code></pre>
+<h2>8. 边缘情况与注意事项</h2>
+<h3>8.1 已知边缘情况</h3>
+<ol>
+<li><strong>同一秒内多次迁移</strong>：<code>backupSQLite</code> 会自动添加计数器后缀</li>
+<li><strong>Dolt 服务器已有其他数据库</strong>：会记录警告但继续执行（共享服务器模型）</li>
+<li><strong>空数据库</strong>：<code>verifyMigrationData</code> 会跳过验证</li>
+<li><strong>旧版本没有 dependencies 表</strong>：会记录调试日志但不报错</li>
+</ol>
+<h3>8.2 隐式契约</h3>
+<ol>
+<li><strong>SQLite 文件在迁移期间不会被修改</strong>：模块假设在迁移过程中没有其他进程写入 SQLite</li>
+<li><strong>beadsDir 是可写的</strong>：需要创建备份、写入元数据等</li>
+<li><strong>Dolt 配置的 Path 目录不存在或者为空</strong>：模块会创建它，但如果已有内容可能会导致问题</li>
+</ol>
+<h3>8.3 操作注意事项</h3>
+<ol>
+<li><strong>不要中断迁移过程</strong>：虽然设计了回滚机制，但在 <code>finalizeMigration</code> 期间中断可能导致不一致状态</li>
+<li><strong>备份文件是手动恢复的最后手段</strong>：如果自动回滚失败，用户可以手动从备份恢复</li>
+<li><strong>运行 <code>bd doctor --fix</code> 可以修复部分问题</strong>：如果迁移后出现配置不一致，可以尝试这个命令</li>
+</ol>
+<h2>9. 总结</h2>
+<p><code>migration_safety</code> 模块是一个<strong>安全优先</strong>的迁移保障层，它的设计体现了几个关键原则：</p>
+<ol>
+<li><strong>多层验证</strong>：从服务器目标到数据内容，每个环节都有验证</li>
+<li><strong>独立验证</strong>：使用不同的路径验证，避免自证清白</li>
+<li><strong>可回滚设计</strong>：每个阶段都设计了回滚策略</li>
+<li><strong>用户友好</strong>：错误消息包含修复建议，而不只是技术细节</li>
+<li><strong>原子切换</strong>：最后一步才执行不可逆操作，保证一致性</li>
+</ol>
+<p>这个模块虽然代码量不大，但它承担了整个迁移过程中最关键的安全保障职责——保护用户数据不丢失，确保迁移过程可信赖。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

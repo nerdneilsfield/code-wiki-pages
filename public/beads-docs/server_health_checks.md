@@ -416,8 +416,9 @@ if db != nil {
 
 ## 相关模块
 
-- [`cmd.bd.doctor`](../cmd.bd.doctor.md) — 诊断命令系统，调用本模块
-- [`cmd.bd.doctor.types`](../cmd.bd.doctor.types.DoctorCheck.md) — 检查结果数据结构定义
-- [`internal.configfile`](../internal.configfile.configfile.Config.md) — 配置文件加载
-- [`internal.doltserver`](../internal.doltserver.doltserver.Config.md) — Dolt 服务器配置
-- [`internal.storage.dolt`](../internal.storage.dolt.store.DoltStore.md) — Dolt 存储后端
+- **[服务器与迁移验证](../服务器与迁移验证.md)** — 父模块，聚合服务器检查和迁移验证的完整诊断系统
+- [`cmd.bd.doctor`](../cmd_bd_doctor.md) — 诊断命令系统，调用本模块
+- [`cmd.bd.doctor.types`](../cmd_bd_doctor_types.md) — 检查结果数据结构定义
+- [`internal.configfile`](../internal_configfile_configfile.md) — 配置文件加载
+- [`internal.doltserver`](../internal_doltserver_doltserver.md) — Dolt 服务器配置
+- [`internal.storage.dolt`](../internal_storage_dolt_store.md) — Dolt 存储后端

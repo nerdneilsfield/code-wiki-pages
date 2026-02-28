@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>preflight_checks 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T15:44<br>
+    <b>Components:</b> 5498<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/steveyegge/beads" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Core Domain Types.html" class="nv">Core Domain Types</a>
+      <button class="nvcaret" data-nav="Core-Domain-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Core-Domain-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_domain_model.html" class="nv">Issue Domain Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Core-Domain-Types-query_and_projection_types.html" class="nv">Query And Projection Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_aux_types.html" class="nv">Storage Aux Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="provider_and_lock_contracts.html" class="nv">Provider And Lock Contracts</a>
+        <button class="nvcaret" data-nav="provider_and_lock_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="provider_and_lock_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal-types-orphans-issue_provider_contract.html" class="nv">Issue Provider Contract</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-domain-types-provider-and-lock-contracts-exclusive-lock-structure.html" class="nv">Exclusive Lock Structure</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Storage Interfaces.html" class="nv">Storage Interfaces</a>
+      <button class="nvcaret" data-nav="Storage-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Storage-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_interfaces-storage_contracts.html" class="nv">Storage Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="versioning_and_sync_types.html" class="nv">Versioning And Sync Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="metadata_validation.html" class="nv">Metadata Validation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="batch_creation_options.html" class="nv">Batch Creation Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dolt Storage Backend.html" class="nv">Dolt Storage Backend</a>
+      <button class="nvcaret" data-nav="Dolt-Storage-Backend-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Dolt-Storage-Backend-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-storage-dolt-transaction-management.html" class="nv">Transaction Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="history_and_conflicts.html" class="nv">History And Conflicts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="migration_system.html" class="nv">Migration System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adaptive_id.html" class="nv">Adaptive Id</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-storage-dolt-federation_sync.html" class="nv">Federation Sync</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dolt-Server.html" class="nv">Dolt Server</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Formula Engine.html" class="nv">Formula Engine</a>
+      <button class="nvcaret" data-nav="Formula-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Formula-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_types.html" class="nv">Formula Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_condition.html" class="nv">Formula Condition</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_range.html" class="nv">Formula Range</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_parser.html" class="nv">Formula Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Query_Engine.html" class="nv">Query Engine</a>
+      <button class="nvcaret" data-nav="Query-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Query-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_lexer.html" class="nv">Query Lexer</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_parser_ast.html" class="nv">Query Parser Ast</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_evaluator.html" class="nv">Query Evaluator</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Tracker Integration Framework.html" class="nv">Tracker Integration Framework</a>
+      <button class="nvcaret" data-nav="Tracker-Integration-Framework-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Tracker-Integration-Framework-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tracker-plugin-contracts.html" class="nv">Tracker Plugin Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Tracker-Integration-Framework-sync_orchestration_engine.html" class="nv">Sync Orchestration Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tracker-sync_data_models_and_options.html" class="nv">Sync Data Models And Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="GitLab Integration.html" class="nv">Gitlab Integration</a>
+      <button class="nvcaret" data-nav="GitLab-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="GitLab-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_types.html" class="nv">Gitlab Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_tracker.html" class="nv">Gitlab Tracker</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_fieldmapper.html" class="nv">Gitlab Fieldmapper</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_mapping.html" class="nv">Gitlab Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Jira_Integration.html" class="nv">Jira Integration</a>
+      <button class="nvcaret" data-nav="Jira-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Jira-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Jira-Integration-jira_client_api.html" class="nv">Jira Client Api</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jira_tracker_adapter.html" class="nv">Jira Tracker Adapter</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jira_field_mapping.html" class="nv">Jira Field Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="linear_integration.html" class="nv">Linear Integration</a>
+      <button class="nvcaret" data-nav="Linear-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Linear-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-linear-linear_types.html" class="nv">Linear Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-linear-linear_tracker.html" class="nv">Linear Tracker</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_fieldmapper.html" class="nv">Linear Fieldmapper</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_mapping.html" class="nv">Linear Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Configuration.html" class="nv">Configuration</a>
+      <button class="nvcaret" data-nav="Configuration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Configuration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="configuration-configuration_engine.html" class="nv">Configuration Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Configuration-repository_configuration.html" class="nv">Repository Configuration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="metadata_configuration.html" class="nv">Metadata Configuration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Routing.html" class="nv">Routing</a>
+      <button class="nvcaret" data-nav="Routing-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Routing-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing-routing_core.html" class="nv">Routing Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing_config.html" class="nv">Routing Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compaction.html" class="nv">Compaction</a>
+      <button class="nvcaret" data-nav="Compaction-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compaction-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compaction_orchestration.html" class="nv">Compaction Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="haiku_summarization_client.html" class="nv">Haiku Summarization Client</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Molecules.html" class="nv">Molecules</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Recipes.html" class="nv">Recipes</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Hooks.html" class="nv">Hooks</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Beads Repository Context.html" class="nv">Beads Repository Context</a>
+      <button class="nvcaret" data-nav="Beads-Repository-Context-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Beads-Repository-Context-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-beads-beads.html" class="nv">Beads</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="context.html" class="nv">Context</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Audit.html" class="nv">Audit</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Telemetry.html" class="nv">Telemetry</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Validation.html" class="nv">Validation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="UI-Utilities.html" class="nv">Ui Utilities</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="MCP Integration.html" class="nv">Mcp Integration</a>
+      <button class="nvcaret" data-nav="MCP-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="MCP-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_models_and_data_contracts.html" class="nv">Mcp Models And Data Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="integrations-beads-mcp-src-beads_mcp-cli_transport_client.html" class="nv">Cli Transport Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="daemon_transport_client.html" class="nv">Daemon Transport Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_runtime_config.html" class="nv">Mcp Runtime Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Command Context.html" class="nv">Cli Command Context</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Swarm Commands.html" class="nv">Cli Swarm Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI_Formula_Commands.html" class="nv">Cli Formula Commands</a>
+      <button class="nvcaret" data-nav="CLI-Formula-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Formula-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cook_command_pipeline.html" class="nv">Cook Command Pipeline</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_catalog_commands.html" class="nv">Formula Catalog Commands</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Molecule Commands.html" class="nv">Cli Molecule Commands</a>
+      <button class="nvcaret" data-nav="CLI-Molecule-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Molecule-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_progress_and_dispatch.html" class="nv">Molecule Progress And Dispatch</a>
+        <button class="nvcaret" data-nav="molecule_progress_and_dispatch-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="molecule_progress_and_dispatch-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="molecule_progress_and_dispatch-progress_tracking.html" class="nv">Progress Tracking</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parallel_analysis.html" class="nv">Parallel Analysis</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ready_work_query.html" class="nv">Ready Work Query</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="gate_discovery.html" class="nv">Gate Discovery</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_lifecycle_cleanup.html" class="nv">Molecule Lifecycle Cleanup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_composition_and_extraction.html" class="nv">Molecule Composition And Extraction</a>
+        <button class="nvcaret" data-nav="molecule_composition_and_extraction-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="molecule_composition_and_extraction-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cmd-bd-mol_bond-bond_polymorphic_orchestration.html" class="nv">Bond Polymorphic Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="distill_reverse_template_extraction.html" class="nv">Distill Reverse Template Extraction</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Doctor Commands.html" class="nv">Cli Doctor Commands</a>
+      <button class="nvcaret" data-nav="CLI-Doctor-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Doctor-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="诊断核心.html" class="nv">诊断核心</a>
+        <button class="nvcaret" data-nav="诊断核心-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="诊断核心-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="数据库与_Dolt_检查.html" class="nv">数据库与 Dolt 检查</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="服务器与迁移验证.html" class="nv">服务器与迁移验证</a>
+          <button class="nvcaret" data-nav="服务器与迁移验证-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="服务器与迁移验证-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="server_health_checks.html" class="nv">Server Health Checks</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-migration_validation.html" class="nv">Migration Validation</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="migration_detection.html" class="nv">Migration Detection</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="深度验证.html" class="nv">深度验证</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="维护与修复.html" class="nv">维护与修复</a>
+          <button class="nvcaret" data-nav="维护与修复-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="维护与修复-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="诊断核心.html" class="nv">诊断核心</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="hook 集成检测与修复.html" class="nv">Hook 集成检测与修复</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="维护清理执行.html" class="nv">维护清理执行</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-fix-maintenance.html" class="nv">Cmd Bd Doctor Fix Maintenance</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-fix-hooks.html" class="nv">Cmd Bd Doctor Fix Hooks</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd_bd_doctor_fix_cleanup.html" class="nv">Cmd Bd Doctor Fix Cleanup</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="遗留文件与性能诊断.html" class="nv">遗留文件与性能诊断</a>
+          <button class="nvcaret" data-nav="遗留文件与性能诊断-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="遗留文件与性能诊断-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="遗留文件扫描.html" class="nv">遗留文件扫描</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="Dolt 性能诊断.html" class="nv">Dolt 性能诊断</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="验证 CLI 集成.html" class="nv">验证 Cli 集成</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="数据库与_Dolt_检查.html" class="nv">数据库与 Dolt 检查</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="服务器与迁移验证.html" class="nv">服务器与迁移验证</a>
+        <button class="nvcaret" data-nav="服务器与迁移验证-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="服务器与迁移验证-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_health_checks.html" class="nv">Server Health Checks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cmd-bd-doctor-migration_validation.html" class="nv">Migration Validation</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="migration_detection.html" class="nv">Migration Detection</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="深度验证.html" class="nv">深度验证</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="维护与修复.html" class="nv">维护与修复</a>
+        <button class="nvcaret" data-nav="维护与修复-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="维护与修复-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="诊断核心.html" class="nv">诊断核心</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="hook 集成检测与修复.html" class="nv">Hook 集成检测与修复</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="维护清理执行.html" class="nv">维护清理执行</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="遗留文件与性能诊断.html" class="nv">遗留文件与性能诊断</a>
+        <button class="nvcaret" data-nav="遗留文件与性能诊断-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="遗留文件与性能诊断-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="遗留文件扫描.html" class="nv">遗留文件扫描</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Dolt 性能诊断.html" class="nv">Dolt 性能诊断</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="验证 CLI 集成.html" class="nv">验证 Cli 集成</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI-Hook-Commands.html" class="nv">Cli Hook Commands</a>
+      <button class="nvcaret" data-nav="CLI-Hook-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Hook-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hook_runtime_and_status.html" class="nv">Hook Runtime And Status</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="init_hook_bootstrap_and_detection.html" class="nv">Init Hook Bootstrap And Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Gate Commands.html" class="nv">Cli Gate Commands</a>
+      <button class="nvcaret" data-nav="CLI-Gate-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Gate-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gate_status_evaluation_models.html" class="nv">Gate Status Evaluation Models</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="github_run_discovery_model.html" class="nv">Github Run Discovery Model</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Graph Commands.html" class="nv">Cli Graph Commands</a>
+      <button class="nvcaret" data-nav="CLI-Graph-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Graph-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_command_core.html" class="nv">Graph Command Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_export_formats.html" class="nv">Graph Export Formats</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-graph_visual_terminal_dag.html" class="nv">Graph Visual Terminal Dag</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Issue Management Commands.html" class="nv">Cli Issue Management Commands</a>
+      <button class="nvcaret" data-nav="CLI-Issue-Management-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Issue-Management-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_creation_inputs.html" class="nv">Issue Creation Inputs</a>
+        <button class="nvcaret" data-nav="issue_creation_inputs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="issue_creation_inputs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="interactive_form_components.html" class="nv">Interactive Form Components</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="markdown_parsing_components.html" class="nv">Markdown Parsing Components</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_taxonomy_and_validation_views.html" class="nv">Issue Taxonomy And Validation Views</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="dependency_and_label_operations.html" class="nv">Dependency And Label Operations</a>
+        <button class="nvcaret" data-nav="dependency_and_label_operations-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="dependency_and_label_operations-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="label_management.html" class="nv">Label Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="dependency_management.html" class="nv">Dependency Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="maintenance_and_repository_hygiene.html" class="nv">Maintenance And Repository Hygiene</a>
+        <button class="nvcaret" data-nav="maintenance_and_repository_hygiene-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="maintenance_and_repository_hygiene-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="repository_reset.html" class="nv">Repository Reset</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="issue_cleanup.html" class="nv">Issue Cleanup</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="pollution_detection.html" class="nv">Pollution Detection</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="preflight_checks.html" class="nv on">Preflight Checks</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="diagnostics_and_discovery.html" class="nv">Diagnostics And Discovery</a>
+        <button class="nvcaret" data-nav="diagnostics_and_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="diagnostics_and_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="where_discovery.html" class="nv">Where Discovery</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="info_diagnostics.html" class="nv">Info Diagnostics</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="prefix_management.html" class="nv">Prefix Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="tip_system.html" class="nv">Tip System</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Migration Commands.html" class="nv">Cli Migration Commands</a>
+      <button class="nvcaret" data-nav="CLI-Migration-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Migration-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="inter_repo_migration.html" class="nv">Inter Repo Migration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_import.html" class="nv">Data Import</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="migration_safety.html" class="nv">Migration Safety</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI_Import_Export_Commands.html" class="nv">Cli Import/Export Commands</a>
+      <button class="nvcaret" data-nav="CLI-Import-Export-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Import-Export-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="import_shared.html" class="nv">Import Shared</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backup_export.html" class="nv">Backup Export</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backup_restore.html" class="nv">Backup Restore</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI-Template-Commands.html" class="nv">Cli Template Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Wisp Commands.html" class="nv">Cli Wisp Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Orphan & Duplicate Commands.html" class="nv">Cli Orphan & Duplicate Commands</a>
+      <button class="nvcaret" data-nav="CLI-Orphan-&-Duplicate-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Orphan-&-Duplicate-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-orphans-orphan_detection_command.html" class="nv">Orphan Detection Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="exact_duplicate_detection_and_merge.html" class="nv">Exact Duplicate Detection And Merge</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="semantic_duplicate_detection.html" class="nv">Semantic Duplicate Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Routing Commands.html" class="nv">Cli Routing Commands</a>
+      <button class="nvcaret" data-nav="CLI-Routing-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Routing-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing_core.html" class="nv">Routing Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_integration.html" class="nv">Linear Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="GitLab Integration.html" class="nv">Gitlab Integration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Setup Commands.html" class="nv">Cli Setup Commands</a>
+      <button class="nvcaret" data-nav="CLI-Setup-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Setup-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agents_markdown_integration.html" class="nv">Agents Markdown Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-setup-claude_hooks_setup.html" class="nv">Claude Hooks Setup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gemini_hooks_setup.html" class="nv">Gemini Hooks Setup</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Worktree & Dolt Commands.html" class="nv">Cli Worktree & Dolt Commands</a>
+      <button class="nvcaret" data-nav="CLI-Worktree-&-Dolt-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Worktree-&-Dolt-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="worktree_command_flow.html" class="nv">Worktree Command Flow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-dolt_autocommit_policy.html" class="nv">Dolt Autocommit Policy</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>preflight_checks 模块技术深度解析</h1>
+<h2>1. 概述</h2>
+<p><code>preflight_checks</code> 模块是一个 PR 准备性检查工具，它在代码提交到 CI 之前，帮助开发者发现和修复常见问题。这个模块通过自动化检查来确保代码质量，包括本地测试、代码 lint、Nix 依赖哈希同步、版本号一致性等关键环节。</p>
+<p>想象一下，这个模块就像一位严谨的登机检查员，在你&quot;登机&quot;（提交代码到远程仓库）之前，检查你是否带好了所有必要的文件，是否符合登机规范，避免在飞行途中（CI 流程中）出现问题。</p>
+<h2>2. 核心架构</h2>
+<div class="mermaid">graph TD
+    A[preflightCmd] -->|调用| B[runPreflight]
+    B -->|静态模式| C[显示检查清单]
+    B -->|--check 模式| D[runChecks]
+    D -->|执行| E[runTestCheck]
+    D -->|执行| F[runLintCheck]
+    D -->|执行| G[runNixHashCheck]
+    D -->|执行| H[runVersionSyncCheck]
+    D -->|汇总结果| I[PreflightResult]
+    I -->|JSON 输出| J[JSON 编码]
+    I -->|人类可读| K[终端输出]
+</div>
+<p>这个模块的架构相对简单直接，主要包含以下几个关键部分：</p>
+<ol>
+<li><strong>命令行接口层</strong>：由 <code>preflightCmd</code> 定义，处理用户输入的命令和标志</li>
+<li><strong>执行控制层</strong>：由 <code>runPreflight</code> 和 <code>runChecks</code> 组成，决定是显示静态清单还是执行实际检查</li>
+<li><strong>检查实现层</strong>：包含四个具体的检查函数，每个函数负责一项特定的检查</li>
+<li><strong>结果表示层</strong>：由 <code>CheckResult</code> 和 <code>PreflightResult</code> 结构体组成，用于存储和输出检查结果</li>
+</ol>
+<h2>3. 核心组件详解</h2>
+<h3>3.1 CheckResult 结构体</h3>
+<pre><code class="language-go">type CheckResult struct {
+    Name    string `json:&quot;name&quot;`
+    Passed  bool   `json:&quot;passed&quot;`
+    Skipped bool   `json:&quot;skipped,omitempty&quot;`
+    Warning bool   `json:&quot;warning,omitempty&quot;`
+    Output  string `json:&quot;output,omitempty&quot;`
+    Command string `json:&quot;command&quot;`
+}
+</code></pre>
+<p><code>CheckResult</code> 结构体表示单个预检查的结果。它的设计非常清晰，每个字段都有明确的用途：</p>
+<ul>
+<li><code>Name</code>：检查的名称，用于标识是哪项检查</li>
+<li><code>Passed</code>：表示检查是否通过</li>
+<li><code>Skipped</code>：表示检查是否被跳过（例如，所需工具未安装时）</li>
+<li><code>Warning</code>：表示检查结果是警告级别（不阻止整体通过，但需要注意）</li>
+<li><code>Output</code>：检查的详细输出信息</li>
+<li><code>Command</code>：执行的具体命令，便于用户手动复现</li>
+</ul>
+<h3>3.2 PreflightResult 结构体</h3>
+<pre><code class="language-go">type PreflightResult struct {
+    Checks  []CheckResult `json:&quot;checks&quot;`
+    Passed  bool          `json:&quot;passed&quot;`
+    Summary string        `json:&quot;summary&quot;`
+}
+</code></pre>
+<p><code>PreflightResult</code> 结构体是整个预检查过程的总体结果：</p>
+<ul>
+<li><code>Checks</code>：包含所有单个检查的结果</li>
+<li><code>Passed</code>：表示整体检查是否通过（只有所有非跳过、非警告的检查都通过时才为 true）</li>
+<li><code>Summary</code>：一个简短的总结字符串，描述检查结果</li>
+</ul>
+<h3>3.3 runPreflight 函数</h3>
+<p><code>runPreflight</code> 是命令的入口函数，它根据用户提供的标志决定执行路径：</p>
+<ul>
+<li>如果没有 <code>--check</code> 标志，它会显示一个静态的检查清单</li>
+<li>如果有 <code>--check</code> 标志，它会调用 <code>runChecks</code> 执行实际的检查</li>
+<li>它还处理 <code>--fix</code> 标志（目前尚未实现）和 <code>--json</code> 标志</li>
+</ul>
+<h3>3.4 runChecks 函数</h3>
+<p><code>runChecks</code> 是实际执行检查的核心函数，它的工作流程如下：</p>
+<ol>
+<li>依次调用四个检查函数：<code>runTestCheck</code>、<code>runLintCheck</code>、<code>runNixHashCheck</code>、<code>runVersionSyncCheck</code></li>
+<li>收集所有检查结果</li>
+<li>计算整体结果：统计通过、跳过、警告的检查数量</li>
+<li>根据 <code>--json</code> 标志决定输出格式：
+<ul>
+<li>如果是 JSON 格式，将结果序列化为 JSON 并输出</li>
+<li>如果是人类可读格式，格式化输出到终端</li>
+</ul>
+</li>
+<li>如果有任何检查失败，以状态码 1 退出</li>
+</ol>
+<h3>3.5 具体检查函数</h3>
+<h4>3.5.1 runTestCheck</h4>
+<pre><code class="language-go">func runTestCheck() CheckResult {
+    command := &quot;go test -short ./...&quot;
+    cmd := exec.Command(&quot;go&quot;, &quot;test&quot;, &quot;-short&quot;, &quot;./...&quot;)
+    output, err := cmd.CombinedOutput()
+
+    return CheckResult{
+        Name:    &quot;Tests pass&quot;,
+        Passed:  err == nil,
+        Output:  string(output),
+        Command: command,
+    }
+}
+</code></pre>
+<p>这个函数运行 Go 测试套件的快速版本（<code>-short</code> 标志跳过长时间运行的测试）。它直接执行命令并根据退出码判断是否通过。</p>
+<h4>3.5.2 runLintCheck</h4>
+<pre><code class="language-go">func runLintCheck() CheckResult {
+    // ...
+    // 检查 golangci-lint 是否可用
+    if _, err := exec.LookPath(&quot;golangci-lint&quot;); err != nil {
+        return CheckResult{
+            Name:    &quot;Lint passes&quot;,
+            Passed:  false,
+            Skipped: true,
+            Output:  &quot;golangci-lint not found in PATH&quot;,
+            Command: command,
+        }
+    }
+    // 运行 golangci-lint
+    // ...
+}
+</code></pre>
+<p>这个函数运行 <code>golangci-lint</code> 进行代码 lint 检查。它首先检查工具是否可用，如果不可用则将检查标记为跳过。</p>
+<h4>3.5.3 runNixHashCheck</h4>
+<pre><code class="language-go">func runNixHashCheck() CheckResult {
+    // 检查 go.sum 是否有未提交的更改
+    // ...
+    if hasChanges {
+        return CheckResult{
+            Name:    &quot;Nix hash current&quot;,
+            Passed:  false,
+            Warning: true,
+            Output:  &quot;go.sum has uncommitted changes - vendorHash in default.nix may need updating&quot;,
+            Command: command,
+        }
+    }
+    // ...
+}
+</code></pre>
+<p>这个函数检查 <code>go.sum</code> 文件是否有未提交的更改。如果有，它会发出警告，提示可能需要更新 <code>default.nix</code> 中的 <code>vendorHash</code>。这是一个警告级别的检查，不会阻止整体通过。</p>
+<h4>3.5.4 runVersionSyncCheck</h4>
+<pre><code class="language-go">func runVersionSyncCheck() CheckResult {
+    // 读取 version.go 和 default.nix
+    // 提取版本号并比较
+    // ...
+    if goVersion != nixVersion {
+        return CheckResult{
+            Name:    &quot;Version sync&quot;,
+            Passed:  false,
+            Output:  fmt.Sprintf(&quot;Version mismatch: version.go=%s, default.nix=%s&quot;, goVersion, nixVersion),
+            Command: command,
+        }
+    }
+    // ...
+}
+</code></pre>
+<p>这个函数检查 <code>cmd/bd/version.go</code> 中的版本号是否与 <code>default.nix</code> 中的版本号一致。它使用正则表达式从两个文件中提取版本号并进行比较。</p>
+<h2>4. 数据流程</h2>
+<p>让我们以执行 <code>bd preflight --check</code> 命令为例，跟踪数据流程：</p>
+<ol>
+<li>用户输入命令，Cobra 框架解析参数并调用 <code>runPreflight</code></li>
+<li><code>runPreflight</code> 检测到 <code>--check</code> 标志，调用 <code>runChecks</code></li>
+<li><code>runChecks</code> 依次调用四个检查函数：
+<ul>
+<li><code>runTestCheck</code>：执行 <code>go test -short ./...</code>，捕获输出和错误</li>
+<li><code>runLintCheck</code>：检查 <code>golangci-lint</code> 是否存在，然后执行 lint</li>
+<li><code>runNixHashCheck</code>：检查 <code>go.sum</code> 的 git 状态</li>
+<li><code>runVersionSyncCheck</code>：读取并比较两个文件中的版本号</li>
+</ul>
+</li>
+<li>每个检查函数返回一个 <code>CheckResult</code> 结构体</li>
+<li><code>runChecks</code> 收集所有 <code>CheckResult</code>，计算整体结果，创建 <code>PreflightResult</code></li>
+<li>根据 <code>--json</code> 标志，选择输出格式并输出结果</li>
+<li>如果有检查失败，以状态码 1 退出</li>
+</ol>
+<h2>5. 设计决策与权衡</h2>
+<h3>5.1 静态清单 vs 自动检查</h3>
+<p>模块提供了两种模式：静态清单模式和自动检查模式。这种设计有几个优点：</p>
+<ul>
+<li>对于新用户，静态清单提供了清晰的指导</li>
+<li>对于有经验的用户，自动检查节省了时间</li>
+<li>两种模式共享相同的检查逻辑，确保一致性</li>
+</ul>
+<h3>5.2 警告级别概念</h3>
+<p>模块引入了 <code>Warning</code> 字段，允许某些检查结果被标记为警告而不是失败。这种设计：</p>
+<ul>
+<li>避免了因非关键问题阻止整个流程</li>
+<li>同时仍向用户提供重要反馈</li>
+<li>例如，Nix 哈希检查是警告，因为它不一定总是需要更新</li>
+</ul>
+<h3>5.3 直接执行命令 vs 抽象接口</h3>
+<p>模块直接使用 <code>exec.Command</code> 执行外部命令，而不是创建抽象接口。这种设计：</p>
+<ul>
+<li>简单直接，易于理解和维护</li>
+<li>但也使得单元测试更加困难（当前代码没有测试）</li>
+<li>对于这个特定的用例，简单性优先于可测试性</li>
+</ul>
+<h3>5.4 JSON 输出支持</h3>
+<p>模块支持 <code>--json</code> 标志，将结果输出为 JSON 格式。这种设计：</p>
+<ul>
+<li>便于与其他工具集成</li>
+<li>允许机器解析结果</li>
+<li>同时保持人类可读的输出作为默认</li>
+</ul>
+<h2>6. 使用示例与模式</h2>
+<h3>6.1 基本使用</h3>
+<pre><code class="language-bash"># 显示静态检查清单
+bd preflight
+
+# 执行自动检查
+bd preflight --check
+
+# 执行自动检查并输出 JSON
+bd preflight --check --json
+</code></pre>
+<h3>6.2 集成到 CI/CD 流程</h3>
+<p>你可以将 <code>bd preflight --check</code> 集成到你的 CI 流程中，作为早期的质量门禁：</p>
+<pre><code class="language-yaml"># .github/workflows/pr-checks.yml
+name: PR Checks
+on: [pull_request]
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - name: Run preflight checks
+        run: bd preflight --check
+</code></pre>
+<h2>7. 边缘情况与陷阱</h2>
+<h3>7.1 工具可用性</h3>
+<p><code>runLintCheck</code> 依赖于 <code>golangci-lint</code> 工具。如果该工具不在 PATH 中，检查会被标记为跳过。这是合理的，但用户可能会误以为检查通过了。</p>
+<h3>7.2 文件位置假设</h3>
+<p><code>runVersionSyncCheck</code> 假设 <code>cmd/bd/version.go</code> 和 <code>default.nix</code> 文件存在于当前工作目录中。如果从不同的目录运行命令，这些文件可能找不到。</p>
+<h3>7.3 正则表达式脆弱性</h3>
+<p>版本检查使用正则表达式提取版本号。如果版本字符串的格式发生变化，这些正则表达式可能会失效。</p>
+<h3>7.4 输出截断</h3>
+<p>在人类可读模式下，失败检查的输出被截断为 500 个字符。这在某些情况下可能会隐藏重要信息。</p>
+<h2>8. 扩展与改进建议</h2>
+<h3>8.1 实现 --fix 标志</h3>
+<p>目前 <code>--fix</code> 标志只是一个占位符。可以实现自动修复某些问题，例如：</p>
+<ul>
+<li>自动运行 <code>go mod tidy</code> 更新 go.sum</li>
+<li>自动同步版本号</li>
+</ul>
+<h3>8.2 添加更多检查</h3>
+<p>可以添加更多有用的检查，例如：</p>
+<ul>
+<li>检查是否有未提交的迁移文件</li>
+<li>检查文档是否已更新</li>
+<li>检查是否有遗留的调试代码</li>
+</ul>
+<h3>8.3 改进测试覆盖</h3>
+<p>当前模块没有测试。可以通过抽象命令执行接口来提高可测试性，例如：</p>
+<pre><code class="language-go">type CommandRunner interface {
+    Run(name string, args ...string) (output string, err error)
+}
+
+type RealCommandRunner struct{}
+
+func (r RealCommandRunner) Run(name string, args ...string) (output string, err error) {
+    cmd := exec.Command(name, args...)
+    out, err := cmd.CombinedOutput()
+    return string(out), err
+}
+</code></pre>
+<h3>8.4 配置支持</h3>
+<p>可以添加配置文件支持，允许用户：</p>
+<ul>
+<li>自定义要运行的检查</li>
+<li>配置检查的参数</li>
+<li>设置特定检查的警告/失败级别</li>
+</ul>
+<h2>9. 相关模块</h2>
+<ul>
+<li><a href="cli_issue_management_commands.html">CLI Issue Management Commands</a>：<code>preflight_checks</code> 是这个模块的子模块</li>
+<li><a href="cli_doctor_commands.html">CLI Doctor Commands</a>：另一个用于诊断和修复问题的 CLI 模块</li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

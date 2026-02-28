@@ -1,38 +1,41 @@
-## 1. 项目愿景：什么是 Beads？
+## 1. `beads` 是什么？
 
-`beads` 是一个面向开发者和 AI 智能体的**版本化任务管理系统**。
+简单来说，`beads` 是一个**具备版本控制能力的、AI 原生的工单与工作流编排系统**。
 
-如果说传统的 Jira 或 GitLab Issues 是“网页上的电子表格”，那么 `beads` 就是“代码化的任务流”。它将复杂的项目需求、任务依赖和执行步骤抽象为**分子（Molecules）**和**公式（Formulas）**。通过使用支持版本控制的数据库（Dolt），`beads` 允许任务像代码一样进行分支、合并和回溯，并能与主流的 Issue Tracker（如 Jira, GitLab, Linear）保持深度同步。
-
-简而言之：**Beads 让项目管理变得像管理代码一样精确、可编程且对 AI 友好。**
+在传统的开发流程中，代码是有版本的（Git），但工单（Issue）和任务状态通常是中心化且静态的。`beads` 改变了这一点：它将工单数据存储在支持分支、合并和克隆的数据库中（Dolt），使得工单可以像代码一样进行分支开发、离线操作和多仓库同步。同时，它内置了强大的公式引擎和 AI 摘要能力，旨在让 AI Agent 和人类开发者能够在一个统一、可追溯的语义环境下高效协作。
 
 ---
 
-## 2. 架构总览
+## 2. 架构一览
 
-`beads` 采用了典型的分层架构，并结合了插件化设计以支持多平台集成。
+`beads` 采用了典型的分层架构，并结合了“端口与适配器”（六边形架构）模式来处理外部集成和存储后端。
 
 ```mermaid
 graph TD
-    CLI[CLI / MCP] --> Formula[Formula Engine]
-    CLI --> Tracker[Tracker Framework]
-    CLI --> Core[Core Domain Types]
+    CLI[CLI Commands] --> Routing[Routing]
+    Routing --> StorageIF[Storage Interfaces]
+    StorageIF --> DoltBackend[Dolt Storage Backend]
     
-    Formula --> Core
-    Tracker --> Integrations[Jira / GitLab / Linear]
+    Formula[Formula Engine] --> StorageIF
+    Tracker[Tracker Integration] --> StorageIF
     
-    CLI --> StorageIF[Storage Interfaces]
-    StorageIF --> DoltBE[Dolt Storage Backend]
-    DoltBE --> DB[(Dolt DB)]
+    Compaction[AI Compaction] -.-> StorageIF
+    Audit[Audit Log] -.-> CLI
     
-    CLI --> Context[Repository Context]
+    subgraph Core[语义地基]
+        Types[Core Domain Types]
+    end
+    
+    DoltBackend -.-> Types
+    Formula -.-> Types
+    CLI -.-> Types
 ```
 
 ### 架构叙述
-*   **入口层**：用户通过 `cmd/bd` 提供的命令行工具进行交互，或者通过 `integrations/beads-mcp` 让 AI 智能体（如 Claude）直接操作任务。
-*   **逻辑层**：[Formula Engine](internal/formula) 负责解析工作流模板，将抽象的“配方”转化为具体的任务图；[Tracker Integration Framework](internal/tracker) 则作为外交官，处理与外部平台的数据交换。
-*   **核心层**：[Core Domain Types](internal/types) 定义了全系统通用的语义，确保 CLI、引擎和插件对 `Issue` 或 `Dependency` 的理解完全一致。
-*   **持久化层**：[Storage Interfaces](internal/storage) 定义了存储契约，而 [Dolt Storage Backend](internal/storage/dolt) 则是目前的核心实现，利用 Dolt 的特性提供 Git 风格的数据版本管理。
+- **语义地基**：[Core Domain Types](core_domain_types.md) 定义了系统中所有核心对象（如 `Issue`、`Dependency`）的结构和校验逻辑，确保全模块语言一致。
+- **存储核心**：[Storage Interfaces](storage_interfaces.md) 定义了数据操作契约，而 [Dolt Storage Backend](dolt_storage_backend.md) 则是其实际的“版本化发动机”，负责 SQL 操作与 Git 语义的映射。
+- **编排与集成**：[Formula Engine](formula_engine.md) 将工作流模板编译为可执行任务；[Tracker Integration Framework](tracker_integration_framework.md) 则负责与 GitLab、Jira、Linear 等外部平台同步。
+- **智能治理**：[Compaction](compaction.md) 模块利用 LLM 对陈旧工单进行摘要压缩，[Audit](audit.md) 记录所有关键的 AI 交互事实。
 
 ---
 
@@ -40,41 +43,45 @@ graph TD
 
 在构建 `beads` 时，我们做出了几个关键的架构选择：
 
-*   **接口与实现分离 (Interface-Implementation Separation)**：
-    我们定义了严格的 [Storage Interfaces](internal/storage)，而不是让业务逻辑直接依赖 SQL。这使得我们可以轻松地进行单元测试（Mocking），并为未来支持其他后端（如 SQLite 或 Postgres）留下了空间。
-*   **领域驱动设计 (DDD)**：
-    [Core Domain Types](internal/types) 是系统的“语义地基”。所有的校验逻辑（Validation）、哈希计算（Content Hash）都下沉到类型层，防止业务逻辑在不同模块间产生歧义。
-*   **版本化数据语义 (Versioned Data Semantics)**：
-    选择 [Dolt Storage Backend](internal/storage/dolt) 是为了让任务具备“可追溯性”。每一次 `bd` 命令的写入都会触发类似 Git 的 Commit，这为 AI 自动化的错误回滚和审计提供了天然的支持。
-*   **插件化集成 (Plugin-based Integration)**：
-    [Tracker Integration Framework](internal/tracker) 采用了适配器模式。无论是 [Jira Integration](internal/jira) 还是 [GitLab Integration](internal/gitlab)，都只需实现统一的 `IssueTracker` 接口，即可复用核心的冲突检测和同步引擎。
+- **版本化存储 (Versioning as a First-class Citizen)**：我们选择 Dolt 作为主后端，因为它允许工单数据随代码一起分支（Branching）和合并（Merging），解决了多环境下的状态同步冲突。
+- **接口驱动的存储抽象 (Interface-Driven Storage)**：通过 [Storage Interfaces](storage_interfaces.md) 隔离业务逻辑与底层数据库，这不仅便于单元测试，也为未来支持 SQLite 或其他后端留下了空间。
+- **声明式工作流 (Declarative Workflows)**：工作流不是硬编码的，而是通过 [Formula Engine](formula_engine.md) 解析的 DSL。这使得复杂的依赖关系（如 `DepBlocks`、`DepWaitsFor`）可以被静态校验和动态推导。
+- **AI 辅助与人类审计的平衡**：系统允许 AI 参与工单治理（如 [Compaction](compaction.md)），但所有 AI 的决策和调用都必须经过 [Audit](audit.md) 模块记录，确保过程透明可追溯。
 
 ---
 
 ## 4. 模块指南
 
-`beads` 的功能被拆分为多个职责明确的模块：
+`beads` 的功能被划分为多个职责明确的模块：
 
-系统的语义基石位于 [Core Domain Types](internal/types)，它定义了什么是 `Issue`、什么是 `Dependency` 以及合法的状态机规则。为了保证数据在多端同步中的一致性，[Validation](internal/validation) 模块提供了严苛的入口质检，确保进入系统的每一条数据都符合模板规范。
+### 基础与存储层
+一切始于 [Core Domain Types](core_domain_types.md)，它定义了工单的“法律文本”。[Storage Interfaces](storage_interfaces.md) 提供了统一的数据访问协议，由 [Dolt Storage Backend](dolt_storage_backend.md) 实现具体的版本化持久化。为了简化本地开发，[Dolt Server](dolt_server.md) 负责自动化管理本地 SQL 服务的生命周期。
 
-在执行层面，[Formula Engine](internal/formula) 是系统的“建筑师”，它能将复杂的 YAML/TOML 模板编译成可执行的任务图。而 [CLI Molecule Commands](cmd/bd) 则负责编排这些任务的生命周期，包括任务的“聚合（Bond）”、“压缩（Squash）”和“销毁（Burn）”。
+### 逻辑与编排层
+[Formula Engine](formula_engine.md) 是系统的“工艺设计部”，负责解析复杂的任务模板。[Query Engine](query_engine.md) 提供了一套类 SQL 的 DSL，用于高效过滤和检索工单。当涉及多仓库协作时，[Routing](routing.md) 模块充当“交通指挥官”，决定操作应该落在哪个物理仓库。
 
-为了让 AI 更好地参与工作，[MCP Integration](integrations/beads-mcp) 模块将 Beads 的能力暴露给大模型，而 [Compaction](internal/compact) 模块则利用 AI 技术将冗长的执行记录提炼为高信息密度的摘要，优化存储并提升后续检索效率。
+### 集成与自动化层
+[Tracker Integration Framework](tracker_integration_framework.md) 是对外的变压器，通过 [GitLab Integration](gitlab_integration.md)、[Jira Integration](jira_integration.md) 和 [Linear Integration](linear_integration.md) 适配器与外部生态连接。内部自动化则由 [Hooks](hooks.md) 模块驱动，在工单生命周期的关键节点触发外部脚本。
 
-最后，底层的 [Beads Repository Context](internal/beads) 负责处理多仓库（Multi-repo）和工作区（Worktree）的定位，确保你在正确的目录下操作正确的数据。
+### 维护与观测层
+[Compaction](compaction.md) 模块是系统的“记忆压缩器”，利用 AI 提炼历史。[Validation](validation.md) 模块在入口处进行质量把关。整个系统的运行状态由 [Telemetry](telemetry.md) 进行观测，而所有交互事实则沉淀在 [Audit](audit.md) 的追加日志中。
 
 ---
 
-## 5. 关键端到端流程
+## 5. 典型端到端流程
 
-### 流程 A：从模板实例化复杂工作流 (Cooking a Formula)
-1.  **解析**：用户执行 `bd cook`，[CLI Formula Commands](cmd/bd) 调用 [Formula Engine](internal/formula) 加载指定的公式文件。
-2.  **转换**：引擎处理继承（Extends）和变量替换，生成一个逻辑上的任务子图。
-3.  **持久化**：[Storage Interfaces](internal/storage) 开启一个事务，[Dolt Storage Backend](internal/storage/dolt) 将这一组相互关联的 `Issue` 和 `Dependency` 原子性地写入数据库。
-4.  **同步**：如果配置了外部关联，[Tracker Integration Framework](internal/tracker) 会将新生成的任务推送到 Jira 或 GitLab。
+### 流程一：从模板创建并执行工作流 (Cook to Pour)
+1.  **解析**：用户通过 CLI 调用 [CLI Formula Commands](cli_formula_commands.md)，[Formula Engine](formula_engine.md) 加载 `.formula.json` 文件。
+2.  **编译**：引擎处理继承和变量替换，生成一个 `TemplateSubgraph`。
+3.  **实例化**：[CLI Molecule Commands](cli_molecule_commands.md) 接管该子图，调用 [Molecules](molecules.md) 模块将其写入存储，并标记为 `is_template`。
+4.  **执行**：开发者或 AI Agent 通过 [CLI Swarm Commands](cli_swarm_commands.md) 观察任务波次，逐步推进任务状态。
 
-### 流程 B：跨平台数据同步 (External Sync)
-1.  **拉取**：[Tracker Integration Framework](internal/tracker) 触发 `Pull` 动作，调用 [GitLab Integration](internal/gitlab) 获取远程变更。
-2.  **映射**：`FieldMapper` 将外部平台的标签（如 `priority::high`）转换为 Beads 内部的结构化字段。
-3.  **冲突检测**：系统对比本地 Dolt 记录与远程快照，若两端均有修改，则根据 [Configuration](internal/config) 中定义的策略（如 `ours` 或 `theirs`）解决冲突。
-4.  **落库**：更新后的数据通过 [Storage Interfaces](internal/storage) 写入，并生成一个新的 Dolt Commit。
+### 流程二：外部平台同步 (External Sync)
+1.  **触发**：用户运行同步命令，[CLI Routing Commands](cli_routing_commands.md) 识别目标平台。
+2.  **编排**：[Tracker Integration Framework](tracker_integration_framework.md) 启动同步引擎，根据 [Configuration](configuration.md) 中的配置调用对应的适配器（如 [GitLab Integration](gitlab_integration.md)）。
+3.  **转换**：适配器将外部 API 的原始数据通过 `FieldMapper` 转换为 `types.Issue`。
+4.  **持久化**：引擎检测本地与远端的冲突，最终通过 [Storage Interfaces](storage_interfaces.md) 将一致的数据写入 Dolt 数据库。
+
+---
+
+我们欢迎每一位开发者的贡献！在开始编写代码前，建议先阅读 [CLI Command Context](cli_command_context.md) 了解如何正确获取运行期上下文，并使用 [CLI Doctor Commands](cli_doctor_commands.md) 检查你的开发环境。

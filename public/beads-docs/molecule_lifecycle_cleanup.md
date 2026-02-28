@@ -2,7 +2,9 @@
 
 ## 问题空间与模块定位
 
-在复杂的工作流管理系统中，molecules（分子）作为工作单元的组合容器，会经历从创建到完成的完整生命周期。这个生命周期结束后，我们面临两个关键问题：
+想象一个工作流管理系统，其中任务以"分子"（molecules）的形式组织——这些是包含多个子任务的复杂工作单元。随着时间推移，系统中会积累大量已完成、失败或废弃的分子，它们占用存储空间、干扰工作视图，甚至阻塞后续任务的执行。
+
+**molecule_lifecycle_cleanup** 模块正是为了解决这个问题而存在的。在复杂的工作流管理系统中，molecules（分子）作为工作单元的组合容器，会经历从创建到完成的完整生命周期。这个生命周期结束后，我们面临两个关键问题：
 
 1. **临时数据清理**：当使用 wisps（短暂性 issue）进行快速迭代或实验时，完成后需要清理这些临时数据，避免污染持久存储
 2. **工作成果归档**：对于已完成的 molecules，我们需要保留其执行历史的摘要，但不必保留所有中间步骤的完整细节
@@ -55,6 +57,16 @@ graph TD
     style C fill:#ccffcc
     style D fill:#ccccff
 ```
+
+这个模块的架构设计体现了**命令-查询分离**（CQRS）原则：
+- **Burn** 和 **Squash** 是写操作，直接修改存储状态
+- **Stale** 是读操作，只查询和分析数据
+
+所有命令都遵循相同的处理流程：
+1. 解析 CLI 参数和标志
+2. 验证输入（解析分子 ID、检查数据库连接）
+3. 执行核心操作（删除/压缩/查询）
+4. 格式化并输出结果
 
 ### 数据流向
 
@@ -319,3 +331,10 @@ Molecule Lifecycle Cleanup 模块是工作流管理系统的"清道夫"，它通
 4. **优先级感知**：Stale 检测优先显示阻塞工作的项目
 
 对于新贡献者，理解这个模块的关键是把握 wisp/mol 的区别，以及事务原子性在 squash 操作中的重要性。
+
+## 相关模块文档
+
+- [molecule_progress_and_dispatch](cmd-bd-molecule_progress_and_dispatch.md)：分子进度跟踪和调度
+- [molecule_composition_and_extraction](cmd-bd-molecule_composition_and_extraction.md)：分子组合和提取
+- [CLI Molecule Commands](cmd-bd-cli_molecule_commands.md)：CLI 分子命令总览
+- [Dolt Storage Backend](dolt_storage_backend.md)：数据存储后端

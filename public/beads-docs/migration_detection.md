@@ -507,6 +507,7 @@ func TestCheckPendingMigrations(t *testing.T) {
 
 ## 参考链接
 
+- **[服务器与迁移验证](../服务器与迁移验证.md)** — 父模块，聚合服务器检查和迁移验证的完整诊断系统
 - [`migration_validation.md`](migration_validation.md) - 迁移验证模块，检查迁移就绪性和完成度
 - [`broken_migration.md`](broken_migration.md) - 检测失败迁移和中间状态
 - [`server.md`](server.md) - 服务器模式配置，影响迁移检测逻辑

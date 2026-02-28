@@ -1,241 +1,335 @@
 # formula_parser 模块技术深度解析
 
-## 1. 问题空间与模块定位
+## 概述
 
-在构建可组合的工作流系统时，我们面临着一个核心挑战：如何定义可复用、可继承、可扩展的工作流模板？直接硬编码工作流会导致大量重复，而简单的文本模板又缺乏类型安全和组合能力。
+`formula_parser` 模块是 Formula Engine 的核心基础设施，负责加载、解析、继承和验证 Formula 定义。它解决了在复杂工作流自动化场景中，如何通过模块化、可复用、可继承的方式定义工作流模板的问题。
 
-**formula_parser** 模块正是为了解决这个问题而设计的。它负责：
-- 从文件系统加载公式（工作流模板）
-- 处理公式间的继承关系（`extends`）
-- 验证公式结构的完整性
-- 管理变量替换和验证
-- 提供可预测的解析和组合语义
+想象一下，如果没有这个模块，每个工作流都需要从头编写，无法复用通用步骤，也无法通过继承来定制化已有工作流。`formula_parser` 就像一个智能的工作流模板引擎，让你可以像搭积木一样组合和扩展工作流定义。
 
-这个模块是整个 Formula Engine 的入口点，它将人类可读的 TOML/JSON 公式文件转换为可执行的内部表示。
+## 核心问题空间
 
-## 2. 架构与数据流向
+在项目协作和自动化场景中，工作流定义通常面临以下挑战：
 
-### 2.1 核心组件架构图
+1. **复用性**：通用工作流模式（如代码审查、发布流程）需要在多个项目中复用
+2. **继承性**：团队希望基于标准工作流进行小范围定制，而不是复制粘贴
+3. **模块化**：复杂工作流需要拆分为多个可管理的组件
+4. **变量化**：工作流需要支持参数化，以适应不同场景
+5. **验证**：工作流定义需要在执行前进行语法和语义验证
+
+`formula_parser` 正是为了解决这些问题而设计的。它提供了一套完整的机制，让 Formula 定义可以像面向对象编程一样被组织和管理。
+
+## 架构设计
+
+### 核心组件关系图
 
 ```mermaid
-graph TD
-    A[外部调用方] -->|LoadByName/ParseFile| B[Parser]
-    B -->|读取文件| C[文件系统]
-    B -->|解析| D[Formula AST]
-    B -->|继承解析| E[Resolve]
-    E -->|循环检测| F[resolvingSet]
-    E -->|加载父公式| G[loadFormula]
-    G -->|搜索路径| H[searchPaths]
-    B -->|缓存| I[cache]
-    D -->|变量处理| J[ExtractVariables/Substitute/ValidateVars]
-    D -->|源信息设置| K[SetSourceInfo]
+graph TB
+    Parser[Parser<br>公式解析器]
+    Formula[Formula<br>公式定义]
+    Cache[Cache<br>已加载公式缓存]
+    ResolvingSet[ResolvingSet<br>解析中公式集合]
+    SearchPaths[SearchPaths<br>搜索路径]
+    
+    Parser -->|使用| Cache
+    Parser -->|使用| ResolvingSet
+    Parser -->|使用| SearchPaths
+    Parser -->|解析生成| Formula
+    Parser -->|递归解析| Parser
+    
+    classDef component fill:#e1f5ff,stroke:#0066cc,stroke-width:2px;
+    class Parser,Formula,Cache,ResolvingSet,SearchPaths component;
 ```
 
-### 2.2 数据流向解析
+### 数据流向
 
-公式解析的完整生命周期如下：
+1. **初始化**：创建 `Parser` 实例，配置搜索路径
+2. **加载**：通过 `ParseFile()` 或 `LoadByName()` 从文件系统加载 Formula
+3. **解析**：根据文件扩展名选择 JSON 或 TOML 解析器
+4. **缓存**：将解析后的 Formula 存入缓存（同时按路径和名称索引）
+5. **解析继承**：通过 `Resolve()` 处理 `extends` 关系，递归加载父 Formula
+6. **合并**：按顺序合并父 Formula 的变量、步骤和组合规则
+7. **验证**：对最终合并的 Formula 进行验证
+8. **变量处理**：提取、替换和验证变量
 
-1. **初始化阶段**：创建 `Parser` 实例，设置搜索路径（项目级、用户级、系统级）
-2. **加载阶段**：通过 `LoadByName` 或 `ParseFile` 加载公式，先检查缓存
-3. **解析阶段**：根据文件扩展名选择 TOML 或 JSON 解析器，设置默认值
-4. **解析后处理**：调用 `SetSourceInfo` 为所有步骤添加源追踪信息
-5. **解析阶段**：调用 `Resolve` 处理继承关系：
-   - 检测循环继承
-   - 递归加载并解析父公式
-   - 合并变量、步骤和组合规则
-   - 验证最终公式
-6. **变量处理阶段**：提取变量、替换占位符、验证变量值
+## 核心组件详解
 
-## 3. 核心组件深度解析
+### Parser 结构体
 
-### 3.1 Parser 结构体
-
-**设计意图**：Parser 是整个模块的中央协调器，负责管理公式加载的完整生命周期。
+`Parser` 是整个模块的核心，它不仅仅是一个解析器，更是一个 Formula 生命周期管理器。
 
 ```go
 type Parser struct {
-    searchPaths    []string          // 公式搜索路径（按优先级排序）
-    cache          map[string]*Formula // 已加载公式的缓存（键：绝对路径或公式名）
-    resolvingSet   map[string]bool   // 当前正在解析的公式集合（用于循环检测）
-    resolvingChain []string          // 解析链（用于错误消息）
+    searchPaths    []string          // 搜索路径（按优先级排序）
+    cache          map[string]*Formula // 缓存（键为绝对路径或 Formula 名称）
+    resolvingSet   map[string]bool   // 用于循环检测的集合
+    resolvingChain []string          // 用于错误消息的解析链
 }
 ```
 
-**关键设计决策**：
-- **非线程安全**：Parser 明确标记为非线程安全，这是一个有意的设计选择。它避免了内部同步的开销，同时要求调用者在并发场景下负责同步（或为每个 goroutine 创建独立的 Parser 实例）。
-- **双重缓存策略**：缓存同时使用绝对路径和公式名作为键，这既支持直接文件加载，也支持通过名称引用。
-- **搜索路径优先级**：按项目级 → 用户级 → 系统级的顺序搜索，这遵循了"越具体越优先"的配置原则。
+**设计意图**：
+- **搜索路径**：支持多位置查找 Formula，实现项目级、用户级、系统级的分层配置
+- **缓存机制**：避免重复解析相同 Formula，提高性能
+- **循环检测**：防止 `extends` 关系形成无限递归
+- **解析链追踪**：提供友好的错误消息，让用户知道循环发生在哪里
 
-### 3.2 解析方法族
+**非线程安全说明**：
+注意文档中明确提到 "Parser is NOT thread-safe"。这是一个有意识的设计决策——通过放弃线程安全性来换取简单性和性能。在实际使用中，通常每个 goroutine 会创建自己的 Parser 实例，或者通过外部同步机制来共享。
 
-Parser 提供了三种主要的解析入口：
+### 核心方法
 
-1. **ParseFile**：从文件路径解析公式
-   - 首先将路径转换为绝对路径并检查缓存
-   - 根据文件扩展名选择解析器（TOML 优先，JSON 作为后备）
-   - 设置源信息并缓存结果
+#### NewParser - 创建解析器
 
-2. **Parse**：从 JSON 字节解析公式
-   - 直接反序列化 JSON
-   - 设置默认值（Version=1, Type=TypeWorkflow）
+```go
+func NewParser(searchPaths ...string) *Parser
+```
 
-3. **ParseTOML**：从 TOML 字节解析公式
-   - 与 Parse 类似，但使用 TOML 反序列化
-   - **设计洞察**：TOML 被优先支持是因为它更适合人类编写的配置文件，特别是支持注释和更自然的数组/对象语法。
+**功能**：创建新的 Formula 解析器，配置搜索路径。如果未提供搜索路径，使用默认路径。
 
-### 3.3 Resolve 方法：继承系统的核心
+**默认搜索路径**（按优先级）：
+1. `./.beads/formulas` - 项目级 Formula
+2. `~/.beads/formulas` - 用户级 Formula  
+3. `$GT_ROOT/.beads/formulas` - 系统级 Formula
 
-**设计意图**：Resolve 实现了公式的继承模型，这是公式可组合性的基础。
+**设计决策**：默认路径的选择体现了"本地优先"的原则——项目级配置可以覆盖用户级，用户级可以覆盖系统级。这是 Unix 风格配置系统的常见模式。
+
+#### ParseFile - 从文件解析
+
+```go
+func (p *Parser) ParseFile(path string) (*Formula, error)
+```
+
+**功能**：从文件路径加载并解析 Formula，自动检测格式（TOML 或 JSON）。
+
+**流程**：
+1. 转换为绝对路径
+2. 检查缓存
+3. 读取文件内容
+4. 根据扩展名选择解析器
+5. 设置源信息
+6. 存入缓存
+
+**格式支持**：
+- `.formula.toml` - 优先格式，更易读和维护
+- `.formula.json` - 遗留格式，向后兼容
+
+**设计决策**：TOML 作为首选格式是因为它对人类更友好，支持注释，并且在表示复杂嵌套结构时比 JSON 更清晰。保留 JSON 支持是为了向后兼容性。
+
+#### Resolve - 解析继承关系
 
 ```go
 func (p *Parser) Resolve(formula *Formula) (*Formula, error)
 ```
 
-**核心逻辑**：
-1. **循环检测**：使用 `resolvingSet` 和 `resolvingChain` 检测并报告循环继承
-2. **基线情况**：如果公式没有 `extends`，直接验证并返回
-3. **继承处理**：
-   - 按顺序处理每个父公式
-   - 递归解析父公式
-   - 合并变量（子公式覆盖父公式）
-   - 合并步骤（父公式步骤在前，子公式步骤在后）
-   - 合并组合规则（`mergeComposeRules`）
-4. **验证**：最后验证合并后的公式
+**功能**：完全解析 Formula，处理 `extends` 关系和扩展，返回应用所有继承后的新 Formula。
 
-**继承语义设计**：
-- 变量：子公式覆盖父公式同名变量
-- 步骤：追加合并，父步骤在前，子步骤在后
-- ComposeRules：复杂的合并策略（见 3.4 节）
+**这是整个模块最复杂的方法**，让我们详细分析：
 
-### 3.4 mergeComposeRules：组合规则的合并策略
-
-**设计意图**：处理 `ComposeRules` 的合并，这是最复杂的合并逻辑，因为不同类型的规则有不同的合并语义。
+##### 循环检测机制
 
 ```go
-func mergeComposeRules(base, overlay *ComposeRules) *ComposeRules
+if p.resolvingSet[formula.Formula] {
+    chain := append(p.resolvingChain, formula.Formula)
+    return nil, fmt.Errorf("circular extends detected: %s", 
+        strings.Join(chain, " -> "))
+}
+p.resolvingSet[formula.Formula] = true
+p.resolvingChain = append(p.resolvingChain, formula.Formula)
+defer func() {
+    delete(p.resolvingSet, formula.Formula)
+    p.resolvingChain = p.resolvingChain[:len(p.resolvingChain)-1]
+}()
 ```
 
-**合并策略**：
-- **BondPoints**：按 ID 覆盖，同 ID 的 overlay 替换 base
-- **Hooks**：简单追加，不覆盖
-- **Expand**：简单追加，不覆盖
-- **Map**：简单追加，不覆盖
+**设计意图**：使用 `resolvingSet` 跟踪当前正在解析的 Formula，使用 `resolvingChain` 记录解析路径。当检测到循环时，可以给出清晰的错误消息，如 "circular extends detected: A -> B -> C -> A"。
 
-**设计洞察**：
-- BondPoints 采用覆盖策略是因为它们是命名的"插槽"，子公式可能想要重新定义插槽的位置
-- Hooks、Expand、Map 采用追加策略是因为它们通常是累积性的——添加更多的钩子或扩展通常是期望的行为
+`defer` 语句确保即使发生错误，也能正确清理状态。这是 Go 中处理资源清理的经典模式。
 
-### 3.5 变量处理工具函数
+##### 继承合并策略
 
-**设计意图**：提供完整的变量生命周期管理——从提取到替换再到验证。
+当 Formula 有 `extends` 时，合并过程遵循以下规则：
 
-1. **ExtractVariables**：扫描公式中的所有 `{{variable}}` 占位符
-   - 使用正则表达式 `\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}` 匹配
-   - 递归检查步骤及其子步骤
-   - 去重返回
+1. **变量合并**：父 Formula 的变量被继承，子 Formula 可以覆盖
+2. **步骤合并**：父 Formula 的步骤在前，子 Formula 的步骤追加在后
+3. **组合规则合并**：
+   - BondPoints：按 ID 覆盖，相同 ID 的子 BondPoint 替换父 BondPoint
+   - Hooks：子 Hooks 追加到父 Hooks 之后
+   - Expand 规则：子规则追加到父规则之后
+   - Map 规则：子规则追加到父规则之后
 
-2. **Substitute**：替换字符串中的变量占位符
-   - 保持未解析的占位符不变（而不是报错）
-   - **设计洞察**：这允许分阶段替换，或者在某些情况下有意保留占位符
+**设计决策**：
+- 变量覆盖让子 Formula 可以定制化父 Formula 的行为
+- 步骤追加允许子 Formula 在父工作流基础上添加新步骤
+- BondPoint 的 ID 覆盖机制允许精细地替换特定的组合点
+- 其他规则的追加策略保持了扩展性
 
-3. **ValidateVars**：验证变量值是否符合约束
-   - 检查必填性
-   - 应用默认值
-   - 验证枚举约束
-   - 验证模式约束
-   - 收集所有错误后一起返回（而不是遇到第一个错误就返回）
+#### loadFormula - 按名称加载
 
-4. **ApplyDefaults**：为缺失的变量应用默认值
-   - 创建新的 map，不修改输入
-   - 仅在变量未提供且有默认值时应用
+```go
+func (p *Parser) loadFormula(name string) (*Formula, error)
+```
 
-### 3.6 SetSourceInfo：源追踪系统
+**功能**：在搜索路径中按名称查找 Formula 文件，先尝试 TOML 格式，再回退到 JSON 格式。
 
-**设计意图**：为每个步骤添加源信息，这对于调试和错误报告至关重要。
+**搜索策略**：
+```go
+extensions := []string{FormulaExtTOML, FormulaExtJSON}
+for _, dir := range p.searchPaths {
+    for _, ext := range extensions {
+        path := filepath.Join(dir, name+ext)
+        if _, err := os.Stat(path); err == nil {
+            return p.ParseFile(path)
+        }
+    }
+}
+```
+
+**设计意图**：双重循环（先路径，后扩展名）确保了优先级的正确性——在高优先级路径中找到的任何格式都优先于低优先级路径。
+
+### 辅助函数
+
+#### ExtractVariables - 提取变量引用
+
+```go
+func ExtractVariables(formula *Formula) []string
+```
+
+**功能**：查找 Formula 中所有 `{{variable}}` 形式的变量引用。
+
+**实现**：使用正则表达式 `\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}` 匹配变量引用，然后去重返回。
+
+**设计决策**：选择 `{{variable}}` 作为变量语法是因为它在许多模板系统中广泛使用（如 Mustache、Handlebars），用户熟悉且不会与常见文本冲突。
+
+#### Substitute - 变量替换
+
+```go
+func Substitute(s string, vars map[string]string) string
+```
+
+**功能**：将字符串中的 `{{variable}}` 占位符替换为实际值。
+
+**设计意图**：未解析的占位符保持原样，而不是报错或删除。这种"宽松"策略允许部分替换，在调试时很有用。
+
+#### ValidateVars - 变量验证
+
+```go
+func ValidateVars(formula *Formula, values map[string]string) error
+```
+
+**功能**：验证所有必需变量都已提供，且所有值都满足约束条件。
+
+**验证内容**：
+1. 必需变量检查
+2. 枚举值约束
+3. 正则表达式模式约束
+
+**设计决策**：收集所有错误后一次性返回，而不是遇到第一个错误就停止。这样用户可以一次性修复所有问题，而不是反复尝试。
+
+#### SetSourceInfo - 设置源信息
 
 ```go
 func SetSourceInfo(formula *Formula)
 ```
 
-**实现细节**：
-- 递归处理步骤、子步骤和循环体
-- 设置 `SourceFormula`（定义步骤的公式）和 `SourceLocation`（步骤在公式中的路径）
-- 格式示例：`steps[0]`、`steps[2].children[1]`、`loop.body[0]`
+**功能**：为 Formula 中的所有步骤设置 `SourceFormula` 和 `SourceLocation`，用于在烹饪过程中进行源追踪。
 
-**设计洞察**：这是"可观测性优先"设计的一个例子——在系统深处嵌入追踪信息，使得当问题发生时，能够快速定位到源头。
+**实现**：递归遍历步骤树，为每个步骤设置类似 `steps[0].children[1]` 的位置标识。
 
-## 4. 依赖关系分析
+**设计意图**：这是一个调试和可观察性特性。当工作流执行出错时，可以精确地指出问题出现在哪个 Formula 的哪个步骤。
 
-### 4.1 被依赖关系（谁使用 formula_parser）
+## 依赖分析
 
-根据模块树，formula_parser 主要被以下组件使用：
-- **CLI Formula Commands**：`cmd.bd.cook` 和 `cmd.bd.formula` 包
-- **Formula Engine**：可能的内部使用（扩展、应用等）
+### 输入依赖
 
-### 4.2 依赖关系（formula_parser 使用谁）
+`formula_parser` 模块依赖以下外部组件：
 
-- **formula_types**：核心类型定义（`Formula`、`VarDef`、`Step` 等）
-- **标准库**：
-  - `encoding/json` 和 `github.com/BurntSushi/toml`：配置解析
-  - `os` 和 `path/filepath`：文件系统操作
-  - `regexp`：变量模式匹配
-  - `strings`：字符串操作
+1. **文件系统**：通过 `os` 和 `path/filepath` 包读取 Formula 文件
+2. **JSON 解析**：通过 `encoding/json` 解析遗留格式
+3. **TOML 解析**：通过 `github.com/BurntSushi/toml` 解析首选格式
+4. **正则表达式**：通过 `regexp` 处理变量提取和替换
 
-### 4.3 数据契约
+### 输出依赖
 
-formula_parser 与其他模块之间的关键数据契约：
-- **Formula 结构**：完整的公式 AST，包括源信息
-- **搜索路径约定**：`.beads/formulas` 目录结构
-- **文件扩展名约定**：`.formula.toml`（优先）和 `.formula.json`（后备）
+`formula_parser` 模块为以下组件提供服务：
 
-## 5. 设计决策与权衡
+1. **Formula Engine**：使用解析后的 Formula 进行工作流执行
+2. **CLI Formula Commands**：通过 `cmd.bd.cook` 和 `cmd.bd.formula` 提供 Formula 管理功能
 
-### 5.1 非线程安全 vs 内部同步
+### 数据契约
 
-**决策**：Parser 设计为非线程安全，无内部同步。
+模块与外部世界的主要数据契约是 `Formula` 结构体（定义在 [formula_types](formula_types.md) 模块中）。`Parser` 负责：
 
-**权衡**：
-- **优点**：避免了锁的开销，简化了内部实现
-- **缺点**：调用者需要负责并发控制
-- **理由**：在典型使用场景中，Parser 通常在单个 goroutine 中使用；对于并发场景，为每个 goroutine 创建独立的 Parser 实例通常是可接受的
+- 从文件反序列化到 `Formula`
+- 填充默认值
+- 设置源信息
+- 合并继承的 Formula
+- 验证 `Formula` 的完整性
 
-### 5.2 TOML 优先 vs JSON 优先
+## 设计决策与权衡
 
-**决策**：TOML 作为主要格式，JSON 作为后备。
+### 1. 非线程安全 vs 线程安全
 
-**权衡**：
-- **TOML 优点**：更适合人类编写，支持注释，数组/对象语法更自然
-- **JSON 优点**：更广泛的工具支持，Go 标准库内置
-- **理由**：公式主要由人类编写，因此优化编写体验比优化工具支持更重要
+**选择**：非线程安全
 
-### 5.3 步骤追加 vs 步骤覆盖
+**原因**：
+- 简化实现，避免锁的开销
+- 常见使用模式是每个 goroutine 创建自己的 Parser
+- 如果需要共享，可以由调用方负责同步
 
-**决策**：继承时步骤采用追加策略（父步骤在前，子步骤在后）。
+**权衡**：牺牲了一些便利性，换取了性能和简单性。
 
-**权衡**：
-- **优点**：直观的"扩展"语义——子公式添加到父公式的工作流之后
-- **缺点**：无法完全替换父步骤（尽管可以通过不继承来实现）
-- **理由**：这符合工作流组合的常见模式——基础工作流 + 特定扩展
+### 2. TOML 优先 vs JSON 优先
 
-### 5.4 保持未解析变量 vs 报错
+**选择**：TOML 优先，JSON 作为后备
 
-**决策**：`Substitute` 保持未解析的占位符不变，而不是报错。
+**原因**：
+- TOML 更易读，支持注释
+- TOML 在表示复杂嵌套结构时更清晰
+- JSON 保留用于向后兼容
 
-**权衡**：
-- **优点**：支持分阶段替换，更灵活
-- **缺点**：可能导致未注意到的未解析变量
-- **理由**：在复杂系统中，变量可能由多个层次提供，保持占位符允许延迟到所有层次都处理完后再检查完整性
+**权衡**：需要维护两个解析路径，但提高了用户体验。
 
-## 6. 用法示例与常见模式
+### 3. 缓存策略：路径和名称双重索引
 
-### 6.1 基本用法：加载并解析公式
+**选择**：同时按绝对路径和 Formula 名称缓存
+
+**原因**：
+- `ParseFile` 使用路径，`loadFormula` 使用名称
+- 避免重复解析相同的 Formula
+
+**权衡**：使用更多内存，但提高了性能。
+
+### 4. 继承合并策略：追加 vs 覆盖
+
+**选择**：变量和 BondPoints 覆盖，步骤和其他规则追加
+
+**原因**：
+- 变量覆盖：子 Formula 需要定制父 Formula 的行为
+- BondPoints 覆盖：需要精细替换特定的组合点
+- 步骤追加：子 Formula 通常需要在父工作流基础上添加步骤
+- 规则追加：保持扩展性，子 Formula 可以添加新规则而不影响父规则
+
+**权衡**：这是一个经过深思熟虑的平衡，既提供了足够的灵活性，又保持了可预测性。
+
+### 5. 错误处理：快速失败 vs 收集所有错误
+
+**选择**：在变量验证时收集所有错误，其他地方快速失败
+
+**原因**：
+- 变量验证：用户希望一次性看到所有问题
+- 其他操作：如文件读取、解析错误，通常需要立即处理
+
+**权衡**：不同场景采用不同策略，提供最佳用户体验。
+
+## 使用指南与最佳实践
+
+### 基本使用
 
 ```go
 // 创建解析器（使用默认搜索路径）
 parser := formula.NewParser()
 
-// 按名称加载公式
-formula, err := parser.LoadByName("my-workflow")
+// 从文件加载 Formula
+formula, err := parser.ParseFile("./.beads/formulas/my-workflow.formula.toml")
 if err != nil {
     log.Fatal(err)
 }
@@ -245,95 +339,109 @@ resolved, err := parser.Resolve(formula)
 if err != nil {
     log.Fatal(err)
 }
-```
-
-### 6.2 变量处理流程
-
-```go
-// 提取公式中的所有变量
-vars := formula.ExtractVariables(resolved)
 
 // 准备变量值
-values := map[string]string{
-    "project": "my-project",
-    "owner":   "alice",
+vars := map[string]string{
+    "title": "My Issue",
+    "assignee": "alice",
 }
 
-// 应用默认值
-values = formula.ApplyDefaults(resolved, values)
-
 // 验证变量
-if err := formula.ValidateVars(resolved, values); err != nil {
+if err := formula.ValidateVars(resolved, vars); err != nil {
     log.Fatal(err)
 }
 
-// 在字符串中替换变量
-title := formula.Substitute(resolved.Steps[0].Title, values)
+// 应用默认值
+vars = formula.ApplyDefaults(resolved, vars)
 ```
 
-### 6.3 自定义搜索路径
+### 高级模式
+
+#### 多路径搜索
 
 ```go
 // 创建带有自定义搜索路径的解析器
 parser := formula.NewParser(
-    "/path/to/my/formulas",
-    "/another/path",
+    "./my-project/formulas",
+    "/shared/formulas",
 )
 ```
 
-## 7. 边缘情况与注意事项
+#### 按名称加载
 
-### 7.1 循环继承
+```go
+// 按名称加载（在搜索路径中查找）
+formula, err := parser.LoadByName("release-workflow")
+```
 
-**问题**：公式 A 继承 B，B 继承 C，C 又继承 A。
+### 最佳实践
 
-**行为**：`Resolve` 会检测到循环并返回清晰的错误消息，显示完整的继承链。
+1. **使用 TOML 格式**：对于新 Formula，优先使用 `.formula.toml` 格式
+2. **组织 Formula 继承层次**：将通用功能放在基础 Formula 中，特定定制放在子 Formula 中
+3. **明确变量契约**：在 Formula 中清晰定义变量的类型、默认值和约束
+4. **避免深层继承**：继承层次过深会使理解困难，一般不超过 3-4 层
+5. **使用描述性名称**：Formula 名称应清晰表达其用途
 
-**避免方法**：设计公式层次结构时保持单向依赖。
+## 边缘情况与陷阱
 
-### 7.2 变量命名限制
+### 1. 循环继承
 
-**问题**：变量名必须匹配 `[a-zA-Z_][a-zA-Z0-9_]*` 模式。
+**问题**：A extends B，B extends C，C extends A
 
-**行为**：不符合此模式的变量不会被 `ExtractVariables` 识别，也不会被 `Substitute` 替换。
+**表现**：`Resolve()` 返回 "circular extends detected" 错误
 
-**注意事项**：始终使用有效的标识符作为变量名。
+**解决方案**：重新设计继承关系，避免循环
 
-### 7.3 BondPoint 覆盖
+### 2. 变量名冲突
 
-**问题**：子公式中的 BondPoint 会覆盖父公式中同 ID 的 BondPoint。
+**问题**：父 Formula 和子 Formula 定义了同名但用途不同的变量
 
-**行为**：这是设计有意的，但可能导致意外的行为变化。
+**表现**：子 Formula 的变量意外覆盖父 Formula 的变量
 
-**注意事项**：在覆盖 BondPoint 时要小心，确保你理解父公式中该 BondPoint 的用途。
+**解决方案**：使用命名空间约定，如 `parent.var` 和 `child.var`
 
-### 7.4 线程安全
+### 3. 步骤顺序意外
 
-**问题**：Parser 不是线程安全的。
+**问题**：子 Formula 的步骤总是追加在父 Formula 之后，无法插入中间
 
-**行为**：并发使用同一个 Parser 实例可能导致竞争条件。
+**表现**：无法在父工作流的两个步骤之间插入新步骤
 
-**避免方法**：
-- 为每个 goroutine 创建独立的 Parser 实例
-- 或者使用外部同步（如互斥锁）保护共享的 Parser 实例
+**解决方案**：
+- 重新设计父 Formula，使用 BondPoints 作为扩展点
+- 或者将父 Formula 拆分为更小的组件，在子 Formula 中重新组合
 
-### 7.5 缓存一致性
+### 4. 变量未定义但有默认值
 
-**问题**：Parser 会缓存已加载的公式，如果文件在缓存后发生变化，不会自动重新加载。
+**问题**：调用者可能不知道有默认值存在，意外使用默认值
 
-**行为**：后续对同一公式的请求会返回缓存的（可能过时的）版本。
+**表现**：工作流行为与预期不符
 
-**避免方法**：
-- 如果需要重新加载，创建新的 Parser 实例
-- 或者在开发过程中避免使用长时间运行的 Parser 实例
+**解决方案**：在 Formula 文档中清晰说明所有变量及其默认值
 
-## 8. 总结
+### 5. 跨平台路径问题
 
-formula_parser 模块是 Formula Engine 的基石，它提供了一个健壮、灵活的系统来加载、解析和组合工作流模板。其关键设计原则包括：
+**问题**：在 Windows 上使用 Unix 风格路径，或反之
 
-1. **人类优先**：优先支持 TOML，优化公式编写体验
-2. **可组合性**：通过继承系统实现公式的复用和扩展
-3. **可观测性**：内置源追踪系统，便于调试
-4. **灵活性与安全性平衡**：提供强大的变量系统，同时保持类型安全和验证
+**表现**：找不到 Formula 文件
 
-理解这个模块的设计决策和权衡，将帮助你更有效地使用公式系统，并在需要时进行扩展或修改。
+**解决方案**：使用 `path/filepath` 包构建路径，而不是硬编码路径分隔符
+
+## 总结
+
+`formula_parser` 模块是 Formula Engine 的基石，它通过巧妙的设计解决了工作流定义的复用、继承和验证问题。其核心价值在于：
+
+1. **分层搜索路径**：实现项目级、用户级、系统级的 Formula 组织
+2. **灵活的继承机制**：通过 `extends` 支持工作流的定制和扩展
+3. **智能的合并策略**：针对不同类型的内容采用不同的合并规则
+4. **完善的变量系统**：支持变量提取、替换、验证和默认值
+5. **友好的错误处理**：提供清晰的错误消息，帮助快速定位问题
+
+虽然它有一些限制（如非线程安全、步骤只能追加），但这些都是在权衡之后做出的有意识决策，使得模块在保持简单性的同时提供了足够的灵活性。
+
+对于新加入团队的开发者，理解这个模块的关键是把握"Formula 即面向对象程序"的心智模型——`extends` 类似于继承，变量类似于属性，步骤类似于方法。一旦建立了这种类比，整个模块的设计就变得非常直观了。
+
+## 参考链接
+
+- [formula_types](formula_types.md) - Formula 数据结构定义
+- [formula_condition](formula_condition.md) - 条件评估引擎
+- [CLI Formula Commands](cmd-bd-formula.md) - Formula 相关 CLI 命令

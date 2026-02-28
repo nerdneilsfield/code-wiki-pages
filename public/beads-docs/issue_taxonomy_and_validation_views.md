@@ -134,7 +134,7 @@ sequenceDiagram
 
 其一，默认走 `store.GetStatistics(ctx)`，说明这个命令优先依赖存储层预聚合能力，而不是在 CLI 全量扫描再手算。这是性能优先的选择。
 
-其二，`--assigned` 触发 `getAssignedStatistics(actor)` 并覆盖默认统计。这条路径会调用 `store.SearchIssues` + `store.GetReadyWork`，在客户端重算分状态计数。设计上它牺牲了一致性（与全局统计口径略有分叉风险）来换取“按当前用户视角”的实用性。
+其二，`--assigned` 触发 `getAssignedStatistics(actor)` 并覆盖默认统计。这条路径会调用 `store.SearchIssues` + `store.GetReadyWork`，在客户端重算分状态计数。值得注意的是，该函数实现了所有状态的完整统计，包括 `DeferredIssues`。设计上它牺牲了一致性（与全局统计口径略有分叉风险）来换取“按当前用户视角”的实用性。
 
 其三，`--json` 会设置全局 `jsonOutput = true`。这是命令内对全局输出模式的主动覆盖，使用方便，但意味着该命令对全局状态有副作用；在复用命令执行流程或做集成测试时要留意。
 
@@ -317,15 +317,18 @@ bd count --assignee "$(whoami)" --by-type
     "open_issues": 45,
     "in_progress_issues": 12,
     "blocked_issues": 8,
+    "deferred_issues": 5,
     "closed_issues": 55,
     "ready_issues": 30,
     "pinned_issues": 3,
     "epics_eligible_for_closure": 2,
-    "average_lead_time": 48.5
+    "average_lead_time_hours": 48.5
   },
   "recent_activity": null
 }
 ```
+
+注意：JSON 字段是 `average_lead_time_hours` 而不是 `average_lead_time`，并且包含 `deferred_issues` 字段。
 
 #### `lint --json` 输出结构
 
@@ -351,13 +354,15 @@ bd count --assignee "$(whoami)" --by-type
 
 第二，`count` 里 `--id` 会先 `strings.Split(...,",")` 再走 `utils.NormalizeLabels`。这复用了标签规范化逻辑，意味着 ID 大小写/格式会被同一套归一规则影响；改 `NormalizeLabels` 可能波及 ID 过滤。
 
-第三，`status --all` 在当前实现中是兼容性占位（最后 `_ = showAll`），不是行为开关。不要误以为它改变查询范围。
+第三，`IssueFilter` 类型提供了极其丰富的过滤能力（包括时间范围、元数据字段、父问题过滤等），但当前 `count` 命令只暴露了其中一部分。如果需要更强大的过滤功能，可以考虑扩展 CLI 标志来映射这些字段。
 
-第四，`status` 的最近活动目前恒为 `nil`。如果你在 UI 或脚本里依赖 `recent_activity`，必须做空值处理。
+第四，`status --all` 在当前实现中是兼容性占位（最后 `_ = showAll`），不是行为开关。不要误以为它改变查询范围。
 
-第五，`lint` 在发现模板缺失后会 `os.Exit(1)`。如果你在测试里直接调用命令执行路径，需要拦截或替代进程退出行为。
+第五，`status` 的最近活动目前恒为 `nil`。如果你在 UI 或脚本里依赖 `recent_activity`，必须做空值处理。
 
-第六，`types` 依赖 direct mode；在没有正确数据库上下文时，命令会打印错误并返回。即便只是看 core types，也要考虑这一前置条件。
+第六，`lint` 在发现模板缺失后会 `os.Exit(1)`。如果你在测试里直接调用命令执行路径，需要拦截或替代进程退出行为。
+
+第七，`types` 依赖 direct mode；在没有正确数据库上下文时，命令会打印错误并返回。即便只是看 core types，也要考虑这一前置条件。
 
 ## 模块演化与可能的扩展方向
 

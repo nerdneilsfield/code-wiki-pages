@@ -1,0 +1,1681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitLab Mapping 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T15:44<br>
+    <b>Components:</b> 5498<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/steveyegge/beads" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/steveyegge/beads" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Core Domain Types.html" class="nv">Core Domain Types</a>
+      <button class="nvcaret" data-nav="Core-Domain-Types-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Core-Domain-Types-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_domain_model.html" class="nv">Issue Domain Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Core-Domain-Types-query_and_projection_types.html" class="nv">Query And Projection Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_aux_types.html" class="nv">Storage Aux Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="provider_and_lock_contracts.html" class="nv">Provider And Lock Contracts</a>
+        <button class="nvcaret" data-nav="provider_and_lock_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="provider_and_lock_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal-types-orphans-issue_provider_contract.html" class="nv">Issue Provider Contract</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-domain-types-provider-and-lock-contracts-exclusive-lock-structure.html" class="nv">Exclusive Lock Structure</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Storage Interfaces.html" class="nv">Storage Interfaces</a>
+      <button class="nvcaret" data-nav="Storage-Interfaces-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Storage-Interfaces-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_interfaces-storage_contracts.html" class="nv">Storage Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="versioning_and_sync_types.html" class="nv">Versioning And Sync Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="metadata_validation.html" class="nv">Metadata Validation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="batch_creation_options.html" class="nv">Batch Creation Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dolt Storage Backend.html" class="nv">Dolt Storage Backend</a>
+      <button class="nvcaret" data-nav="Dolt-Storage-Backend-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Dolt-Storage-Backend-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-storage-dolt-transaction-management.html" class="nv">Transaction Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="history_and_conflicts.html" class="nv">History And Conflicts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="migration_system.html" class="nv">Migration System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adaptive_id.html" class="nv">Adaptive Id</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-storage-dolt-federation_sync.html" class="nv">Federation Sync</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Dolt-Server.html" class="nv">Dolt Server</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Formula Engine.html" class="nv">Formula Engine</a>
+      <button class="nvcaret" data-nav="Formula-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Formula-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_types.html" class="nv">Formula Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_condition.html" class="nv">Formula Condition</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_range.html" class="nv">Formula Range</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_parser.html" class="nv">Formula Parser</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Query_Engine.html" class="nv">Query Engine</a>
+      <button class="nvcaret" data-nav="Query-Engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Query-Engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_lexer.html" class="nv">Query Lexer</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_parser_ast.html" class="nv">Query Parser Ast</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="query_evaluator.html" class="nv">Query Evaluator</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Tracker Integration Framework.html" class="nv">Tracker Integration Framework</a>
+      <button class="nvcaret" data-nav="Tracker-Integration-Framework-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Tracker-Integration-Framework-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tracker-plugin-contracts.html" class="nv">Tracker Plugin Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Tracker-Integration-Framework-sync_orchestration_engine.html" class="nv">Sync Orchestration Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tracker-sync_data_models_and_options.html" class="nv">Sync Data Models And Options</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="GitLab Integration.html" class="nv">Gitlab Integration</a>
+      <button class="nvcaret" data-nav="GitLab-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="GitLab-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_types.html" class="nv">Gitlab Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_tracker.html" class="nv">Gitlab Tracker</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_fieldmapper.html" class="nv">Gitlab Fieldmapper</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gitlab_mapping.html" class="nv on">Gitlab Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Jira_Integration.html" class="nv">Jira Integration</a>
+      <button class="nvcaret" data-nav="Jira-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Jira-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Jira-Integration-jira_client_api.html" class="nv">Jira Client Api</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jira_tracker_adapter.html" class="nv">Jira Tracker Adapter</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jira_field_mapping.html" class="nv">Jira Field Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="linear_integration.html" class="nv">Linear Integration</a>
+      <button class="nvcaret" data-nav="Linear-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Linear-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-linear-linear_types.html" class="nv">Linear Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-linear-linear_tracker.html" class="nv">Linear Tracker</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_fieldmapper.html" class="nv">Linear Fieldmapper</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_mapping.html" class="nv">Linear Mapping</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Configuration.html" class="nv">Configuration</a>
+      <button class="nvcaret" data-nav="Configuration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Configuration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="configuration-configuration_engine.html" class="nv">Configuration Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Configuration-repository_configuration.html" class="nv">Repository Configuration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="metadata_configuration.html" class="nv">Metadata Configuration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Routing.html" class="nv">Routing</a>
+      <button class="nvcaret" data-nav="Routing-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Routing-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing-routing_core.html" class="nv">Routing Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing_config.html" class="nv">Routing Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Compaction.html" class="nv">Compaction</a>
+      <button class="nvcaret" data-nav="Compaction-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Compaction-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compaction_orchestration.html" class="nv">Compaction Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="haiku_summarization_client.html" class="nv">Haiku Summarization Client</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Molecules.html" class="nv">Molecules</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Recipes.html" class="nv">Recipes</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Hooks.html" class="nv">Hooks</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Beads Repository Context.html" class="nv">Beads Repository Context</a>
+      <button class="nvcaret" data-nav="Beads-Repository-Context-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Beads-Repository-Context-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal-beads-beads.html" class="nv">Beads</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="context.html" class="nv">Context</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Audit.html" class="nv">Audit</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Telemetry.html" class="nv">Telemetry</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Validation.html" class="nv">Validation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="UI-Utilities.html" class="nv">Ui Utilities</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="MCP Integration.html" class="nv">Mcp Integration</a>
+      <button class="nvcaret" data-nav="MCP-Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="MCP-Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_models_and_data_contracts.html" class="nv">Mcp Models And Data Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="integrations-beads-mcp-src-beads_mcp-cli_transport_client.html" class="nv">Cli Transport Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="daemon_transport_client.html" class="nv">Daemon Transport Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_runtime_config.html" class="nv">Mcp Runtime Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Command Context.html" class="nv">Cli Command Context</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Swarm Commands.html" class="nv">Cli Swarm Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI_Formula_Commands.html" class="nv">Cli Formula Commands</a>
+      <button class="nvcaret" data-nav="CLI-Formula-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Formula-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cook_command_pipeline.html" class="nv">Cook Command Pipeline</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="formula_catalog_commands.html" class="nv">Formula Catalog Commands</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Molecule Commands.html" class="nv">Cli Molecule Commands</a>
+      <button class="nvcaret" data-nav="CLI-Molecule-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Molecule-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_progress_and_dispatch.html" class="nv">Molecule Progress And Dispatch</a>
+        <button class="nvcaret" data-nav="molecule_progress_and_dispatch-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="molecule_progress_and_dispatch-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="molecule_progress_and_dispatch-progress_tracking.html" class="nv">Progress Tracking</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parallel_analysis.html" class="nv">Parallel Analysis</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ready_work_query.html" class="nv">Ready Work Query</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="gate_discovery.html" class="nv">Gate Discovery</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_lifecycle_cleanup.html" class="nv">Molecule Lifecycle Cleanup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="molecule_composition_and_extraction.html" class="nv">Molecule Composition And Extraction</a>
+        <button class="nvcaret" data-nav="molecule_composition_and_extraction-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="molecule_composition_and_extraction-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cmd-bd-mol_bond-bond_polymorphic_orchestration.html" class="nv">Bond Polymorphic Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="distill_reverse_template_extraction.html" class="nv">Distill Reverse Template Extraction</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Doctor Commands.html" class="nv">Cli Doctor Commands</a>
+      <button class="nvcaret" data-nav="CLI-Doctor-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Doctor-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="诊断核心.html" class="nv">诊断核心</a>
+        <button class="nvcaret" data-nav="诊断核心-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="诊断核心-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="数据库与_Dolt_检查.html" class="nv">数据库与 Dolt 检查</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="服务器与迁移验证.html" class="nv">服务器与迁移验证</a>
+          <button class="nvcaret" data-nav="服务器与迁移验证-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="服务器与迁移验证-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="server_health_checks.html" class="nv">Server Health Checks</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-migration_validation.html" class="nv">Migration Validation</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="migration_detection.html" class="nv">Migration Detection</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="深度验证.html" class="nv">深度验证</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="维护与修复.html" class="nv">维护与修复</a>
+          <button class="nvcaret" data-nav="维护与修复-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="维护与修复-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="诊断核心.html" class="nv">诊断核心</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="hook 集成检测与修复.html" class="nv">Hook 集成检测与修复</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="维护清理执行.html" class="nv">维护清理执行</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-fix-maintenance.html" class="nv">Cmd Bd Doctor Fix Maintenance</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd-bd-doctor-fix-hooks.html" class="nv">Cmd Bd Doctor Fix Hooks</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cmd_bd_doctor_fix_cleanup.html" class="nv">Cmd Bd Doctor Fix Cleanup</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="遗留文件与性能诊断.html" class="nv">遗留文件与性能诊断</a>
+          <button class="nvcaret" data-nav="遗留文件与性能诊断-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="遗留文件与性能诊断-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="遗留文件扫描.html" class="nv">遗留文件扫描</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="Dolt 性能诊断.html" class="nv">Dolt 性能诊断</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="验证 CLI 集成.html" class="nv">验证 Cli 集成</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="数据库与_Dolt_检查.html" class="nv">数据库与 Dolt 检查</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="服务器与迁移验证.html" class="nv">服务器与迁移验证</a>
+        <button class="nvcaret" data-nav="服务器与迁移验证-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="服务器与迁移验证-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_health_checks.html" class="nv">Server Health Checks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cmd-bd-doctor-migration_validation.html" class="nv">Migration Validation</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="migration_detection.html" class="nv">Migration Detection</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="深度验证.html" class="nv">深度验证</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="维护与修复.html" class="nv">维护与修复</a>
+        <button class="nvcaret" data-nav="维护与修复-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="维护与修复-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="诊断核心.html" class="nv">诊断核心</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="hook 集成检测与修复.html" class="nv">Hook 集成检测与修复</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="维护清理执行.html" class="nv">维护清理执行</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="遗留文件与性能诊断.html" class="nv">遗留文件与性能诊断</a>
+        <button class="nvcaret" data-nav="遗留文件与性能诊断-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="遗留文件与性能诊断-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="遗留文件扫描.html" class="nv">遗留文件扫描</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Dolt 性能诊断.html" class="nv">Dolt 性能诊断</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="验证 CLI 集成.html" class="nv">验证 Cli 集成</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI-Hook-Commands.html" class="nv">Cli Hook Commands</a>
+      <button class="nvcaret" data-nav="CLI-Hook-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Hook-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hook_runtime_and_status.html" class="nv">Hook Runtime And Status</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="init_hook_bootstrap_and_detection.html" class="nv">Init Hook Bootstrap And Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Gate Commands.html" class="nv">Cli Gate Commands</a>
+      <button class="nvcaret" data-nav="CLI-Gate-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Gate-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gate_status_evaluation_models.html" class="nv">Gate Status Evaluation Models</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="github_run_discovery_model.html" class="nv">Github Run Discovery Model</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Graph Commands.html" class="nv">Cli Graph Commands</a>
+      <button class="nvcaret" data-nav="CLI-Graph-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Graph-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_command_core.html" class="nv">Graph Command Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_export_formats.html" class="nv">Graph Export Formats</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-graph_visual_terminal_dag.html" class="nv">Graph Visual Terminal Dag</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Issue Management Commands.html" class="nv">Cli Issue Management Commands</a>
+      <button class="nvcaret" data-nav="CLI-Issue-Management-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Issue-Management-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_creation_inputs.html" class="nv">Issue Creation Inputs</a>
+        <button class="nvcaret" data-nav="issue_creation_inputs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="issue_creation_inputs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="interactive_form_components.html" class="nv">Interactive Form Components</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="markdown_parsing_components.html" class="nv">Markdown Parsing Components</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="issue_taxonomy_and_validation_views.html" class="nv">Issue Taxonomy And Validation Views</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="dependency_and_label_operations.html" class="nv">Dependency And Label Operations</a>
+        <button class="nvcaret" data-nav="dependency_and_label_operations-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="dependency_and_label_operations-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="label_management.html" class="nv">Label Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="dependency_management.html" class="nv">Dependency Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="maintenance_and_repository_hygiene.html" class="nv">Maintenance And Repository Hygiene</a>
+        <button class="nvcaret" data-nav="maintenance_and_repository_hygiene-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="maintenance_and_repository_hygiene-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="repository_reset.html" class="nv">Repository Reset</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="issue_cleanup.html" class="nv">Issue Cleanup</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="pollution_detection.html" class="nv">Pollution Detection</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="preflight_checks.html" class="nv">Preflight Checks</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="diagnostics_and_discovery.html" class="nv">Diagnostics And Discovery</a>
+        <button class="nvcaret" data-nav="diagnostics_and_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="diagnostics_and_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="where_discovery.html" class="nv">Where Discovery</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="info_diagnostics.html" class="nv">Info Diagnostics</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="prefix_management.html" class="nv">Prefix Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="tip_system.html" class="nv">Tip System</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Migration Commands.html" class="nv">Cli Migration Commands</a>
+      <button class="nvcaret" data-nav="CLI-Migration-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Migration-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="inter_repo_migration.html" class="nv">Inter Repo Migration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_import.html" class="nv">Data Import</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="migration_safety.html" class="nv">Migration Safety</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI_Import_Export_Commands.html" class="nv">Cli Import/Export Commands</a>
+      <button class="nvcaret" data-nav="CLI-Import-Export-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Import-Export-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="import_shared.html" class="nv">Import Shared</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backup_export.html" class="nv">Backup Export</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backup_restore.html" class="nv">Backup Restore</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI-Template-Commands.html" class="nv">Cli Template Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Wisp Commands.html" class="nv">Cli Wisp Commands</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Orphan & Duplicate Commands.html" class="nv">Cli Orphan & Duplicate Commands</a>
+      <button class="nvcaret" data-nav="CLI-Orphan-&-Duplicate-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Orphan-&-Duplicate-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-orphans-orphan_detection_command.html" class="nv">Orphan Detection Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="exact_duplicate_detection_and_merge.html" class="nv">Exact Duplicate Detection And Merge</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="semantic_duplicate_detection.html" class="nv">Semantic Duplicate Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Routing Commands.html" class="nv">Cli Routing Commands</a>
+      <button class="nvcaret" data-nav="CLI-Routing-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Routing-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="routing_core.html" class="nv">Routing Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="linear_integration.html" class="nv">Linear Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="GitLab Integration.html" class="nv">Gitlab Integration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Setup Commands.html" class="nv">Cli Setup Commands</a>
+      <button class="nvcaret" data-nav="CLI-Setup-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Setup-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agents_markdown_integration.html" class="nv">Agents Markdown Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-setup-claude_hooks_setup.html" class="nv">Claude Hooks Setup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="gemini_hooks_setup.html" class="nv">Gemini Hooks Setup</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="CLI Worktree & Dolt Commands.html" class="nv">Cli Worktree & Dolt Commands</a>
+      <button class="nvcaret" data-nav="CLI-Worktree-&-Dolt-Commands-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="CLI-Worktree-&-Dolt-Commands-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="worktree_command_flow.html" class="nv">Worktree Command Flow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cmd-bd-dolt_autocommit_policy.html" class="nv">Dolt Autocommit Policy</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>GitLab Mapping 模块技术深度解析</h1>
+<h2>概述</h2>
+<p>GitLab Mapping 模块是 Beads 系统与 GitLab 之间的<strong>翻译层</strong>，它负责在两个系统的数据模型之间进行双向转换。想象一下，这就像一位精通两种语言的外交官，不仅要翻译字面意思，还要确保文化背景和语义意图的准确传达。</p>
+<p>这个模块解决的核心问题是：GitLab 和 Beads 虽然都处理问题跟踪，但它们对同一概念的表示方式截然不同。GitLab 使用标签（如 <code>priority::high</code>、<code>type::bug</code>）来编码元数据，而 Beads 有专门的字段（<code>Priority</code>、<code>IssueType</code>）。Mapping 模块的职责就是在这两种范式之间优雅地转换，同时保留所有业务语义。</p>
+<h2>架构与数据流程</h2>
+<h3>核心架构图</h3>
+<div class="mermaid">graph TD
+    A[GitLab API] -->|原始数据| B[GitLab Issue]
+    B -->|输入| C[GitLabIssueToBeads]
+    C -->|使用| D[MappingConfig]
+    D -->|提供| E[PriorityMap]
+    D -->|提供| F[StateMap]
+    D -->|提供| G[LabelTypeMap]
+    D -->|提供| H[RelationMap]
+    C -->|调用| I[priorityFromLabels]
+    C -->|调用| J[statusFromLabelsAndState]
+    C -->|调用| K[typeFromLabels]
+    C -->|输出| L[IssueConversion]
+    L -->|包含| M[Beads Issue]
+    
+    N[Beads Issue] -->|输入| O[BeadsIssueToGitLabFields]
+    O -->|使用| D
+    O -->|调用| P[priorityToLabel]
+    O -->|输出| Q[GitLab API Fields]
+    
+    R[GitLab IssueLinks] -->|输入| S[issueLinksToDependencies]
+    S -->|使用| D
+    S -->|输出| T[DependencyInfo]
+</div>
+<h3>数据流程解析</h3>
+<p>数据在这个模块中的流动遵循清晰的双向路径：</p>
+<ol>
+<li>
+<p><strong>GitLab → Beads 路径</strong>：</p>
+<ul>
+<li>从 GitLab API 获取原始 Issue 数据</li>
+<li><code>GitLabIssueToBeads</code> 作为入口点，协调整个转换过程</li>
+<li>分别调用三个专用函数提取不同维度的信息：
+<ul>
+<li><code>priorityFromLabels</code>：从标签中解析优先级</li>
+<li><code>statusFromLabelsAndState</code>：结合状态和标签确定状态</li>
+<li><code>typeFromLabels</code>：从标签中识别问题类型</li>
+</ul>
+</li>
+<li>最终生成包含 Beads Issue 和依赖信息的 <code>IssueConversion</code> 结构</li>
+</ul>
+</li>
+<li>
+<p><strong>Beads → GitLab 路径</strong>：</p>
+<ul>
+<li>接收 Beads Issue 作为输入</li>
+<li><code>BeadsIssueToGitLabFields</code> 构建 GitLab API 可接受的字段映射</li>
+<li>调用 <code>priorityToLabel</code> 将数值优先级转换回标签形式</li>
+<li>生成包含标题、描述、标签、权重等的字段映射</li>
+</ul>
+</li>
+<li>
+<p><strong>依赖关系转换</strong>：</p>
+<ul>
+<li>处理 GitLab 的 IssueLinks 数据</li>
+<li><code>issueLinksToDependencies</code> 解析链接方向和类型</li>
+<li>生成 Beads 系统可用的 DependencyInfo 结构</li>
+</ul>
+</li>
+</ol>
+<h2>核心组件深度解析</h2>
+<h3>MappingConfig 结构体</h3>
+<pre><code class="language-go">type MappingConfig struct {
+    PriorityMap  map[string]int    // priority label value → beads priority (0-4)
+    StateMap     map[string]string // GitLab state → beads status
+    LabelTypeMap map[string]string // type label value → beads issue type
+    RelationMap  map[string]string // GitLab link type → beads dependency type
+}
+</code></pre>
+<p><strong>设计意图</strong>：这是整个模块的配置中枢，采用了<strong>策略模式</strong>的思想。通过将映射关系外部化为配置，而不是硬编码在转换逻辑中，实现了高度的灵活性。用户可以根据自己的 GitLab 标签约定自定义映射，而无需修改核心转换代码。</p>
+<p><strong>关键特点</strong>：</p>
+<ul>
+<li>每个字段都是一个映射表，定义了 GitLab 概念到 Beads 概念的转换规则</li>
+<li>所有映射都是可配置的，没有硬编码的转换逻辑</li>
+<li>这种设计使得同一个转换代码可以适应不同的 GitLab 项目设置</li>
+</ul>
+<h3>DefaultMappingConfig 函数</h3>
+<pre><code class="language-go">func DefaultMappingConfig() *MappingConfig {
+    // Copy PriorityMapping to avoid external modification
+    priorityMap := make(map[string]int, len(PriorityMapping))
+    for k, v := range PriorityMapping {
+        priorityMap[k] = v
+    }
+
+    // Copy typeMapping to avoid external modification
+    labelTypeMap := make(map[string]string, len(typeMapping))
+    for k, v := range typeMapping {
+        labelTypeMap[k] = v
+    }
+
+    return &amp;MappingConfig{
+        PriorityMap: priorityMap,
+        StateMap: map[string]string{
+            &quot;opened&quot;:   StatusMapping[&quot;open&quot;],
+            &quot;closed&quot;:   StatusMapping[&quot;closed&quot;],
+            &quot;reopened&quot;: StatusMapping[&quot;open&quot;],
+        },
+        LabelTypeMap: labelTypeMap,
+        RelationMap: map[string]string{
+            &quot;blocks&quot;:        &quot;blocks&quot;,
+            &quot;is_blocked_by&quot;: &quot;blocked_by&quot;,
+            &quot;relates_to&quot;:    &quot;related&quot;,
+        },
+    }
+}
+</code></pre>
+<p><strong>设计意图</strong>：提供一个开箱即用的标准配置，同时确保配置的安全性。注意这里的两个关键设计决策：</p>
+<ol>
+<li>
+<p><strong>防御性复制</strong>：函数显式复制了 <code>PriorityMapping</code> 和 <code>typeMapping</code>，而不是直接引用。这是一个重要的<strong>安全性设计</strong>，防止外部代码修改这些全局映射表，从而影响所有使用默认配置的代码。</p>
+</li>
+<li>
+<p><strong>单一事实来源</strong>：注释明确提到 &quot;Uses exported mapping constants from types.go as the single source of truth&quot;，这体现了良好的软件工程实践，避免了数据重复定义。</p>
+</li>
+</ol>
+<h3>priorityFromLabels 函数</h3>
+<pre><code class="language-go">func priorityFromLabels(labels []string, config *MappingConfig) int {
+    for _, label := range labels {
+        prefix, value := parseLabelPrefix(label)
+        if prefix == &quot;priority&quot; {
+            if p, ok := config.PriorityMap[strings.ToLower(value)]; ok {
+                return p
+            }
+        }
+    }
+    return 2 // Default to medium
+}
+</code></pre>
+<p><strong>设计意图</strong>：从 GitLab 标签中提取优先级信息。这个函数体现了几个关键的设计思想：</p>
+<ol>
+<li>
+<p><strong>约定优于配置</strong>：函数假设 GitLab 中使用 <code>priority::*</code> 格式的作用域标签来表示优先级，这是一种约定。</p>
+</li>
+<li>
+<p><strong>容错设计</strong>：如果找不到优先级标签，函数不会报错，而是返回默认的中等优先级（2）。这确保了转换过程的健壮性。</p>
+</li>
+<li>
+<p><strong>大小写不敏感</strong>：通过 <code>strings.ToLower(value)</code> 处理，使得标签值的大小写不影响匹配结果。</p>
+</li>
+</ol>
+<h3>statusFromLabelsAndState 函数</h3>
+<pre><code class="language-go">func statusFromLabelsAndState(labels []string, state string, config *MappingConfig) string {
+    // Closed state always wins
+    if state == &quot;closed&quot; {
+        return &quot;closed&quot;
+    }
+
+    // Check for status label
+    for _, label := range labels {
+        prefix, value := parseLabelPrefix(label)
+        if prefix == &quot;status&quot; {
+            normalized := strings.ToLower(value)
+            if normalized == &quot;in_progress&quot; {
+                return &quot;in_progress&quot;
+            }
+            if normalized == &quot;blocked&quot; {
+                return &quot;blocked&quot;
+            }
+            if normalized == &quot;deferred&quot; {
+                return &quot;deferred&quot;
+            }
+        }
+    }
+
+    // Default: map GitLab state to beads status
+    if s, ok := config.StateMap[state]; ok {
+        return s
+    }
+    return &quot;open&quot;
+}
+</code></pre>
+<p><strong>设计意图</strong>：这是一个<strong>优先级决策引擎</strong>，它展示了如何处理多个信息源之间的冲突和优先级。关键设计点：</p>
+<ol>
+<li>
+<p><strong>明确的优先级顺序</strong>：</p>
+<ul>
+<li>GitLab 的 &quot;closed&quot; 状态具有最高优先级，无条件返回 &quot;closed&quot;</li>
+<li>其次检查 <code>status::*</code> 标签</li>
+<li>最后才使用 GitLab 的基本状态映射</li>
+</ul>
+</li>
+<li>
+<p><strong>为什么 closed 状态优先？</strong>：这是一个业务决策。在问题跟踪系统中，&quot;已关闭&quot;是一个最终状态，即使有其他标签指示不同的状态，closed 应该始终胜出。</p>
+</li>
+<li>
+<p><strong>硬编码的状态值</strong>：注意这里对于 &quot;in_progress&quot;、&quot;blocked&quot;、&quot;deferred&quot; 的判断是硬编码的，这是一个设计权衡点。它使得这些状态成为系统的一等公民，不依赖于配置，但也降低了灵活性。</p>
+</li>
+</ol>
+<h3>typeFromLabels 函数</h3>
+<pre><code class="language-go">func typeFromLabels(labels []string, config *MappingConfig) string {
+    for _, label := range labels {
+        prefix, value := parseLabelPrefix(label)
+        if prefix == &quot;type&quot; {
+            if t, ok := config.LabelTypeMap[strings.ToLower(value)]; ok {
+                return t
+            }
+        }
+        // Also check bare labels (no prefix)
+        if prefix == &quot;&quot; {
+            if t, ok := config.LabelTypeMap[strings.ToLower(value)]; ok {
+                return t
+            }
+        }
+    }
+    return &quot;task&quot; // Default to task
+}
+</code></pre>
+<p><strong>设计意图</strong>：这个函数体现了<strong>兼容性设计</strong>，它同时支持两种标签格式：</p>
+<ol>
+<li><strong>作用域标签</strong>：如 <code>type::bug</code>，这是推荐的格式，清晰明确</li>
+<li><strong>裸标签</strong>：如直接使用 <code>bug</code>，这是为了兼容那些没有使用作用域标签约定的 GitLab 项目</li>
+</ol>
+<p>这种双重支持使得系统可以适应不同的 GitLab 项目实践，提高了模块的适用性。</p>
+<h3>GitLabIssueToBeads 函数</h3>
+<p>这是模块的核心转换函数，它将 GitLab Issue 转换为 Beads Issue。让我们分析其设计要点：</p>
+<ol>
+<li>
+<p><strong>SourceSystem 的构造</strong>：</p>
+<pre><code class="language-go">sourceSystem := fmt.Sprintf(&quot;gitlab:%d:%d&quot;, gl.ProjectID, gl.IID)
+</code></pre>
+<p>这是一个精心设计的标识符格式，它包含了足够的信息来唯一标识 GitLab 中的问题，同时也指明了来源系统。</p>
+</li>
+<li>
+<p><strong>权重转换</strong>：</p>
+<pre><code class="language-go">if gl.Weight &gt; 0 {
+    estimatedMinutes := gl.Weight * 60
+    issue.EstimatedMinutes = &amp;estimatedMinutes
+}
+</code></pre>
+<p>这里假设 GitLab 的 weight 单位是小时，乘以 60 转换为分钟。这是一个<strong>约定性假设</strong>，如果用户的 GitLab 项目使用不同的权重单位，需要通过配置来调整。</p>
+</li>
+<li>
+<p><strong>渐进式增强</strong>：函数首先构建基本的 Issue 结构，然后逐步添加可选字段（估算时间、经办人、时间戳）。这种结构使得代码清晰易读，也便于处理可选字段。</p>
+</li>
+</ol>
+<h3>BeadsIssueToGitLabFields 函数</h3>
+<p>这个函数执行反向转换，将 Beads Issue 转换为 GitLab API 可接受的字段。关键设计点：</p>
+<ol>
+<li>
+<p><strong>标签构建策略</strong>：</p>
+<ul>
+<li>首先添加类型标签：<code>type::</code> + 问题类型</li>
+<li>然后添加优先级标签：<code>priority::</code> + 优先级标签</li>
+<li>接着添加状态标签（仅用于非 open/closed 状态）</li>
+<li>最后添加用户定义的其他标签</li>
+</ul>
+</li>
+<li>
+<p><strong>状态处理的不对称性</strong>：</p>
+<ul>
+<li>对于 &quot;in_progress&quot;、&quot;blocked&quot;、&quot;deferred&quot; 状态，使用标签表示</li>
+<li>对于 &quot;closed&quot; 状态，使用 <code>state_event: &quot;close&quot;</code> 来触发 GitLab 的状态变更</li>
+<li>这种不对称设计反映了两个系统状态模型的差异</li>
+</ul>
+</li>
+<li>
+<p><strong>估算时间的反向转换</strong>：</p>
+<pre><code class="language-go">if issue.EstimatedMinutes != nil &amp;&amp; *issue.EstimatedMinutes &gt; 0 {
+    fields[&quot;weight&quot;] = *issue.EstimatedMinutes / 60
+}
+</code></pre>
+<p>这里使用整数除法，可能会导致精度损失。这是一个<strong>设计权衡</strong>，接受了可能的精度损失，以换取与 GitLab 权重模型的兼容性。</p>
+</li>
+</ol>
+<h3>issueLinksToDependencies 函数</h3>
+<p>这个函数处理 GitLab IssueLinks 到 Beads DependencyInfo 的转换，展示了如何处理<strong>关系方向</strong>：</p>
+<ol>
+<li>
+<p><strong>方向解析逻辑</strong>：</p>
+<pre><code class="language-go">if link.SourceIssue != nil &amp;&amp; link.SourceIssue.IID == sourceIID {
+    // We are the source, target is the dependency
+    if link.TargetIssue != nil {
+        toIID = link.TargetIssue.IID
+    }
+} else if link.TargetIssue != nil &amp;&amp; link.TargetIssue.IID == sourceIID {
+    // We are the target, source is the dependency
+    if link.SourceIssue != nil {
+        toIID = link.SourceIssue.IID
+    }
+}
+</code></pre>
+<p>这段代码仔细处理了链接的方向性，确保正确识别哪个问题是依赖方，哪个是被依赖方。</p>
+</li>
+<li>
+<p><strong>默认关系类型</strong>：如果无法识别链接类型，默认使用 &quot;related&quot;，这是一个安全的默认值，不会错误地表示阻塞关系。</p>
+</li>
+</ol>
+<h3>辅助函数</h3>
+<h4>priorityToLabel</h4>
+<pre><code class="language-go">func priorityToLabel(priority int) string {
+    switch priority {
+    case 0:
+        return &quot;critical&quot;
+    case 1:
+        return &quot;high&quot;
+    case 2:
+        return &quot;medium&quot;
+    case 3:
+        return &quot;low&quot;
+    case 4:
+        return &quot;none&quot;
+    default:
+        return &quot;medium&quot;
+    }
+}
+</code></pre>
+<p>这个函数是 <code>priorityFromLabels</code> 的反向操作，注意它是硬编码的，不依赖于配置。这是一个设计决策，确保 Beads 内部的优先级数值（0-4）有稳定的语义。</p>
+<h4>filterNonScopedLabels</h4>
+<pre><code class="language-go">func filterNonScopedLabels(labels []string) []string {
+    var filtered []string
+    for _, label := range labels {
+        prefix, _ := parseLabelPrefix(label)
+        // Skip scoped labels that we handle specially
+        if prefix == &quot;priority&quot; || prefix == &quot;status&quot; || prefix == &quot;type&quot; {
+            continue
+        }
+        filtered = append(filtered, label)
+    }
+    return filtered
+}
+</code></pre>
+<p>这个函数过滤掉那些已经被转换为 Beads 专门字段的标签，避免信息重复。它确保了 Beads 的 Labels 字段只包含真正的标签，而不是编码的元数据。</p>
+<h2>依赖分析</h2>
+<h3>被依赖关系</h3>
+<p>这个模块被以下模块依赖：</p>
+<ul>
+<li><strong>gitlab_tracker</strong>：GitLab 跟踪器实现，使用此模块进行数据转换</li>
+<li><strong>gitlab_fieldmapper</strong>：字段映射器，可能使用此模块的映射逻辑</li>
+</ul>
+<h3>依赖关系</h3>
+<p>此模块依赖：</p>
+<ul>
+<li><strong>types</strong>：核心领域类型，特别是 <code>Issue</code>、<code>IssueType</code>、<code>Status</code> 等</li>
+<li><strong>gitlab_types</strong>：GitLab 特定的数据类型，如 <code>Issue</code>、<code>IssueLink</code>、<code>IssueConversion</code> 等</li>
+</ul>
+<h3>数据契约</h3>
+<p>模块与外部系统的关键数据契约：</p>
+<ol>
+<li>
+<p><strong>GitLab 标签约定</strong>：</p>
+<ul>
+<li>优先级标签：<code>priority::critical</code>、<code>priority::high</code> 等</li>
+<li>类型标签：<code>type::bug</code>、<code>type::feature</code> 等</li>
+<li>状态标签：<code>status::in_progress</code>、<code>status::blocked</code> 等</li>
+</ul>
+</li>
+<li>
+<p><strong>SourceSystem 格式</strong>：<code>gitlab:&lt;project-id&gt;:&lt;issue-iid&gt;</code></p>
+</li>
+<li>
+<p><strong>权重假设</strong>：GitLab weight 单位为小时，Beads 使用分钟</p>
+</li>
+</ol>
+<h2>设计决策与权衡</h2>
+<h3>1. 配置驱动 vs 硬编码</h3>
+<p><strong>决策</strong>：采用混合策略，映射表可配置，但核心转换逻辑和一些关键值（如状态名称）是硬编码的。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ 灵活性：用户可以自定义映射关系</li>
+<li>✅ 稳定性：核心语义保持不变，避免配置错误导致系统行为不一致</li>
+<li>❌ 有限性：某些转换（如优先级标签名称）无法通过配置修改</li>
+</ul>
+<p><strong>替代方案</strong>：完全可配置的系统，所有转换都通过配置定义。但这会增加系统复杂性，并且可能导致不同部署之间的行为差异过大。</p>
+<h3>2. 防御性复制</h3>
+<p><strong>决策</strong>：在 <code>DefaultMappingConfig</code> 中显式复制映射表，而不是直接引用。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ 安全性：防止外部代码意外修改全局映射</li>
+<li>✅ 隔离性：每个配置实例独立，互不影响</li>
+<li>❌ 内存开销：需要额外的内存来存储复制的映射表</li>
+<li>❌ 性能：有轻微的复制开销</li>
+</ul>
+<p>这个决策体现了<strong>安全性优先</strong>的设计原则，在这个场景下，内存和性能开销是微不足道的，而安全性和隔离性则至关重要。</p>
+<h3>3. 优先级顺序的确定</h3>
+<p><strong>决策</strong>：在 <code>statusFromLabelsAndState</code> 中，closed 状态 &gt; status 标签 &gt; 基本状态映射。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ 符合直觉：closed 是最终状态，应该胜出</li>
+<li>✅ 灵活性：通过标签可以表示更多状态</li>
+<li>❌ 可能混淆：用户可能不理解为什么某些标签似乎被忽略</li>
+</ul>
+<p>这个决策基于对问题跟踪系统工作方式的深刻理解，closed 状态在大多数工作流中确实具有最高优先级。</p>
+<h3>4. 双向转换的不对称性</h3>
+<p><strong>决策</strong>：GitLab → Beads 和 Beads → GitLab 的转换逻辑不完全对称。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ 实用性：每个方向都针对目标系统进行了优化</li>
+<li>❌ 复杂性：理解整个转换过程需要考虑两个不同的路径</li>
+<li>❌ 潜在的信息损失：往返转换可能不会完全恢复原始数据</li>
+</ul>
+<p>这种不对称性是必要的，因为两个系统的能力和数据模型不同。模块的职责是尽可能保留语义，而不是逐字复制。</p>
+<h3>5. 默认值的选择</h3>
+<p><strong>决策</strong>：</p>
+<ul>
+<li>优先级默认为 2（medium）</li>
+<li>类型默认为 &quot;task&quot;</li>
+<li>状态默认为 &quot;open&quot;</li>
+<li>关系类型默认为 &quot;related&quot;</li>
+</ul>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li>✅ 健壮性：即使缺少信息，转换也能完成</li>
+<li>✅ 安全性：默认值都是相对中性的，不会导致错误的业务决策</li>
+<li>❌ 可能掩盖问题：静默使用默认值可能使用户不知道某些信息缺失</li>
+</ul>
+<p>这些默认值的选择体现了<strong>安全失败</strong>（fail-safe）的设计原则，选择最不会导致错误业务后果的值作为默认。</p>
+<h2>使用指南与示例</h2>
+<h3>基本使用</h3>
+<pre><code class="language-go">// 创建默认映射配置
+config := gitlab.DefaultMappingConfig()
+
+// 转换 GitLab Issue 为 Beads Issue
+glIssue := // 从 GitLab API 获取的 Issue
+conversion := gitlab.GitLabIssueToBeads(glIssue, config)
+beadsIssue := conversion.Issue
+
+// 转换 Beads Issue 回 GitLab 字段
+glFields := gitlab.BeadsIssueToGitLabFields(beadsIssue, config)
+// 使用 glFields 调用 GitLab API 更新 Issue
+</code></pre>
+<h3>自定义映射配置</h3>
+<pre><code class="language-go">config := gitlab.DefaultMappingConfig()
+
+// 自定义优先级映射
+config.PriorityMap[&quot;urgent&quot;] = 0
+config.PriorityMap[&quot;important&quot;] = 1
+config.PriorityMap[&quot;routine&quot;] = 2
+config.PriorityMap[&quot;minor&quot;] = 3
+
+// 自定义状态映射
+config.StateMap[&quot;resolved&quot;] = &quot;closed&quot;
+config.StateMap[&quot;in_review&quot;] = &quot;in_progress&quot;
+
+// 自定义类型映射
+config.LabelTypeMap[&quot;enhancement&quot;] = &quot;feature&quot;
+config.LabelTypeMap[&quot;defect&quot;] = &quot;bug&quot;
+
+// 自定义关系映射
+config.RelationMap[&quot;depends_on&quot;] = &quot;blocked_by&quot;
+config.RelationMap[&quot;implements&quot;] = &quot;related&quot;
+</code></pre>
+<h3>依赖关系转换</h3>
+<pre><code class="language-go">sourceIID := 123 // 当前问题的 IID
+links := // 从 GitLab API 获取的 IssueLinks
+deps := gitlab.issueLinksToDependencies(sourceIID, links, config)
+
+// 使用 deps 处理依赖关系
+for _, dep := range deps {
+    fmt.Printf(&quot;Issue %d %s issue %d\n&quot;, dep.FromGitLabIID, dep.Type, dep.ToGitLabIID)
+}
+</code></pre>
+<h2>边缘情况与注意事项</h2>
+<h3>1. 标签匹配的大小写不敏感性</h3>
+<p><strong>问题</strong>：标签匹配是大小写不敏感的（通过 <code>strings.ToLower</code>），这意味着 <code>Priority::High</code> 和 <code>priority::high</code> 会被视为相同。</p>
+<p><strong>影响</strong>：这通常是期望的行为，但如果 GitLab 项目有意使用大小写来区分不同的标签，可能会导致意外的匹配。</p>
+<p><strong>建议</strong>：在 GitLab 项目中统一标签的大小写规范，避免依赖大小写来区分标签。</p>
+<h3>2. 权重转换的精度损失</h3>
+<p><strong>问题</strong>：将 Beads 的分钟估算转换为 GitLab 的权重时，使用整数除法，可能导致精度损失。例如，90 分钟会被转换为 1 权重，而不是 1.5。</p>
+<p><strong>影响</strong>：往返转换可能不会完全恢复原始值。</p>
+<p><strong>缓解</strong>：如果需要更高的精度，可以考虑修改代码使用浮点权重，但这需要 GitLab API 的支持。</p>
+<h3>3. 状态转换的单向性</h3>
+<p><strong>问题</strong>：GitLab 的 &quot;reopened&quot; 状态被映射到 Beads 的 &quot;open&quot;，但反向转换时，Beads 的 &quot;open&quot; 状态不会触发 GitLab 的重新打开操作。</p>
+<p><strong>影响</strong>：在 Beads 中将已关闭的问题重新打开，不会自动反映到 GitLab。</p>
+<p><strong>缓解</strong>：需要额外的逻辑来处理这种情况，可能需要跟踪原始状态或使用特定的状态转换事件。</p>
+<h3>4. 标签过滤的潜在问题</h3>
+<p><strong>问题</strong>：<code>filterNonScopedLabels</code> 过滤掉所有 <code>priority::*</code>、<code>status::*</code>、<code>type::*</code> 标签，即使某些标签可能是用户有意保留的。</p>
+<p><strong>影响</strong>：用户无法在 Beads 中看到这些标签。</p>
+<p><strong>缓解</strong>：如果需要保留这些标签，可以修改过滤逻辑，或者在转换后手动添加回来。</p>
+<h3>5. 依赖关系方向的复杂性</h3>
+<p><strong>问题</strong>：<code>issueLinksToDependencies</code> 中的方向逻辑可能难以理解，特别是对于不熟悉 GitLab IssueLinks 结构的开发者。</p>
+<p><strong>影响</strong>：修改这部分代码时容易引入错误。</p>
+<p><strong>建议</strong>：在修改此函数时，务必编写全面的单元测试，覆盖各种链接场景。</p>
+<h3>6. 硬编码的状态值</h3>
+<p><strong>问题</strong>：<code>statusFromLabelsAndState</code> 和 <code>BeadsIssueToGitLabFields</code> 中的一些状态值是硬编码的，如 &quot;in_progress&quot;、&quot;blocked&quot;、&quot;deferred&quot;。</p>
+<p><strong>影响</strong>：这些状态无法通过配置自定义。</p>
+<p><strong>缓解</strong>：如果需要自定义这些状态，需要修改代码，将它们移到配置中。</p>
+<h2>扩展点与未来改进</h2>
+<h3>1. 可插拔的标签解析器</h3>
+<p>当前的标签解析逻辑是硬编码的，未来可以考虑将其抽象为接口，允许用户提供自定义的标签解析策略。</p>
+<h3>2. 更丰富的映射规则</h3>
+<p>当前的映射是简单的键值对，可以考虑扩展为支持更复杂的规则，如正则表达式匹配、默认值规则等。</p>
+<h3>3. 双向转换的对称性保证</h3>
+<p>可以添加验证逻辑，确保往返转换（GitLab → Beads → GitLab）尽可能保留原始数据，或者明确记录信息损失。</p>
+<h3>4. 映射配置的版本控制</h3>
+<p>随着系统的发展，映射规则可能会变化。添加配置版本控制可以帮助平滑迁移。</p>
+<h2>总结</h2>
+<p>GitLab Mapping 模块是一个精心设计的翻译层，它在保持灵活性的同时，确保了数据转换的一致性和可靠性。通过将映射关系外部化为配置，同时保持核心转换逻辑的稳定性，模块实现了良好的平衡。</p>
+<p>这个模块的设计体现了几个重要的软件工程原则：</p>
+<ul>
+<li><strong>约定优于配置</strong>：提供合理的默认约定，同时允许配置覆盖</li>
+<li><strong>安全失败</strong>：选择中性的默认值，确保即使缺少信息也能继续工作</li>
+<li><strong>防御性编程</strong>：通过复制映射表等方式防止意外修改</li>
+<li><strong>明确的优先级</strong>：在多个信息源冲突时，有明确的决策规则</li>
+</ul>
+<p>对于新加入团队的开发者，理解这个模块的关键是把握其<strong>双向翻译</strong>的核心职责，以及<strong>配置与硬编码混合</strong>的设计策略。在修改代码时，要特别注意保持两个方向转换的语义一致性，并全面测试各种边缘情况。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

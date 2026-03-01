@@ -1,0 +1,1955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flow Agent Orchestration 模块深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-code-latest<br>
+    <b>Generated:</b> 2026-02-28T21:23<br>
+    <b>Components:</b> 2668<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/cloudwego/eino" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/cloudwego/eino" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="adk_runtime.html" class="nv">Adk Runtime</a>
+      <button class="nvcaret" data-nav="adk_runtime-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="adk_runtime-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_contracts_and_context.html" class="nv">Agent Contracts And Context</a>
+        <button class="nvcaret" data-nav="agent_contracts_and_context-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="agent_contracts_and_context-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="agent_run_options.html" class="nv">Agent Run Options</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="agent_contracts_and_context-agent_contracts_and_handoff.html" class="nv">Agent Contracts And Handoff</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="agent_contracts_and_context-agent_events_steps_and_message_variants.html" class="nv">Agent Events Steps And Message Variants</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="run-context-and-session-state.html" class="nv">Run Context And Session State</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="run_context_and_session_state-async_iteration_utilities.html" class="nv">Async Iteration Utilities</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="chatmodel_react_and_retry_runtime.html" class="nv">Chatmodel React And Retry Runtime</a>
+        <button class="nvcaret" data-nav="chatmodel_react_and_retry_runtime-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="chatmodel_react_and_retry_runtime-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="chatmodel-agent-core-runtime.html" class="nv">Chatmodel Agent Core Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="chatmodel_agent_test_tools_and_behaviors.html" class="nv">Chatmodel Agent Test Tools And Behaviors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="react_runtime_state_and_tool_result_flow.html" class="nv">React Runtime State And Tool Result Flow</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="react-runtime-test-fixtures.html" class="nv">React Runtime Test Fixtures</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="chatmodel_retry_runtime.html" class="nv">Chatmodel Retry Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="chatmodel_retry_test_fixture.html" class="nv">Chatmodel Retry Test Fixture</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_runtime-flow_runner_interrupt_and_transfer.html" class="nv">Flow Runner Interrupt And Transfer</a>
+        <button class="nvcaret" data-nav="flow_runner_interrupt_and_transfer-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="flow_runner_interrupt_and_transfer-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="deterministic-transfer-wrappers.html" class="nv">Deterministic Transfer Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agent_orchestration.html" class="nv on">Flow Agent Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_runner_interrupt_and_transfer-interrupt_resume_bridge.html" class="nv">Interrupt Resume Bridge</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="runner_execution_and_resume.html" class="nv">Runner Execution And Resume</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="deterministic_transfer_tests.html" class="nv">Deterministic Transfer Tests</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="interrupt_and_runner_test_harnesses.html" class="nv">Interrupt And Runner Test Harnesses</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workflow_agents.html" class="nv">Workflow Agents</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_tool_adapter.html" class="nv">Agent Tool Adapter</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="adk_middlewares_and_filesystem.html" class="nv">Adk Middlewares And Filesystem</a>
+      <button class="nvcaret" data-nav="adk_middlewares_and_filesystem-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="adk_middlewares_and_filesystem-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_backend_core.html" class="nv">Filesystem Backend Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_tool_middleware.html" class="nv">Filesystem Tool Middleware</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem-large-tool-result-offloading.html" class="nv">Filesystem Large Tool Result Offloading</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_middlewares_and_filesystem-generic_tool_result_reduction.html" class="nv">Generic Tool Result Reduction</a>
+        <button class="nvcaret" data-nav="generic_tool_result_reduction-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="generic_tool_result_reduction-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="adk-middlewares-reduction-tool-result-contracts.html" class="nv">Reduction Tool Result Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="adk-middlewares-reduction-clear-tool-result-policy.html" class="nv">Clear Tool Result Policy</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="filesystem-large-tool-result-offloading.html" class="nv">Large Tool Result Offloading</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="large-tool-result-offloading-test-backends.html" class="nv">Large Tool Result Offloading Test Backends</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="skill_middleware.html" class="nv">Skill Middleware</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="adk_prebuilt_agents.html" class="nv">Adk Prebuilt Agents</a>
+      <button class="nvcaret" data-nav="adk_prebuilt_agents-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="adk_prebuilt_agents-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_prebuilt_agents-deep_agent_and_task_tooling.html" class="nv">Deep Agent And Task Tooling</a>
+        <button class="nvcaret" data-nav="deep_agent_and_task_tooling-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="deep_agent_and_task_tooling-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="adk_prebuilt_agents-deep_agent_configuration_and_todo_schema.html" class="nv">Deep Agent Configuration And Todo Schema</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="deep-agent-and-task-tooling-task-tool-definition.html" class="nv">Task Tool Definition</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="adk-prebuilt-deep-deep_agent_test_spies_and_harnesses.html" class="nv">Deep Agent Test Spies And Harnesses</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="adk-prebuilt-deep-task-tool-test-agent-stub.html" class="nv">Task Tool Test Agent Stub</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk_prebuilt_agents-planexecute_core_and_state.html" class="nv">Planexecute Core And State</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk-prebuilt-agents-planexecute-resilience-tests.html" class="nv">Planexecute Resilience Tests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="supervisor_agent_configuration_and_tests.html" class="nv">Supervisor Agent Configuration And Tests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="adk-prebuilt-cross-prebuilt-integration-scenarios.html" class="nv">Cross Prebuilt Integration Scenarios</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="components_core.html" class="nv">Components Core</a>
+      <button class="nvcaret" data-nav="components_core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="components_core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="components_core-document_ingestion_and_parsing.html" class="nv">Document Ingestion And Parsing</a>
+        <button class="nvcaret" data-nav="document_ingestion_and_parsing-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="document_ingestion_and_parsing-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="document_loader_contracts_and_options.html" class="nv">Document Loader Contracts And Options</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="document_transformer_options_and_callbacks.html" class="nv">Document Transformer Options And Callbacks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parser-contracts-and-option-types.html" class="nv">Parser Contracts And Option Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components-core-document-ingestion-and-parsing-parser_implementations.html" class="nv">Parser Implementations</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="components-model-and-prompting.html" class="nv">Model And Prompting</a>
+        <button class="nvcaret" data-nav="model_and_prompting-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="model_and_prompting-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="model_interfaces_and_options.html" class="nv">Model Interfaces And Options</a>
+          <button class="nvcaret" data-nav="model_interfaces_and_options-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="model_interfaces_and_options-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="model_interface.html" class="nv">Model Interface</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="model_option.html" class="nv">Model Option</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components_core-model_and_prompting-model_callback_usage_and_metadata.html" class="nv">Model Callback Usage And Metadata</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components-core-model_and_prompting-prompt_template_contract_and_default.html" class="nv">Prompt Template Contract And Default</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components-core-model-and-prompting-prompt_callback_io.html" class="nv">Prompt Callback Io</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="components_core-embedding_indexing_and_retrieval_primitives.html" class="nv">Embedding Indexing And Retrieval Primitives</a>
+        <button class="nvcaret" data-nav="embedding_indexing_and_retrieval_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="embedding_indexing_and_retrieval_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="embedding_contract_and_runtime_metadata.html" class="nv">Embedding Contract And Runtime Metadata</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="embedding-indexing-and-retrieval-primitives-indexer-options-and-callback-payloads.html" class="nv">Indexer Options And Callback Payloads</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retriever_options_and_callback_payloads.html" class="nv">Retriever Options And Callback Payloads</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="components-tool-contracts-and-options.html" class="nv">Tool Contracts And Options</a>
+        <button class="nvcaret" data-nav="tool_contracts_and_options-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="tool_contracts_and_options-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components_core-tool_contracts_and_options-callback_extra.html" class="nv">Callback Extra</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="model_interface.html" class="nv">Interface</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="model_option.html" class="nv">Option</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="components_core-tool_function_adapters.html" class="nv">Tool Function Adapters</a>
+        <button class="nvcaret" data-nav="tool_function_adapters-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="tool_function_adapters-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components-tool-utils-tool-options.html" class="nv">Tool-Options</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components_core-tool_function_adapters-invokable-func.html" class="nv">Invokable-Func</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="components-tool-utils-streamable-func.html" class="nv">Streamable-Func</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="components-shared-type-introspection.html" class="nv">Shared Type Introspection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="compose_graph_engine.html" class="nv">Compose Graph Engine</a>
+      <button class="nvcaret" data-nav="compose_graph_engine-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="compose_graph_engine-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compose_graph_engine-composition_api_and_workflow_primitives.html" class="nv">Composition Api And Workflow Primitives</a>
+        <button class="nvcaret" data-nav="composition_api_and_workflow_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="composition_api_and_workflow_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="composable_graph_types_and_lambda_options.html" class="nv">Composable Graph Types And Lambda Options</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-composition_api_and_workflow_primitives-branch_and_parallel_chain_primitives.html" class="nv">Branch And Parallel Chain Primitives</a>
+          <button class="nvcaret" data-nav="branch_and_parallel_chain_primitives-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="branch_and_parallel_chain_primitives-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose-branch.html" class="nv">Compose-Branch</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose-chain_branch.html" class="nv">Compose-Chain Branch</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose-graph_engine-composition_api_and_workflow_primitives-branch_and_parallel_chain_primitives-compose-chain_parallel.html" class="nv">Compose-Chain Parallel</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="composition-api-and-workflow-primitives-workflow-definition-primitives.html" class="nv">Workflow Definition Primitives</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-composition_api_and_workflow_primitives-graph_node_addition_options.html" class="nv">Graph Node Addition Options</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-composition_api_and_workflow_primitives-field_mapping_and_value_merging.html" class="nv">Field Mapping And Value Merging</a>
+          <button class="nvcaret" data-nav="field_mapping_and_value_merging-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="field_mapping_and_value_merging-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-composition_api_and_workflow_primitives-field_mapping_and_value_merging-field_mapping_core.html" class="nv">Field Mapping Core</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-composition_api_and_workflow_primitives-field_mapping_and_value_merging-value_merging_system.html" class="nv">Value Merging System</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compose_graph_engine-graph_execution_runtime.html" class="nv">Graph Execution Runtime</a>
+        <button class="nvcaret" data-nav="graph_execution_runtime-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="graph_execution_runtime-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_definition_and_compile_configuration.html" class="nv">Graph Definition And Compile Configuration</a>
+          <button class="nvcaret" data-nav="graph_definition_and_compile_configuration-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="graph_definition_and_compile_configuration-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-graph_definition_and_compile_configuration-core_graph_structure.html" class="nv">Core Graph Structure</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_execution_runtime-graph_definition_and_compile_configuration-graph_compile_configuration.html" class="nv">Graph Compile Configuration</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-graph_definition_and_compile_configuration-subgraph_and_callbacks.html" class="nv">Subgraph And Callbacks</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose-graph_engine-graph_execution_runtime-node_execution_and_runnable_abstractions.html" class="nv">Node Execution And Runnable Abstractions</a>
+          <button class="nvcaret" data-nav="node_execution_and_runnable_abstractions-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="node_execution_and_runnable_abstractions-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-node_execution_and_runnable_abstractions-graph_node_abstractions.html" class="nv">Graph Node Abstractions</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-node_execution_and_runnable_abstractions-runnable_interface_and_wrappers.html" class="nv">Runnable Interface And Wrappers</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_execution_runtime-runtime_scheduling_channels_and_handlers.html" class="nv">Runtime Scheduling Channels And Handlers</a>
+          <button class="nvcaret" data-nav="runtime_scheduling_channels_and_handlers-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="runtime_scheduling_channels_and_handlers-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-runtime_scheduling_channels_and_handlers-core_channels.html" class="nv">Core Channels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-runtime_scheduling_channels_and_handlers-task_and_channel_managers.html" class="nv">Task And Channel Managers</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_execution_runtime-runtime_scheduling_channels_and_handlers-handlers.html" class="nv">Handlers</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_execution_runtime-graph_run_and_interrupt_execution_flow.html" class="nv">Graph Run And Interrupt Execution Flow</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_execution_runtime-state_and_stream_reader_runtime_primitives.html" class="nv">State And Stream Reader Runtime Primitives</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_execution_runtime-graph_introspection_and_compile_callbacks.html" class="nv">Graph Introspection And Compile Callbacks</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compose_graph_engine-tool_node_execution_and_interrupt_control.html" class="nv">Tool Node Execution And Interrupt Control</a>
+        <button class="nvcaret" data-nav="tool_node_execution_and_interrupt_control-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="tool_node_execution_and_interrupt_control-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-tool_node_execution_and_interrupt_control-tool_node_api_and_data_contracts.html" class="nv">Tool Node Api And Data Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-tool_node_execution_and_interrupt_control-tool_call_execution_and_callback_wrappers.html" class="nv">Tool Call Execution And Callback Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="tool_interrupt_and_rerun_state.html" class="nv">Tool Interrupt And Rerun State</a>
+          <button class="nvcaret" data-nav="tool_interrupt_and_rerun_state-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="tool_interrupt_and_rerun_state-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-tool_node_execution_and_interrupt_control-tool_interrupt_and_rerun_state-interrupt_core_components.html" class="nv">Interrupt Core Components</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-tool_node_execution_and_interrupt_control-tool_interrupt_and_rerun_state-tool_node_interrupt_components.html" class="nv">Tool Node Interrupt Components</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-tool_node_execution_and_interrupt_control-graph_level_interrupt_and_cancellation_options.html" class="nv">Graph Level Interrupt And Cancellation Options</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-tool_node_execution_and_interrupt_control-generic_stream_and_handler_adapters.html" class="nv">Generic Stream And Handler Adapters</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compose_graph_engine-checkpointing_and_rerun_persistence.html" class="nv">Checkpointing And Rerun Persistence</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compose_graph_engine-graph_and_workflow_test_harnesses.html" class="nv">Graph And Workflow Test Harnesses</a>
+        <button class="nvcaret" data-nav="graph_and_workflow_test_harnesses-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="graph_and_workflow_test_harnesses-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_and_workflow_test_harnesses-graph_runtime_state_and_callback_test_fixtures.html" class="nv">Graph Runtime State And Callback Test Fixtures</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_and_workflow_test_harnesses-graph_invocation_and_chain_option_test_fixtures.html" class="nv">Graph Invocation And Chain Option Test Fixtures</a>
+          <button class="nvcaret" data-nav="graph_invocation_and_chain_option_test_fixtures-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="graph_invocation_and_chain_option_test_fixtures-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose_graph_engine-graph_and_workflow_test_harnesses-graph_invocation_and_chain_option_test_fixtures-lambda_options_test_infrastructure.html" class="nv">Lambda Options Test Infrastructure</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="compose-graph_engine-graph_and_workflow_test_harnesses-graph_invocation_and_chain_option_test_fixtures-model_test_infrastructure.html" class="nv">Model Test Infrastructure</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_and_workflow_test_harnesses-stream_concat_test_payload_and_error_types.html" class="nv">Stream Concat Test Payload And Error Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose-graph_and_workflow_test_harnesses-lambda_option_parsing_test_fixture.html" class="nv">Lambda Option Parsing Test Fixture</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_and_workflow_test_harnesses-workflow_type_contract_test_fixtures.html" class="nv">Workflow Type Contract Test Fixtures</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="compose_graph_engine-tool_node_and_resume_test_harnesses.html" class="nv">Tool Node And Resume Test Harnesses</a>
+        <button class="nvcaret" data-nav="tool_node_and_resume_test_harnesses-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="tool_node_and_resume_test_harnesses-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-tool_node_and_resume_test_harnesses-tool_node_test_harness.html" class="nv">Tool Node Test Harness</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-tool_node_and_resume_test_harnesses-resume_test_harness.html" class="nv">Resume Test Harness</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="checkpoint_state_and_utils_test_harnesses.html" class="nv">Checkpoint State And Utils Test Harnesses</a>
+        <button class="nvcaret" data-nav="checkpoint_state_and_utils_test_harnesses-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="checkpoint_state_and_utils_test_harnesses-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_and_workflow_test_harnesses-checkpoint_state_and_utils_test_harnesses-checkpoint_testing.html" class="nv">Checkpoint Testing</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-graph_and_workflow_test_harnesses-checkpoint_state_and_utils_test_harnesses-state_testing.html" class="nv">State Testing</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="compose_graph_engine-checkpoint_state_and_utils_test_harnesses-utils_testing.html" class="nv">Utils Testing</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="flow_agents_and_retrieval.html" class="nv">Flow Agents And Retrieval</a>
+      <button class="nvcaret" data-nav="flow_agents_and_retrieval-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="flow_agents_and_retrieval-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host.html" class="nv">Agent Orchestration And Multiagent Host</a>
+        <button class="nvcaret" data-nav="agent_orchestration_and_multiagent_host-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="agent_orchestration_and_multiagent_host-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host-host_role_and_agent_descriptors.html" class="nv">Host Role And Agent Descriptors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host-multiagent_host_configuration_options.html" class="nv">Multiagent Host Configuration Options</a>
+          <button class="nvcaret" data-nav="multiagent_host_configuration_options-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="multiagent_host_configuration_options-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host-multiagent_host_configuration_options-host_config_types.html" class="nv">Host Config Types</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host-multiagent_host_configuration_options-option_handlers.html" class="nv">Option Handlers</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host-handoff_callback_contracts.html" class="nv">Handoff Callback Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-agent_orchestration_and_multiagent_host-host_composition_state_and_test_fixture.html" class="nv">Host Composition State And Test Fixture</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="react_agent_runtime_and_options.html" class="nv">React Agent Runtime And Options</a>
+        <button class="nvcaret" data-nav="react_agent_runtime_and_options-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="react_agent_runtime_and_options-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow-agents-and-retrieval-react-agent-runtime-and-options-react-agent-core-runtime.html" class="nv">React Agent Core Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-react_agent_runtime_and_options-react_option_streaming_and_callback_contracts.html" class="nv">React Option Streaming And Callback Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-react_agent_runtime_and_options-react_option_layer_test_doubles.html" class="nv">React Option Layer Test Doubles</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-react_agent_runtime_and_options-react_agent_test_tool_fixtures.html" class="nv">React Agent Test Tool Fixtures</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agents_and_retrieval-parent_indexer_flow.html" class="nv">Parent Indexer Flow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="flow_agents_and_retrieval-retriever_strategies_and_routing.html" class="nv">Retriever Strategies And Routing</a>
+        <button class="nvcaret" data-nav="retriever_strategies_and_routing-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="retriever_strategies_and_routing-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-retriever_strategies_and_routing-multiquery_query_expansion_retriever.html" class="nv">Multiquery Query Expansion Retriever</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-retriever_strategies_and_routing-parent_document_retrieval_strategy.html" class="nv">Parent Document Retrieval Strategy</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-retriever_strategies_and_routing-router_based_retriever_dispatch.html" class="nv">Router Based Retriever Dispatch</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="flow_agents_and_retrieval-retriever_strategies_and_routing-retrieval_task_shared_contracts.html" class="nv">Retrieval Task Shared Contracts</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retriever_strategy_test_doubles.html" class="nv">Retriever Strategy Test Doubles</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="internal_runtime_and_mocks.html" class="nv">Internal Runtime And Mocks</a>
+      <button class="nvcaret" data-nav="internal_runtime_and_mocks-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="internal_runtime_and_mocks-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_runtime_and_mocks-runtime_callbacks_and_execution_context.html" class="nv">Runtime Callbacks And Execution Context</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_runtime_and_mocks-interrupt_and_addressing_runtime_primitives.html" class="nv">Interrupt And Addressing Runtime Primitives</a>
+        <button class="nvcaret" data-nav="interrupt_and_addressing_runtime_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="interrupt_and_addressing_runtime_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal_runtime_and_mocks-interrupt_and_addressing_runtime_primitives-interrupt_contexts_and_state_management.html" class="nv">Interrupt Contexts And State Management</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal_runtime_and_mocks-interrupt_and_addressing_runtime_primitives-address_scoping_and_resume_info.html" class="nv">Address Scoping And Resume Info</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal_runtime_and_mocks-interrupt_and_addressing_runtime_primitives-runtime_channel_and_generic_primitives.html" class="nv">Runtime Channel And Generic Primitives</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal_runtime_and_mocks-interrupt_and_addressing_runtime_primitives-panic_safety_primitive.html" class="nv">Panic Safety Primitive</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_runtime_and_mocks-internal_serialization_engine.html" class="nv">Internal Serialization Engine</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_runtime_and_mocks-internal_serialization_test_fixtures.html" class="nv">Internal Serialization Test Fixtures</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_runtime_and_mocks-adk_agent_contract_mocks.html" class="nv">Adk Agent Contract Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="internal_runtime_and_mocks-document_component_mocks.html" class="nv">Document Component Mocks</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_retrieval_and_indexing_mocks.html" class="nv">Model Retrieval And Indexing Mocks</a>
+        <button class="nvcaret" data-nav="model_retrieval_and_indexing_mocks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="model_retrieval_and_indexing_mocks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal_runtime_and_mocks-model_retrieval_and_indexing_mocks-embedding_component_mocks.html" class="nv">Embedding Component Mocks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal-mock-components-indexer_component_mocks.html" class="nv">Indexer Component Mocks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal-runtime-and-mocks-model-retrieval-and-indexing-mocks-chatmodel-component-mocks.html" class="nv">Chatmodel Component Mocks</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="internal-runtime-and-mocks-model-retrieval-and-indexing-mocks-retriever-component-mocks.html" class="nv">Retriever Component Mocks</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="schema_models_and_streams.html" class="nv">Schema Models And Streams</a>
+      <button class="nvcaret" data-nav="schema_models_and_streams-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="schema_models_and_streams-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_models_and_streams-document_schema.html" class="nv">Document Schema</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_models_and_streams-message_schema_and_templates.html" class="nv">Message Schema And Templates</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_models_and_streams-message_parsing_and_serialization_support.html" class="nv">Message Parsing And Serialization Support</a>
+        <button class="nvcaret" data-nav="message_parsing_and_serialization_support-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="message_parsing_and_serialization_support-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="message_parsing_engine.html" class="nv">Message Parsing Engine</a>
+          <button class="nvcaret" data-nav="message_parsing_engine-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="message_parsing_engine-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="schema_models_and_streams-message_parsing_and_serialization_support-message_parsing_engine-core_parser.html" class="nv">Core Parser</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="schema_models_and_streams-message_parsing_and_serialization_support.html" class="nv">Serialization Support</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_models_and_streams-streaming_core_and_reader_writer_combinators.html" class="nv">Streaming Core And Reader Writer Combinators</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="schema_models_and_streams-tool_metadata_schema.html" class="nv">Tool Metadata Schema</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="callbacks_and_handler_templates.html" class="nv">Callbacks And Handler Templates</a>
+      <button class="nvcaret" data-nav="callbacks_and_handler_templates-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="callbacks_and_handler_templates-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="callbacks-and-handler-templates-core_callback_infrastructure.html" class="nv">Core Callback Infrastructure</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="callbacks-and-handler-templates-component-specific-templates.html" class="nv">Component Specific Templates</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Flow Agent Orchestration 模块深度解析</h1>
+<h2>概述：什么是 Flow Agent Orchestration？</h2>
+<p>想象你在构建一个智能客服系统，需要多个专门的 Agent 来处理不同场景：一个负责订单查询，一个负责退款处理，还有一个负责产品推荐。用户可能从一个问题跳到另一个问题，系统需要在不同的 Agent 之间流畅地切换，同时保持对话历史的上下文连贯性。Flow Agent Orchestration 模块就是为了解决这个<strong>多 Agent 协作编排</strong>问题而设计的。</p>
+<p>这个模块提供了一个层次化的 Agent 管理框架，让 Agent 之间可以互相转移控制权（transfer），自动处理对话历史的上下文重写，支持中断后的恢复，并维护完整的执行路径追踪。它就像是多 Agent 系统的&quot;交通指挥官&quot;，决定什么时候让哪个 Agent 上场，并确保它们之间传递正确的上下文信息。</p>
+<h2>核心问题：为什么需要这个模块？</h2>
+<h3>问题一：Agent 层次结构管理</h3>
+<p>在多 Agent 系统中，Agent 之间往往存在父子关系。比如一个&quot;客户服务主 Agent&quot;下面有多个&quot;专门 Agent&quot;（退款、投诉、咨询等）。我们需要：</p>
+<ul>
+<li>维护这种层次关系（parent/subAgent 指针）</li>
+<li>防止循环引用（Agent 已经是其他 Agent 的子 Agent）</li>
+<li>支持 Agent 树的深拷贝（deepCopy），因为多个运行实例可能共享同一个配置</li>
+</ul>
+<h3>问题二：上下文传递和历史重写</h3>
+<p>当 Agent A 把控制权转移给 Agent B 时，B 需要知道之前发生了什么。但直接把 A 的历史消息给 B 是不合适的，因为：</p>
+<ul>
+<li>B 可能不理解 A 的内部对话</li>
+<li>需要把&quot;系统角色&quot;的消息转换为&quot;用户角色&quot;的上下文提示</li>
+<li>某些转移消息不应该传递给下游 Agent</li>
+</ul>
+<p>这个模块通过 <code>HistoryRewriter</code> 机制，在转移时智能地重写历史消息，将 Assistant/Tool 角色的消息转换为&quot;为了上下文：[AgentX] 说了...&quot;的 User 消息。</p>
+<h3>问题三：事件归属和执行路径追踪</h3>
+<p>在嵌套的 Agent 执行中，一个事件可能来自子 Agent、孙 Agent，或者来自当前 Agent 自己的某个工具调用。我们需要知道：</p>
+<ul>
+<li>这个事件到底是由哪个 Agent 发出的？</li>
+<li>父 Agent 应该记录这个事件吗？</li>
+<li>哪些 Action（如 Transfer、Exit）应该影响控制流？</li>
+</ul>
+<p><code>RunPath</code> 字段记录了从根 Agent 到当前事件源的完整路径，配合 <code>exactRunPathMatch</code>，实现了精确的事件归属判定。</p>
+<h3>问题四：中断恢复（Resume）</h3>
+<p>Agent 执行可能被中断（用户取消、系统崩溃等），恢复时需要：</p>
+<ul>
+<li>知道应该在哪个 Agent 继续执行</li>
+<li>携带正确的状态信息</li>
+<li>正确处理嵌套的恢复（如果中断发生在子 Agent 中）</li>
+</ul>
+<p><code>Resume</code> 方法通过检查 <code>ResumeInfo.WasInterrupted</code> 和 <code>NextResumeAgent</code>，智能地决定是自己处理还是委托给子 Agent。</p>
+<h2>架构：组件角色与数据流</h2>
+<div class="mermaid">graph TB
+    subgraph "Flow Agent 编排层"
+        FA[flowAgent]
+        HE[HistoryEntry]
+        HRC[HistoryRewriter]
+        DTC[DeterministicTransferConfig]
+    end
+    
+    subgraph "Agent 接口层"
+        AG[Agent]
+        RA[ResumableAgent]
+    end
+    
+    subgraph "运行时上下文"
+        RC[runContext]
+        RS[runSession]
+        AE[AgentEvent]
+    end
+    
+    subgraph "辅助工具"
+        WR[rewriteMessage]
+        GA[getAgent]
+    end
+    
+    FA -->|包装| AG
+    FA -->|继承| RA
+    FA -->|持有| RC
+    RC -->|包含| RS
+    
+    FA -->|生成| HE
+    FA -->|使用| HRC
+    FA -->|配置| DTC
+    
+    FA -->|产生| AE
+    AE -->|包含| RunPath
+    
+    FA -->|查找子Agent| GA
+    FA -->|重写消息| WR
+    
+    style FA fill:#e1f5ff
+    style RC fill:#fff4e1
+    style AE fill:#f3e5f5
+</div>
+<h3>数据流：从用户请求到 Agent 执行</h3>
+<ol>
+<li>
+<p><strong>初始化阶段</strong>：</p>
+<ul>
+<li>用户调用 <code>SetSubAgents(ctx, rootAgent, subAgents)</code> 建立层次结构</li>
+<li>每个 Agent 被包装为 <code>flowAgent</code>，建立 parent/subAgent 指针</li>
+<li>调用 <code>OnSubAgents.OnSetSubAgents</code> 和 <code>OnSetAsSubAgent</code> 通知底层 Agent</li>
+</ul>
+</li>
+<li>
+<p><strong>运行阶段</strong>：</p>
+<ul>
+<li>用户调用 <code>flowAgent.Run(ctx, input, opts...)</code></li>
+<li><code>initRunCtx</code> 创建运行上下文，建立 <code>RunPath</code> 和 <code>runSession</code></li>
+<li><code>genAgentInput</code> 从会话历史生成输入，使用 <code>historyRewriter</code> 重写消息</li>
+<li>调用底层 Agent 的 <code>Run</code> 方法</li>
+<li><code>run</code> 方法处理返回的事件流：设置 RunPath、过滤和记录事件、处理转移 Action</li>
+</ul>
+</li>
+<li>
+<p><strong>恢复阶段</strong>：</p>
+<ul>
+<li>用户调用 <code>flowAgent.Resume(ctx, resumeInfo, opts...)</code></li>
+<li>检查 <code>WasInterrupted</code>：如果是中断点且自己是 <code>ResumableAgent</code>，自己处理</li>
+<li>否则查找 <code>NextResumeAgent</code>，委托给对应的子 Agent</li>
+</ul>
+</li>
+</ol>
+<h2>组件深度解析</h2>
+<h3>HistoryEntry：历史条目的最小单元</h3>
+<pre><code class="language-go">type HistoryEntry struct {
+    IsUserInput bool
+    AgentName   string
+    Message     Message
+}
+</code></pre>
+<p><strong>设计意图</strong>：这是历史记录的原子单元，区分用户原始输入和 Agent 生成的消息。<code>IsUserInput</code> 标记非常重要，因为用户输入不需要被重写，而 Agent 的消息需要通过 <code>HistoryRewriter</code> 转换为上下文提示。</p>
+<p><strong>关键使用场景</strong>：</p>
+<ul>
+<li><code>genAgentInput</code> 遍历会话事件，将每个事件转换为 <code>HistoryEntry</code></li>
+<li>如果 <code>skipTransferMessages</code> 为 true，包含 <code>TransferToAgent</code> Action 的事件会被跳过</li>
+<li><code>historyRewriter</code> 接收 <code>[]*HistoryEntry</code>，返回重写后的 <code>[]Message</code></li>
+</ul>
+<h3>flowAgent：核心编排器</h3>
+<p>这是整个模块的灵魂，它包装了底层的 <code>Agent</code>，添加了多 Agent 编排能力。</p>
+<h4>关键字段</h4>
+<ul>
+<li><code>subAgents []*flowAgent</code>：子 Agent 列表，形成树形结构</li>
+<li><code>parentAgent *flowAgent</code>：父 Agent 引用，用于向上转移（通常被禁用）</li>
+<li><code>disallowTransferToParent bool</code>：禁止转移到父 Agent 的标志</li>
+<li><code>historyRewriter HistoryRewriter</code>：历史消息重写函数</li>
+<li><code>checkPointStore compose.CheckPointStore</code>：检查点存储（用于中断恢复）</li>
+</ul>
+<h4>deepCopy：防御性拷贝</h4>
+<pre><code class="language-go">func (a *flowAgent) deepCopy() *flowAgent {
+    ret := &amp;flowAgent{
+        Agent:                    a.Agent,
+        subAgents:                make([]*flowAgent, 0, len(a.subAgents)),
+        parentAgent:              a.parentAgent,
+        disallowTransferToParent: a.disallowTransferToParent,
+        historyRewriter:          a.historyRewriter,
+        checkPointStore:          a.checkPointStore,
+    }
+    for _, sa := range a.subAgents {
+        ret.subAgents = append(ret.subAgents, sa.deepCopy())
+    }
+    return ret
+}
+</code></pre>
+<p><strong>为什么需要深拷贝？</strong></p>
+<p><code>toFlowAgent</code> 在包装 Agent 时会调用 <code>deepCopy</code>，这是为了：</p>
+<ol>
+<li>防止多个 <code>flowAgent</code> 实例共享同一个 <code>subAgents</code> 切片</li>
+<li>当同一个 Agent 配置被多次使用时（如在测试中），避免状态污染</li>
+<li>支持在构建 Agent 树时的临时修改，不影响原始配置</li>
+</ol>
+<p><strong>注意</strong>：深拷贝只拷贝 <code>flowAgent</code> 本身的字段，不拷贝内部的 <code>Agent</code> 实例。这是合理的，因为底层的 Agent 逻辑通常是无状态的或自行管理状态。</p>
+<h4>genAgentInput：上下文生成的核心</h4>
+<p>这是理解整个模块的关键方法。它负责将会话历史转换为当前 Agent 的输入。</p>
+<pre><code class="language-go">func (a *flowAgent) genAgentInput(ctx context.Context, runCtx *runContext, skipTransferMessages bool) (*AgentInput, error) {
+    input := runCtx.RootInput.deepCopy()
+    
+    // 1. 收集历史条目
+    historyEntries := make([]*HistoryEntry, 0)
+    for _, m := range input.Messages {
+        historyEntries = append(historyEntries, &amp;HistoryEntry{
+            IsUserInput: true,
+            Message:     m,
+        })
+    }
+    
+    // 2. 从会话事件构建历史
+    for _, event := range runCtx.Session.getEvents() {
+        // 处理 skipTransferMessages 逻辑
+        if skipTransferMessages &amp;&amp; event.Action != nil &amp;&amp; event.Action.TransferToAgent != nil {
+            // 跳过转移消息
+            if event.Output != nil &amp;&amp;
+                event.Output.MessageOutput != nil &amp;&amp;
+                event.Output.MessageOutput.Role == schema.Tool &amp;&amp;
+                len(historyEntries) &gt; 0 {
+                historyEntries = historyEntries[:len(historyEntries)-1]
+            }
+            continue
+        }
+        
+        // 从事件提取消息
+        msg, err := getMessageFromWrappedEvent(event)
+        if err != nil {
+            // 处理 WillRetryError
+            continue
+        }
+        
+        if msg != nil {
+            historyEntries = append(historyEntries, &amp;HistoryEntry{
+                AgentName: event.AgentName,
+                Message:   msg,
+            })
+        }
+    }
+    
+    // 3. 重写历史
+    messages, err := a.historyRewriter(ctx, historyEntries)
+    if err != nil {
+        return nil, err
+    }
+    input.Messages = messages
+    
+    return input, nil
+}
+</code></pre>
+<p><strong>skipTransferMessages 的作用</strong>：</p>
+<p>这是一个微妙但重要的设计。当设置为 <code>true</code> 时，包含 <code>TransferToAgent</code> Action 的事件不会传递给下游 Agent。为什么？</p>
+<p>想象这个场景：</p>
+<ol>
+<li>Agent A 决定转移到 Agent B，输出&quot;让我转接到退款专员&quot;</li>
+<li>Agent A 发送一个 <code>TransferToAgent</code> Action</li>
+<li>如果 B 看到这个消息，它会困惑（&quot;等等，我是退款专员，为什么有人要转接我？&quot;）</li>
+</ol>
+<p>通过 <code>skipTransferMessages</code>，转移指令对下游 Agent 是透明的，只有框架知道发生了转移。</p>
+<p><strong>为什么需要移除 Tool 角色的消息？</strong></p>
+<p>当跳过转移消息时，如果是 Tool 角色且是转移相关的，还需要移除前一条历史。这是因为 ChatModelAgent 在生成转移消息时，会先生成一个函数调用消息（Tool 角色），然后生成转移 Action。这两个消息是一体的，跳过一个就应该都跳过。</p>
+<h4>run：事件流的编排引擎</h4>
+<p>这个方法是执行的核心，处理事件流、设置 RunPath、记录事件、处理转移。</p>
+<pre><code class="language-go">func (a *flowAgent) run(
+    ctx context.Context,
+    runCtx *runContext,
+    aIter *AsyncIterator[*AgentEvent],
+    generator *AsyncGenerator[*AgentEvent],
+    opts ...AgentRunOption) {
+    defer func() {
+        panicErr := recover()
+        if panicErr != nil {
+            e := safe.NewPanicErr(panicErr, debug.Stack())
+            generator.Send(&amp;AgentEvent{Err: e})
+        }
+        generator.Close()
+    }()
+    
+    var lastAction *AgentAction
+    for {
+        event, ok := aIter.Next()
+        if !ok {
+            break
+        }
+        
+        // 1. 设置 RunPath（如果尚未设置）
+        if len(event.RunPath) == 0 {
+            event.AgentName = a.Name(ctx)
+            event.RunPath = runCtx.RunPath
+        }
+        
+        // 2. 记录事件（仅来自当前 Agent 的非中断事件）
+        if (event.Action == nil || event.Action.Interrupted == nil) &amp;&amp; 
+           exactRunPathMatch(runCtx.RunPath, event.RunPath) {
+            copied := copyAgentEvent(event)
+            setAutomaticClose(copied)
+            setAutomaticClose(event)
+            runCtx.Session.addEvent(copied)
+        }
+        
+        // 3. 记录最后一个 Action（用于后续处理）
+        if exactRunPathMatch(runCtx.RunPath, event.RunPath) {
+            lastAction = event.Action
+        }
+        
+        generator.Send(event)
+    }
+    
+    // 4. 处理转移
+    var destName string
+    if lastAction != nil {
+        if lastAction.Interrupted != nil {
+            return
+        }
+        if lastAction.Exit {
+            return
+        }
+        if lastAction.TransferToAgent != nil {
+            destName = lastAction.TransferToAgent.DestAgentName
+        }
+    }
+    
+    if destName != &quot;&quot; {
+        agentToRun := a.getAgent(ctx, destName)
+        if agentToRun == nil {
+            e := fmt.Errorf(&quot;transfer failed: agent '%s' not found when transferring from '%s'&quot;,
+                destName, a.Name(ctx))
+            generator.Send(&amp;AgentEvent{Err: e})
+            return
+        }
+        
+        subAIter := agentToRun.Run(ctx, nil, opts...)
+        for {
+            subEvent, ok_ := subAIter.Next()
+            if !ok_ {
+                break
+            }
+            setAutomaticClose(subEvent)
+            generator.Send(subEvent)
+        }
+    }
+}
+</code></pre>
+<p><strong>RunPath 的设置策略</strong>：</p>
+<p>代码注释解释了这个设计：&quot;the eino framework sets RunPath exactly once.&quot; 如果事件已经设置了 RunPath（比如由 <code>agentTool</code> 设置的），flowAgent 就不会修改它。否则，它用自己的 RunPath 替换。</p>
+<p>这个设计确保了 RunPath 的唯一性，避免重复设置。</p>
+<p><strong>事件记录的精确控制</strong>：</p>
+<p>只有满足以下条件的事件才会被记录到会话中：</p>
+<ol>
+<li><code>event.Action == nil || event.Action.Interrupted == nil</code>：非中断事件</li>
+<li><code>exactRunPathMatch(runCtx.RunPath, event.RunPath)</code>：来自当前 Agent</li>
+</ol>
+<p>为什么？</p>
+<ul>
+<li>子 Agent 的事件由子 Agent 自己记录</li>
+<li>中断事件不应该进入会话，它们只用于框架内部控制</li>
+<li>父 Agent 不应该记录子 Agent 的事件（会重复）</li>
+</ul>
+<p><strong>事件拷贝的原因</strong>：</p>
+<pre><code class="language-go">copied := copyAgentEvent(event)
+setAutomaticClose(copied)
+setAutomaticClose(event)
+</code></pre>
+<p><code>copyAgentEvent</code> 创建了事件的深拷贝（包括 MessageStream），然后两个副本都被设置为自动关闭。这是为了：</p>
+<ol>
+<li><code>copied</code> 被添加到会话，可能被后续的 <code>genAgentInput</code> 消费</li>
+<li><code>event</code> 被发送给调用者，也可能被消费</li>
+<li>两个消费者需要独立的流，避免竞争</li>
+</ol>
+<h4>Resume：恢复逻辑的智能分发</h4>
+<pre><code class="language-go">func (a *flowAgent) Resume(ctx context.Context, info *ResumeInfo, opts ...AgentRunOption) *AsyncIterator[*AgentEvent] {
+    ctx, info = buildResumeInfo(ctx, a.Name(ctx), info)
+    
+    if info.WasInterrupted {
+        // 如果自己是中断点，尝试自己处理
+        ra, ok := a.Agent.(ResumableAgent)
+        if !ok {
+            return genErrorIter(fmt.Errorf(&quot;failed to resume agent: agent '%s' is an interrupt point &quot;+
+                &quot;but is not a ResumableAgent&quot;, a.Name(ctx)))
+        }
+        iterator, generator := NewAsyncIteratorPair[*AgentEvent]()
+        aIter := ra.Resume(ctx, info, opts...)
+        if _, ok := ra.(*workflowAgent); ok {
+            return aIter
+        }
+        go a.run(ctx, getRunCtx(ctx), aIter, generator, opts...)
+        return iterator
+    }
+    
+    // 否则，查找下一个要恢复的 Agent
+    nextAgentName, err := getNextResumeAgent(ctx, info)
+    if err != nil {
+        return genErrorIter(err)
+    }
+    
+    subAgent := a.getAgent(ctx, nextAgentName)
+    if subAgent == nil {
+        // 可能是包装在 AgentWithDeterministicTransferTo 中的
+        if len(a.subAgents) == 0 {
+            if ra, ok := a.Agent.(ResumableAgent); ok {
+                return ra.Resume(ctx, info, opts...)
+            }
+        }
+        return genErrorIter(fmt.Errorf(&quot;failed to resume agent: agent '%s' not found from flowAgent '%s'&quot;, 
+            nextAgentName, a.Name(ctx)))
+    }
+    
+    return subAgent.Resume(ctx, info, opts...)
+}
+</code></pre>
+<p><strong>恢复逻辑的层次</strong>：</p>
+<ol>
+<li>如果 <code>WasInterrupted</code>：自己是中断点，委托给底层的 <code>ResumableAgent</code></li>
+<li>否则：查找 <code>NextResumeAgent</code>，如果能在子 Agent 中找到，委托给子 Agent</li>
+<li>特殊情况：如果内部被 <code>AgentWithDeterministicTransferTo</code> 包装，尝试委托给它</li>
+</ol>
+<p>这个设计支持多层次的嵌套恢复。</p>
+<h3>HistoryRewriter：上下文转换的接口</h3>
+<pre><code class="language-go">type HistoryRewriter func(ctx context.Context, entries []*HistoryEntry) ([]Message, error)
+</code></pre>
+<p>这是一个函数类型，允许用户自定义历史消息的重写逻辑。默认实现是 <code>buildDefaultHistoryRewriter</code>。</p>
+<h4>buildDefaultHistoryRewriter：默认的重写策略</h4>
+<pre><code class="language-go">func buildDefaultHistoryRewriter(agentName string) HistoryRewriter {
+    return func(ctx context.Context, entries []*HistoryEntry) ([]Message, error) {
+        messages := make([]Message, 0, len(entries))
+        var err error
+        for _, entry := range entries {
+            msg := entry.Message
+            if !entry.IsUserInput {
+                msg, err = genMsg(entry, agentName)
+                if err != nil {
+                    return nil, fmt.Errorf(&quot;gen agent input failed: %w&quot;, err)
+                }
+            }
+            if msg != nil {
+                messages = append(messages, msg)
+            }
+        }
+        return messages, nil
+    }
+}
+</code></pre>
+<p>默认策略：</p>
+<ol>
+<li>用户输入直接使用</li>
+<li>Agent 生成的消息通过 <code>genMsg</code> 重写</li>
+</ol>
+<h4>genMsg：单个消息的重写</h4>
+<pre><code class="language-go">func genMsg(entry *HistoryEntry, agentName string) (Message, error) {
+    msg := entry.Message
+    if entry.AgentName != agentName {
+        msg = rewriteMessage(msg, entry.AgentName)
+    }
+    return msg, nil
+}
+</code></pre>
+<p><strong>重要细节</strong>：只有 <code>entry.AgentName != agentName</code> 的消息才会被重写。也就是说，当前 Agent 自己的消息不会被重写，其他 Agent 的消息会被转换为上下文提示。</p>
+<h4>rewriteMessage：消息转换逻辑</h4>
+<pre><code class="language-go">func rewriteMessage(msg Message, agentName string) Message {
+    var sb strings.Builder
+    sb.WriteString(&quot;For context:&quot;)
+    if msg.Role == schema.Assistant {
+        if msg.Content != &quot;&quot; {
+            sb.WriteString(fmt.Sprintf(&quot; [%s] said: %s.&quot;, agentName, msg.Content))
+        }
+        if len(msg.ToolCalls) &gt; 0 {
+            for i := range msg.ToolCalls {
+                f := msg.ToolCalls[i].Function
+                sb.WriteString(fmt.Sprintf(&quot; [%s] called tool: `%s` with arguments: %s.&quot;,
+                    agentName, f.Name, f.Arguments))
+            }
+        }
+    } else if msg.Role == schema.Tool &amp;&amp; msg.Content != &quot;&quot; {
+        sb.WriteString(fmt.Sprintf(&quot; [%s] `%s` tool returned result: %s.&quot;,
+            agentName, msg.ToolName, msg.Content))
+    }
+    
+    return schema.UserMessage(sb.String())
+}
+</code></pre>
+<p>这个函数将不同角色的消息转换为统一的 User 消息格式：</p>
+<ul>
+<li>Assistant 的发言 → &quot;For context: [AgentX] said: ...&quot;</li>
+<li>Assistant 的工具调用 → &quot;For context: [AgentX] called tool: <code>Y</code> with arguments: ...&quot;</li>
+<li>Tool 的返回 → &quot;For context: [AgentX] <code>Y</code> tool returned result: ...&quot;</li>
+</ul>
+<p>这种格式确保下游 Agent 可以理解上下文，但不会被这些消息的角色所困扰。</p>
+<h3>exactRunPathMatch：路径匹配算法</h3>
+<pre><code class="language-go">func exactRunPathMatch(aPath, bPath []RunStep) bool {
+    if len(aPath) != len(bPath) {
+        return false
+    }
+    for i := range aPath {
+        if !aPath[i].Equals(bPath[i]) {
+            return false
+        }
+    }
+    return true
+}
+</code></pre>
+<p><strong>为什么需要精确匹配？</strong></p>
+<p>想象一个三层 Agent 树：Root → A → B</p>
+<ul>
+<li>Root 的 RunPath 是 <code>[Root]</code></li>
+<li>A 的 RunPath 是 <code>[Root, A]</code></li>
+<li>B 的 RunPath 是 <code>[Root, A, B]</code></li>
+</ul>
+<p>当 Root 处理事件时，它只想记录自己发出的的事件，不想记录 A 或 B 的事件。<code>exactRunPathMatch</code> 确保只有完全匹配的事件才被处理。</p>
+<h3>辅助函数和构造器</h3>
+<h4>SetSubAgents：构建 Agent 树</h4>
+<pre><code class="language-go">func SetSubAgents(ctx context.Context, agent Agent, subAgents []Agent) (ResumableAgent, error) {
+    return setSubAgents(ctx, agent, subAgents)
+}
+</code></pre>
+<p><strong>关键检查</strong>：</p>
+<ol>
+<li><code>len(fa.subAgents) &gt; 0</code>：防止重复设置子 Agent</li>
+<li><code>fsa.parentAgent != nil</code>：防止循环引用（Agent 已经是其他 Agent 的子 Agent）</li>
+<li>调用 <code>OnSetSubAgents</code> 和 <code>OnSetAsSubAgent</code>：通知底层 Agent，让它们可以初始化状态</li>
+</ol>
+<h4>AgentOption：配置选项模式</h4>
+<pre><code class="language-go">type AgentOption func(options *flowAgent)
+
+func WithDisallowTransferToParent() AgentOption {
+    return func(fa *flowAgent) {
+        fa.disallowTransferToParent = true
+    }
+}
+
+func WithHistoryRewriter(h HistoryRewriter) AgentOption {
+    return func(fa *flowAgent) {
+        fa.historyRewriter = h
+    }
+}
+</code></pre>
+<p>这是一个经典的&quot;选项模式&quot;（Options Pattern），允许在包装 Agent 时灵活配置行为。</p>
+<h4>toFlowAgent：统一的包装逻辑</h4>
+<p><strong>关键逻辑</strong>：</p>
+<ol>
+<li>如果 Agent 已经是 <code>flowAgent</code>，深拷贝</li>
+<li>否则，包装为 <code>flowAgent</code></li>
+<li>应用选项</li>
+<li>如果没有提供 <code>historyRewriter</code>，使用默认的</li>
+</ol>
+<p><strong>注意</strong>：这里使用 <code>agent.Name(ctx)</code> 作为默认重写器的参数，而不是 <code>fa.Name(ctx)</code>。因为如果 <code>agent</code> 是 <code>flowAgent</code>，它的 <code>Name</code> 方法来自底层的 <code>Agent</code>，这确保了一致性。</p>
+<h4>getAgent：在层次结构中查找 Agent</h4>
+<p>这个方法只在直接子 Agent 和父 Agent 中查找，不支持递归查找。这简化了逻辑，也避免了深度递归的性能问题。</p>
+<h2>依赖分析：模块如何连接到外部世界</h2>
+<h3>依赖的上游模块</h3>
+<h4>Agent 接口层</h4>
+<p><code>flowAgent</code> 实现并依赖这些接口：</p>
+<ul>
+<li><strong>Agent</strong>：基础接口，提供 <code>Name</code>、<code>Description</code>、<code>Run</code> 方法</li>
+<li><strong>ResumableAgent</strong>：扩展接口，提供 <code>Resume</code> 方法</li>
+<li><strong>AgentInput/AgentOutput</strong>：输入输出数据结构</li>
+<li><strong>AgentEvent/AgentAction/TransferToAgentAction</strong>：事件和动作类型</li>
+<li><strong>RunStep</strong>：执行路径的步骤类型</li>
+</ul>
+<p><strong>依赖关系</strong>：<code>flowAgent</code> 包装 <code>Agent</code>，当底层 Agent 是 <code>ResumableAgent</code> 时，会调用其 <code>Resume</code> 方法。</p>
+<h4>运行时上下文</h4>
+<ul>
+<li><strong>runContext</strong>：保存 RootInput、RunPath、Session</li>
+<li><strong>runSession</strong>：保存 Values、Events、LaneEvents</li>
+<li><strong>agentEventWrapper</strong>：包装 <code>AgentEvent</code>，添加锁和元数据</li>
+</ul>
+<p><strong>依赖关系</strong>：</p>
+<ul>
+<li><code>flowAgent.Run</code> 使用 <code>initRunCtx</code> 创建上下文</li>
+<li><code>genAgentInput</code> 从 <code>runCtx.Session</code> 获取历史事件</li>
+<li><code>run</code> 方法向 <code>runCtx.Session</code> 添加事件</li>
+</ul>
+<h4>确定性转移包装器</h4>
+<ul>
+<li><strong>deterministicTransferState</strong>：保存确定性转移的状态</li>
+<li><strong>agentWithDeterministicTransferTo/resumableAgentWithDeterministicTransferTo</strong>：包装 Agent，限制转移目标</li>
+</ul>
+<p><strong>依赖关系</strong>：这些包装器可能包装 <code>flowAgent</code>，<code>flowAgent.Resume</code> 需要处理这种情况。</p>
+<h4>Runner</h4>
+<ul>
+<li><strong>Runner</strong>：顶层执行器</li>
+<li><strong>ResumeParams</strong>：恢复参数</li>
+</ul>
+<p><strong>依赖关系</strong>：<code>Runner</code> 可能调用 <code>flowAgent.Run</code> 或 <code>flowAgent.Resume</code>。</p>
+<h3>依赖的下游模块</h3>
+<h4>Compose 框架</h4>
+<ul>
+<li><strong>CheckPointStore</strong>：检查点存储接口</li>
+<li><strong>AsyncIterator/AsyncGenerator</strong>：异步迭代器工具</li>
+</ul>
+<p><strong>依赖关系</strong>：<code>flowAgent.checkPointStore</code> 使用 <code>CheckPointStore</code>，<code>run</code> 方法使用 <code>AsyncIterator</code> 和 <code>AsyncGenerator</code>。</p>
+<h4>Schema 模块</h4>
+<ul>
+<li><strong>Message</strong>：消息类型</li>
+<li><strong>UserMessage</strong>：构造用户消息</li>
+<li><strong>Assistant/Tool</strong>：消息角色</li>
+</ul>
+<p><strong>依赖关系</strong>：<code>rewriteMessage</code> 使用这些类型构造消息。</p>
+<h3>数据流向</h3>
+<p><strong>Run 流向</strong>：</p>
+<pre><code>用户 → flowAgent.Run
+  → initRunCtx → runContext
+  → genAgentInput → 从 runContext.Session 获取历史 → 使用 historyRewriter 重写
+  → Agent.Run → AsyncIterator[*AgentEvent]
+  → flowAgent.run → 处理事件流 → 设置 RunPath → 记录到 runContext.Session → 发送给用户
+  → 如果有 TransferToAgent → 调用子 Agent.Run → 继续处理
+</code></pre>
+<p><strong>Resume 流向</strong>：</p>
+<pre><code>用户 → flowAgent.Resume
+  → buildResumeInfo → 检查 WasInterrupted
+  → 如果是中断点 → Agent.Resume → 继续处理
+  → 否则 → getNextResumeAgent → getAgent → 子 Agent.Resume
+</code></pre>
+<h2>设计决策与权衡</h2>
+<h3>决策一：使用包装而非继承</h3>
+<p><strong>选择</strong>：<code>flowAgent</code> 包装 <code>Agent</code>，而不是让 <code>Agent</code> 直接继承 <code>flowAgent</code> 的方法。</p>
+<p><strong>原因</strong>：</p>
+<ol>
+<li><strong>灵活性</strong>：任何实现了 <code>Agent</code> 接口的类型都可以被包装为 <code>flowAgent</code>，无需修改原有代码</li>
+<li><strong>组合优于继承</strong>：Go 语言的组合模式更符合惯用法</li>
+<li><strong>无侵入性</strong>：底层 Agent 不需要知道 <code>flowAgent</code> 的存在</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：解耦、灵活、符合 Go 惯例</li>
+<li><strong>缺点</strong>：需要深拷贝、额外的包装层、可能有性能开销</li>
+</ul>
+<h3>决策二：RunPath 的精确匹配</h3>
+<p><strong>选择</strong>：使用 <code>exactRunPathMatch</code> 而非前缀匹配（&quot;以...开头&quot;）。</p>
+<p><strong>原因</strong>：</p>
+<ol>
+<li><strong>精确归属</strong>：确保每个事件只被记录一次</li>
+<li><strong>防止重复</strong>：父 Agent 不会记录子 Agent 的事件</li>
+<li><strong>Action 控制流</strong>：只有当前 Agent 的 Action 才影响控制流</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：逻辑清晰、避免重复记录、精确的控制流</li>
+<li><strong>缺点</strong>：需要维护完整的路径、调试时需要理解 RunPath 的结构</li>
+</ul>
+<h3>决策三：历史重写的默认策略</h3>
+<p><strong>选择</strong>：将其他 Agent 的消息转换为&quot;上下文提示&quot;，而不是保留原始消息。</p>
+<p><strong>原因</strong>：</p>
+<ol>
+<li><strong>上下文连续性</strong>：下游 Agent 需要知道之前发生了什么</li>
+<li><strong>角色混淆</strong>：保留原始角色会导致下游 Agent 收到不属于它的 Assistant/Tool 消息</li>
+<li><strong>信息过滤</strong>：某些内部细节（如函数调用参数）可以简化或隐藏</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：上下文清晰、避免角色混淆、简化下游处理</li>
+<li><strong>缺点</strong>：信息丢失（原始消息的细节被简化）、可能影响某些需要原始消息的场景</li>
+</ul>
+<p><strong>替代方案</strong>：如果需要原始消息，用户可以提供自定义的 <code>HistoryRewriter</code>。</p>
+<h3>决策四：skipTransferMessages 选项</h3>
+<p><strong>选择</strong>：支持跳过转移消息，避免下游 Agent 看到转移指令。</p>
+<p><strong>原因</strong>：</p>
+<ol>
+<li><strong>透明性</strong>：转移是框架层面的控制流，不应暴露给下游 Agent</li>
+<li><strong>避免困惑</strong>：下游 Agent 看到转移指令会困惑（&quot;为什么要转接我？&quot;）</li>
+<li><strong>简化逻辑</strong>：下游 Agent 只需要处理实际的任务，不需要关心控制流</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：控制流透明、简化下游逻辑</li>
+<li><strong>缺点</strong>：增加了 <code>genAgentInput</code> 的复杂度、需要理解何时使用这个选项</li>
+</ul>
+<h3>决策五：事件的深拷贝和自动关闭</h3>
+<p><strong>选择</strong>：在记录事件前拷贝，并为两个副本都设置自动关闭。</p>
+<p><strong>原因</strong>：</p>
+<ol>
+<li><strong>并发安全</strong>：多个消费者（会话、调用者）需要独立的流</li>
+<li><strong>资源管理</strong>：自动关闭确保流不会被泄漏</li>
+<li><strong>防消费冲突</strong>：如果一个消费者先消费完流，另一个不会受影响</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：并发安全、资源管理清晰</li>
+<li><strong>缺点</strong>：内存开销（两个副本）、可能增加 GC 压力</li>
+</ul>
+<h3>决策六：中断恢复的智能分发</h3>
+<p><strong>选择</strong>：<code>Resume</code> 方法根据 <code>WasInterrupted</code> 和 <code>NextResumeAgent</code> 智能地决定处理方式。</p>
+<p><strong>原因</strong>：</p>
+<ol>
+<li><strong>层次化恢复</strong>：支持任意深度的嵌套恢复</li>
+<li><strong>委托原则</strong>：最底层的 ResumableAgent 处理自己的中断</li>
+<li><strong>灵活性</strong>：中间层可以不实现 ResumableAgent，只需委托</li>
+</ol>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：灵活、支持复杂场景、符合单一职责原则</li>
+<li><strong>缺点</strong>：需要理解恢复逻辑的层次、调试时需要跟踪调用链</li>
+</ul>
+<h2>使用场景与示例</h2>
+<h3>场景一：构建简单的多 Agent 系统</h3>
+<pre><code class="language-go">// 创建主 Agent 和子 Agent
+mainAgent := chatModelAgent.New(chatModelAgent.Config{...})
+refundAgent := chatModelAgent.New(chatModelAgent.Config{...})
+complaintAgent := chatModelAgent.New(chatModelAgent.Config{...})
+
+// 设置子 Agent
+flowAgent, err := SetSubAgents(ctx, mainAgent, []Agent{refundAgent, complaintAgent})
+if err != nil {
+    log.Fatal(err)
+}
+
+// 运行
+input := &amp;AgentInput{
+    Messages: []Message{
+        schema.UserMessage(&quot;我要退款&quot;),
+    },
+}
+iter := flowAgent.Run(ctx, input)
+
+// 处理事件
+for event := range iter {
+    if event.Err != nil {
+        log.Fatal(event.Err)
+    }
+    // 处理事件...
+}
+</code></pre>
+<h3>场景二：自定义历史重写器</h3>
+<pre><code class="language-go">// 自定义重写器，添加更多上下文信息
+customRewriter := func(ctx context.Context, entries []*HistoryEntry) ([]Message, error) {
+    messages := make([]Message, 0, len(entries))
+    for _, entry := range entries {
+        if entry.IsUserInput {
+            messages = append(messages, entry.Message)
+        } else {
+            // 添加时间戳信息
+            msg := fmt.Sprintf(&quot;[%s] At time %s: %s&quot;, 
+                entry.AgentName, 
+                time.Now().Format(time.RFC3339),
+                entry.Message.Content)
+            messages = append(messages, schema.UserMessage(msg))
+        }
+    }
+    return messages, nil
+}
+
+// 使用自定义重写器
+flowAgent, err := SetSubAgents(ctx, mainAgent, []Agent{subAgent1, subAgent2})
+if err != nil {
+    log.Fatal(err)
+}
+flowAgent = toFlowAgent(ctx, flowAgent, WithHistoryRewriter(customRewriter))
+</code></pre>
+<h3>场景三：禁止转移到父 Agent</h3>
+<pre><code class="language-go">// 创建子 Agent 并禁止向上转移
+subAgent := chatModelAgent.New(chatModelAgent.Config{...})
+subAgent = toFlowAgent(ctx, subAgent, WithDisallowTransferToParent())
+
+flowAgent, err := SetSubAgents(ctx, mainAgent, []Agent{subAgent})
+if err != nil {
+    log.Fatal(err)
+}
+</code></pre>
+<h3>场景四：中断后的恢复</h3>
+<pre><code class="language-go">// 正常运行
+iter := flowAgent.Run(ctx, input)
+
+// 假设被中断
+// ... 用户取消或系统崩溃 ...
+
+// 恢复
+resumeInfo := &amp;ResumeInfo{
+    WasInterrupted: true,
+    // ... 其他恢复信息
+}
+iter = flowAgent.Resume(ctx, resumeInfo)
+
+// 继续处理
+for event := range iter {
+    // ...
+}
+</code></pre>
+<h2>边缘情况与注意事项</h2>
+<h3>边缘情况一：循环引用</h3>
+<p><strong>问题</strong>：如果一个 Agent 已经是另一个 Agent 的子 Agent，尝试再次设置为子 Agent。</p>
+<p><strong>防护</strong>：<code>setSubAgents</code> 检查 <code>fsa.parentAgent != nil</code>，会返回错误。</p>
+<p><strong>注意</strong>：深拷贝不会拷贝 <code>parentAgent</code>，所以不会意外创建循环引用。</p>
+<h3>边缘情况二：重复设置子 Agent</h3>
+<p><strong>问题</strong>：调用两次 <code>SetSubAgents</code>。</p>
+<p><strong>防护</strong>：<code>setSubAgents</code> 检查 <code>len(fa.subAgents) &gt; 0</code>，会返回错误。</p>
+<p><strong>注意</strong>：如果需要修改子 Agent 列表，需要重新构建整个树。</p>
+<h3>边缘情况三：找不到转移目标</h3>
+<p><strong>问题</strong>：<code>TransferToAgent</code> Action 指定的 Agent 不存在。</p>
+<p><strong>处理</strong>：<code>run</code> 方法会发送一个错误事件，并停止执行。</p>
+<p><strong>注意</strong>：这会中断整个 Agent 树的执行，而不是优雅地降级。</p>
+<h3>边缘情况四：非 ResumableAgent 的中断恢复</h3>
+<p><strong>问题</strong>：<code>WasInterrupted</code> 为 true，但 Agent 不是 <code>ResumableAgent</code>。</p>
+<p><strong>处理</strong>：<code>Resume</code> 返回错误迭代器，错误信息明确指出&quot;agent is an interrupt point but is not a ResumableAgent&quot;。</p>
+<p><strong>注意</strong>：这是编程错误，应该在设计时避免。</p>
+<h3>边缘情况五：嵌套的包装器</h3>
+<p><strong>问题</strong>：<code>flowAgent</code> 被 <code>AgentWithDeterministicTransferTo</code> 包装，又被其他包装器包装。</p>
+<p><strong>处理</strong>：<code>Resume</code> 方法尝试遍历包装器，找到底层的 <code>flowAgent</code>。</p>
+<p><strong>注意</strong>：这种多层包装会增加调试难度，需要理解每层的作用。</p>
+<h3>边缘情况六：Stream 的并发消费</h3>
+<p><strong>问题</strong>：事件被记录到会话后，可能被 <code>genAgentInput</code> 消费，也可能被调用者消费。</p>
+<p><strong>处理</strong>：使用 <code>copyAgentEvent</code> 创建副本，两个副本独立。</p>
+<p><strong>注意</strong>：这增加了内存开销，如果事件很大，可能需要优化。</p>
+<h3>边缘情况七：WillRetryError 的处理</h3>
+<p><strong>问题</strong>：<code>getMessageFromWrappedEvent</code> 返回 <code>WillRetryError</code>。</p>
+<p><strong>处理</strong>：<code>genAgentInput</code> 会记录日志并跳过这个事件。</p>
+<p><strong>注意</strong>：这允许 Agent 在重试时不影响历史记录。</p>
+<h3>注意事项</h3>
+<ol>
+<li>
+<p><strong>RunPath 是框架管理的</strong>：用户代码不应该修改 <code>AgentEvent.RunPath</code>，因为 <code>RunStep</code> 的字段是未导出的。</p>
+</li>
+<li>
+<p><strong>MessageStream 需要自动关闭</strong>：建议对 <code>AgentEvent</code> 的 <code>MessageStream</code> 使用 <code>SetAutomaticClose()</code>，确保流不会被泄漏。</p>
+</li>
+<li>
+<p><strong>历史重写器的性能</strong>：<code>historyRewriter</code> 会被多次调用（每次 <code>genAgentInput</code>），如果逻辑复杂，可能会影响性能。</p>
+</li>
+<li>
+<p><strong>深拷贝的开销</strong>：<code>deepCopy</code> 和 <code>copyAgentEvent</code> 都会创建拷贝，如果状态很大，需要考虑性能影响。</p>
+</li>
+<li>
+<p><strong>检查点存储的可选性</strong>：<code>checkPointStore</code> 是可选的，如果为 <code>nil</code>，检查点功能被禁用。</p>
+</li>
+<li>
+<p><strong>RunPath 的调试</strong>：在调试多 Agent 系统时，<code>RunPath</code> 是理解事件来源的关键信息。</p>
+</li>
+</ol>
+<h2>参考资料</h2>
+<ul>
+<li><a href="../agent-contracts-and-handoff.html">Agent 接口定义</a>：<code>Agent</code>、<code>ResumableAgent</code> 等基础接口</li>
+<li><a href="../run-context-and-session-state.html">运行时上下文</a>：<code>runContext</code>、<code>runSession</code> 的详细说明</li>
+<li><a href="../deterministic-transfer-wrappers.html">确定性转移包装器</a>：<code>AgentWithDeterministicTransferTo</code> 等包装器</li>
+<li><a href="../runner-execution-and-resume.html">Runner 执行器</a>：<code>Runner</code> 如何调用 <code>flowAgent</code></li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

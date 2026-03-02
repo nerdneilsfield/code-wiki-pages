@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SQLCipher 页面解密与 HMAC 验证算法深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-02T19:25<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-multi-table-user-message-lookup.html" class="nv">Multi Table User Message Lookup</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-protobuf-message-parsing.html" class="nv">Protobuf Message Parsing</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv on">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconciliation.html" class="nv">Wal Frame Reconciliation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>SQLCipher 页面解密与 HMAC 验证算法深度解析</h1>
+<h2>1. 问题陈述（Problem Statement）</h2>
+<h3>1.1 形式化定义</h3>
+<p>设 $\mathcal{D}$ 为加密数据库，其物理存储由固定大小的页面序列构成：</p>
+<p>$$\mathcal{D} = {P_1, P_2, \ldots, P_n}, \quad |P_i| = B = 4096 \text{ bytes}$$</p>
+<p>每个加密页面 $P_i^{\text{enc}}$ 包含以下结构：</p>
+<p>$$
+P_i^{\text{enc}} = \underbrace{C_i}_{\text{ciphertext}} \parallel \underbrace{\text{IV}<em>i}</em>{16\text{B}} \parallel \underbrace{\text{HMAC}<em>i}</em>{64\text{B}}
+$$</p>
+<p>其中：</p>
+<ul>
+<li>$C_i = \text{AES-256-CBC}<em>{K</em>{\text{enc}}, \text{IV}_i}(M_i)$，$M_i$ 为明文页内容</li>
+<li>$\text{HMAC}<em>i = \text{HMAC-SHA512}</em>{K_{\text{mac}}}(C_i \parallel \text{pgno}_i)$</li>
+<li>保留区大小 $R = 80$ bytes，可用数据区 $U = B - R = 4016$ bytes</li>
+</ul>
+<p><strong>输入</strong>：加密密钥 $K_{\text{enc}} \in {0,1}^{256}$，页号 $\text{pgno} \in \mathbb{Z}^+$，加密页数据 $P^{\text{enc}} \in {0,1}^{4096}$</p>
+<p><strong>输出</strong>：标准 SQLite 页面 $P^{\text{dec}} \in {0,1}^{4096}$，满足 SQLite B-tree 页格式规范</p>
+<h3>1.2 核心约束</h3>
+<p>$$
+\begin{aligned}
+&amp;\text{(C1)} \quad \text{第一页需恢复 SQLite 魔数头 } \texttt{SQLite format 3}\backslash\texttt{x00} \
+&amp;\text{(C2)} \quad \text{解密后页大小必须为 } 4096 \text{ bytes（含保留区填充）} \
+&amp;\text{(C3)} \quad \text{保留区需零填充以符合 SQLite usable_size 语义} \
+&amp;\text{(C4)} \quad \text{IV 必须从页尾保留区提取，不可预设}
+\end{aligned}
+$$</p>
+<hr />
+<h2>2. 直觉与关键洞察（Intuition）</h2>
+<h3>2.1 朴素方法的失败</h3>
+<p><strong>朴素方案 A：直接全页解密</strong></p>
+<pre><code class="language-python"># 错误：未处理保留区结构
+cipher = AES.new(key, MODE_CBC, iv=b'\x00'*16)  # IV 未知
+return cipher.decrypt(page_data)  # 输出长度错误，格式损坏
+</code></pre>
+<p><strong>失败原因</strong>：忽略 SQLCipher 的页内 IV 存储机制，且未处理第一页的文件头重建。</p>
+<p><strong>朴素方案 B：忽略第一页特殊性</strong></p>
+<pre><code class="language-python"># 错误：第一页缺少 SQLite 魔数
+return decrypt_all_pages_same_way(data)
+</code></pre>
+<p><strong>失败原因</strong>：SQLCipher 加密时跳过了 SQLite 文件头的 16 字节 salt，直接解密会导致 B-tree 解析器无法识别文件格式。</p>
+<h3>2.2 关键洞察</h3>
+<blockquote>
+<p><strong>Insight 1（页内 IV 定位）</strong>：SQLCipher 4 将 IV 存储于每页末尾保留区的固定偏移，而非外部元数据。</p>
+<p>$$\text{IV}_i = P_i^{\text{enc}}[B-R : B-R+16] = P_i^{\text{enc}}[4000:4016]$$</p>
+</blockquote>
+<blockquote>
+<p><strong>Insight 2（第一页重构）</strong>：加密时原始 SQLite 头（16B）被替换为随机 salt，解密后必须人工注入标准头 <code>SQLITE_HDR</code>。</p>
+<p>$$P_1^{\text{dec}} = \texttt{SQLite format 3}\backslash\texttt{x00} \parallel \text{dec}(C_1) \parallel \texttt{0}^{80}$$</p>
+</blockquote>
+<blockquote>
+<p><strong>Insight 3（保留区语义）</strong>：解密后的保留区必须零填充，确保 SQLite 引擎将其识别为可用空间（usable size = 4016），而非数据区。</p>
+</blockquote>
+<hr />
+<h2>3. 形式化定义（Formal Definition）</h2>
+<h3>3.1 算法签名</h3>
+<p>$$
+\textsc{DecryptPage}: (K_{\text{enc}}, P^{\text{enc}}, \text{pgno}) \rightarrow P^{\text{dec}}
+$$</p>
+<h3>3.2 预定义常量</h3>
+<p>$$
+\begin{aligned}
+B &amp;= 4096 &amp; \text{// 页大小} \
+R &amp;= 80 &amp; \text{// 保留区大小} \
+S &amp;= 16 &amp; \text{// salt 大小（仅第一页）} \
+I &amp;= 16 &amp; \text{// IV 大小} \
+\
+\text{SQLITE_HDR} &amp;= \texttt{&quot;SQLite format 3}\backslash\texttt{x00&quot;} \in {0,1}^{16} \
+\text{ZERO}_{80} &amp;= \texttt{0}^{80} \in {0,1}^{80}
+\end{aligned}
+$$</p>
+<h3>3.3 页结构分解</h3>
+<p>对于加密页 $P^{\text{enc}}$：</p>
+<p>$$
+P^{\text{enc}} =
+\begin{cases}
+\underbrace{\text{salt}}<em>{S} \parallel \underbrace{C}</em>{B-R-S} \parallel \underbrace{\text{IV}}<em>{I} \parallel \underbrace{\text{HMAC}}</em>{64}, &amp; \text{if } \text{pgno} = 1 \[8pt]
+\underbrace{C}<em>{B-R} \parallel \underbrace{\text{IV}}</em>{I} \parallel \underbrace{\text{HMAC}}_{64}, &amp; \text{if } \text{pgno} &gt; 1
+\end{cases}
+$$</p>
+<h3>3.4 解密变换</h3>
+<p>$$
+\textsc{DecryptPage}(K, P, n) =
+\begin{cases}
+\text{SQLITE_HDR} \parallel \text{AES-CBC}^{-1}<em>{K,\text{IV}}(P[S:B-R]) \parallel \text{ZERO}</em>{80}, &amp; n = 1 \[6pt]
+\text{AES-CBC}^{-1}<em>{K,\text{IV}}(P[:B-R]) \parallel \text{ZERO}</em>{80}, &amp; n &gt; 1
+\end{cases}
+$$</p>
+<p>其中 $\text{IV} = P[B-R:B-R+I]$。</p>
+<hr />
+<h2>4. 算法描述（Algorithm）</h2>
+<h3>4.1 执行流程图</h3>
+<div class="mermaid">flowchart TD
+    A([开始]) --> B[提取 IV<br/>iv ← page[4000:4016]]
+    B --> C{pgno == 1?}
+    
+    C -->|是| D[第一页特殊处理]
+    C -->|否| E[常规页处理]
+    
+    D --> D1[encrypted ← page[16:4016]]
+    D --> D2[cipher ← AES-256-CBC<br/>key=enc_key, iv=iv]
+    D --> D3[decrypted ← cipher.decrypt<br/>encrypted]
+    D --> D4[page ← SQLITE_HDR<br/>∥ decrypted ∥ 0⁸⁰]
+    
+    E --> E1[encrypted ← page[0:4016]]
+    E --> E2[cipher ← AES-256-CBC<br/>key=enc_key, iv=iv]
+    E --> E3[decrypted ← cipher.decrypt<br/>encrypted]
+    E --> E4[page ← decrypted ∥ 0⁸⁰]
+    
+    D4 --> F([返回 4096B<br/>SQLite页面])
+    E4 --> F
+    
+    style D fill:#fff4e1
+    style E fill:#e1f5ff
+</div>
+<h3>4.2 状态转换图（IV 提取与模式选择）</h3>
+<div class="mermaid">stateDiagram-v2
+    [*] --> IVExtraction : 输入 (enc_key, page_data, pgno)
+    
+    IVExtraction --> ModeSelection : iv ← page_data[4000:4016]
+    
+    state ModeSelection <<choice>>
+    ModeSelection --> FirstPageMode : pgno == 1
+    ModeSelection --> NormalPageMode : pgno > 1
+    
+    FirstPageMode --> HeaderReconstruction : skip_salt=16<br/>inject_header=true
+    NormalPageMode --> StandardDecryption : skip_salt=0<br/>inject_header=false
+    
+    HeaderReconstruction --> Padding : ciphertext_len=4000
+    StandardDecryption --> Padding : ciphertext_len=4016
+    
+    Padding --> [*] : append_zero_reserve=80
+    
+    note right of IVExtraction
+        IV 位置固定于页尾保留区起始
+        offset = PAGE_SZ - RESERVE_SZ = 4016
+    end note
+    
+    note right of FirstPageMode
+        第一页需重建 SQLite 文件头
+        因为原始头被 salt 替换
+    end note
+</div>
+<h3>4.3 数据结构关系</h3>
+<div class="mermaid">graph TB
+    subgraph EncryptedPage["加密页 P^enc (4096 bytes)"]
+        direction TB
+        SALT["salt (16B)<br/>仅 pgno=1"] -.->|条件存在| ENC_DATA
+        
+        ENC_DATA["encrypted data<br/>(4000B or 4016B)"]
+        RESERVE["reserve zone (80B)"]
+        
+        subgraph ReserveDetail["reserve 细分"]
+            IV["IV (16B)"]
+            HMAC["HMAC-SHA512 (64B)"]
+        end
+    end
+    
+    subgraph DecryptionProcess["解密流程"]
+        AES["AES-256-CBC<br/>Decrypt"]
+        HEADER["SQLITE_HDR<br/>(条件注入)"]
+        PAD["zero padding<br/>(80B)"]
+    end
+    
+    subgraph OutputPage["输出页 P^dec (4096 bytes)"]
+        OUT_HEADER["SQLite header<br/>(16B, 条件)"]
+        OUT_DATA["decrypted data"]
+        OUT_PAD["zero reserve<br/>(80B)"]
+    end
+    
+    ENC_DATA --> AES
+    IV --> AES
+    enc_key --> AES
+    
+    HEADER -.->|pgno=1| COMBINE[合并]
+    AES --> COMBINE
+    COMBINE --> OUT_DATA
+    PAD --> OUT_PAD
+    
+    SALT -.->|驱动条件分支| HEADER
+    
+    style ReserveDetail fill:#ffe1e1
+    style AES fill:#e1f5ff
+</div>
+<h3>4.4 形式化伪代码</h3>
+<pre><code class="language-pseudocode">\begin{algorithm}
+\caption{SQLCipher Page Decryption}
+\begin{algorithmic}[1]
+\Require Encryption key $K \in \{0,1\}^{256}$, encrypted page $P \in \{0,1\}^{4096}$, page number $n \in \mathbb{Z}^+$
+\Ensure Standard SQLite page $P' \in \{0,1\}^{4096}$
+
+\State \textbf{constants:} $B \gets 4096$, $R \gets 80$, $S \gets 16$, $I \gets 16$
+\State \textbf{constants:} $\text{HDR} \gets \texttt{&quot;SQLite format 3\textbackslash x00&quot;}$
+
+\State // Extract IV from reserve zone
+\State $\text{iv} \gets P[B-R \;:\; B-R+I]$ \Comment{Offset 4000--4016}
+
+\If{$n = 1$}
+    \State // First page: skip salt, inject standard header
+    \State $C \gets P[S \;:\; B-R]$ \Comment{Encrypted payload: bytes 16--4016}
+    \State $M \gets \textsc{AES-CBC-Dec}_K(\text{iv}, C)$
+    \State $P' \gets \text{HDR} \,\|\, M \,\|\, \mathbf{0}^{R}$
+\Else
+    \State // Regular page: full payload decryption
+    \State $C \gets P[0 \;:\; B-R]$ \Comment{Encrypted payload: bytes 0--4016}
+    \State $M \gets \textsc{AES-CBC-Dec}_K(\text{iv}, C)$
+    \State $P' \gets M \,\|\, \mathbf{0}^{R}$
+\EndIf
+
+\State \Return $P'$
+\end{algorithmic}
+\end{algorithm}
+</code></pre>
+<h3>4.5 实际实现对照</h3>
+<pre><code class="language-python">def decrypt_page(enc_key, page_data, pgno):
+    &quot;&quot;&quot;解密单个页面，输出4096字节的标准SQLite页面&quot;&quot;&quot;
+    # 常量定义（工程配置）
+    PAGE_SZ, RESERVE_SZ, SALT_SZ, IV_SZ = 4096, 80, 16, 16
+    SQLITE_HDR = b&quot;SQLite format 3\x00&quot;
+    
+    # IV 提取：固定偏移量计算
+    iv_offset = PAGE_SZ - RESERVE_SZ           # = 4016
+    iv = page_data[iv_offset : iv_offset + IV_SZ]  # [4016:4032]
+    
+    if pgno == 1:
+        # 第一页：跳过 salt，密文范围 [16:4016]
+        encrypted = page_data[SALT_SZ : PAGE_SZ - RESERVE_SZ]
+        cipher = AES.new(enc_key, AES.MODE_CBC, iv)
+        decrypted = cipher.decrypt(encrypted)   # 4000 bytes
+        
+        # 重建：标准头 + 解密数据 + 零填充保留区
+        page = bytearray(SQLITE_HDR + decrypted + b'\x00' * RESERVE_SZ)
+        return bytes(page)                      # 强制不可变
+    else:
+        # 常规页：密文范围 [0:4016]
+        encrypted = page_data[:PAGE_SZ - RESERVE_SZ]
+        cipher = AES.new(enc_key, AES.MODE_CBC, iv)
+        decrypted = cipher.decrypt(encrypted)   # 4016 bytes
+        
+        # 拼接：解密数据 + 零填充保留区
+        return decrypted + b'\x00' * RESERVE_SZ
+</code></pre>
+<hr />
+<h2>5. 复杂度分析（Complexity Analysis）</h2>
+<h3>5.1 时间复杂度</h3>
+<p>设 $L = B - R = 4016$ 为有效密文长度（第一页为 $L - S = 4000$）。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">操作</th>
+<th style="text-align:left">代价</th>
+<th style="text-align:left">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">IV 提取</td>
+<td style="text-align:left">$O(1)$</td>
+<td style="text-align:left">固定偏移切片</td>
+</tr>
+<tr>
+<td style="text-align:left">密文切片</td>
+<td style="text-align:left">$O(1)$</td>
+<td style="text-align:left">Python 切片为视图操作</td>
+</tr>
+<tr>
+<td style="text-align:left">AES-CBC 解密</td>
+<td style="text-align:left">$O(L/b \cdot T_{\text{round}})$</td>
+<td style="text-align:left">$b=128$ bit 分组，10轮</td>
+</tr>
+</tbody>
+</table>
+<p>总体：
+$$
+T(n) = O\left(\frac{L}{b} \cdot T_{\text{AES-round}}\right) = O(1) \quad \text{(per page)}
+$$</p>
+<p>具体常数：AES-256 每分组需 14 轮，CBC 模式串行处理，单页约需 $\lceil 4016/16 \rceil = 251$ 次分组解密。</p>
+<h3>5.2 空间复杂度</h3>
+<p>$$
+S(n) = O(B) = O(4096) = O(1) \quad \text{(per page)}
+$$</p>
+<p>临时分配：</p>
+<ul>
+<li><code>bytearray</code> 构造（第一页）：$B$ bytes</li>
+<li>中间密文/明文切片：Python 视图，无拷贝</li>
+</ul>
+<h3>5.3 场景分析</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">场景</th>
+<th style="text-align:left">时间</th>
+<th style="text-align:left">空间</th>
+<th style="text-align:left">触发条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>最优</strong></td>
+<td style="text-align:left">$T_{\min} = \Theta(1)$</td>
+<td style="text-align:left">$S = \Theta(B)$</td>
+<td style="text-align:left">缓存命中，直接返回</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>平均</strong></td>
+<td style="text-align:left">$T_{\text{avg}} = \Theta(L \cdot c_{\text{AES}})$</td>
+<td style="text-align:left">$S = \Theta(B)$</td>
+<td style="text-align:left">正常解密流程</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>最坏</strong></td>
+<td style="text-align:left">$T_{\max} = \Theta(L \cdot c_{\text{AES}} + B)$</td>
+<td style="text-align:left">$S = \Theta(2B)$</td>
+<td style="text-align:left">第一页 + 强制内存拷贝</td>
+</tr>
+</tbody>
+</table>
+<p>注：$c_{\text{AES}}$ 为 AES 硬件加速系数，PyCryptodome 利用 AES-NI 指令集时 $c_{\text{AES}} \approx 1.5$ cycles/byte。</p>
+<h3>5.4 批量解密复杂度</h3>
+<p>对于 $N$ 页的数据库：</p>
+<p>$$
+T_{\text{total}}(N) = N \cdot T(1) = O(N), \quad S_{\text{total}} = O(B) \text{ (流式处理)}
+$$</p>
+<p>若采用并行解密（多线程/多进程）：
+$$
+T_{\text{parallel}}(N, p) = O\left(\left\lceil\frac{N}{p}\right\rceil\right), \quad p \leq N
+$$</p>
+<hr />
+<h2>6. 实现注释（Implementation Notes）</h2>
+<h3>6.1 工程妥协与优化</h3>
+<h4>6.1.1 类型系统的张力</h4>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">理论要求</th>
+<th style="text-align:left">工程实现</th>
+<th style="text-align:left">妥协理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">不可变输出</td>
+<td style="text-align:left"><code>bytes</code> / <code>bytearray</code> 混用</td>
+<td style="text-align:left"><code>bytearray</code> 支持就地修改，但最终强制 <code>bytes</code> 以确保哈希安全</td>
+</tr>
+<tr>
+<td style="text-align:left">固定 4096B</td>
+<td style="text-align:left">运行时依赖常量</td>
+<td style="text-align:left">微信 SQLCipher 配置硬编码，无需动态检测</td>
+</tr>
+</tbody>
+</table>
+<p>代码中三处变体体现这一张力：</p>
+<pre><code class="language-python"># decrypt_db.py: 显式 bytearray → bytes 转换
+return bytes(page)
+
+# monitor_web.py: 直接返回 bytearray（上游兼容）
+return bytearray(...)
+
+# mcp_server.py: 双重包装确保不可变
+return bytes(bytearray(...))
+</code></pre>
+<h4>6.1.2 密码学库选择</h4>
+<p>选用 <strong>PyCryptodome</strong> 而非标准库 <code>cryptography</code>：</p>
+<ul>
+<li>优势：纯 Python 封装，安装简便，AES-NI 自动检测</li>
+<li>代价：相比 OpenSSL 绑定，极端性能场景慢 10-20%</li>
+</ul>
+<h4>6.1.3 零填充的深层语义</h4>
+<p>保留区零填充不仅是格式要求，更是 <strong>SQLite B-tree 正确性保障</strong>：</p>
+<pre><code class="language-c">// SQLite 内部 usableSize 计算
+usableSize = pageSize - nReserved;  // 4096 - 80 = 4016
+// 所有单元格指针、空闲块管理基于此值
+</code></pre>
+<p>非零填充将导致 <code>freeblock</code> 链表解析错误，引发 <code>database disk image is malformed</code>。</p>
+<h3>6.2 与 HMAC 验证的协作</h3>
+<p><code>decrypt_page</code> 本身<strong>不执行完整性验证</strong>，这是刻意的设计分离：</p>
+<pre><code>┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  verify_key_for │────▶│   decrypt_page  │────▶│  full_decrypt   │
+│      _db        │     │   (本算法)       │     │  (批量 orchestration)
+│  (HMAC 验证层)   │     │  (纯解密层)      │     │  (应用层)
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        ↑                                              ↓
+        └──────────── 密钥有效性保证 ────────────────────┘
+</code></pre>
+<p>分离理由：</p>
+<ul>
+<li><strong>单一职责</strong>：解密与验证正交，便于独立测试</li>
+<li><strong>性能优化</strong>：密钥验证仅需单页 HMAC，批量解密跳过验证</li>
+<li><strong>容错恢复</strong>：HMAC 失败时可尝试降级修复（如 WAL 帧过滤）</li>
+</ul>
+<h3>6.3 边界条件处理</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">边界</th>
+<th style="text-align:left">处理</th>
+<th style="text-align:left">风险</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>pgno=0</code></td>
+<td style="text-align:left">未定义行为（调用方保证）</td>
+<td style="text-align:left">数组越界</td>
+</tr>
+<tr>
+<td style="text-align:left">截断页面 <code>&lt; 4096B</code></td>
+<td style="text-align:left">隐式依赖上层 <code>read</code> 保证</td>
+<td style="text-align:left">需 <code>verify_key_for_db</code> 前置过滤</td>
+</tr>
+<tr>
+<td style="text-align:left">全零 IV</td>
+<td style="text-align:left">合法但极弱（密码学警告）</td>
+<td style="text-align:left">微信实现保证随机性</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>7. 比较分析（Comparison）</h2>
+<h3>7.1 与标准 SQLCipher 实现的对比</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">维度</th>
+<th style="text-align:left">SQLCipher 官方 (C/libsqlcipher)</th>
+<th style="text-align:left">wechat-decrypt (Python)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>完整性验证</strong></td>
+<td style="text-align:left">每页 HMAC 强制校验</td>
+<td style="text-align:left">延迟验证（密钥级一次性）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>KDF 迭代</strong></td>
+<td style="text-align:left">256,000 次 PBKDF2</td>
+<td style="text-align:left">旁路绕过（内存提取）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>页缓存</strong></td>
+<td style="text-align:left">内置 LRU 页缓存</td>
+<td style="text-align:left">外部 <code>DBCache</code>（mtime 策略）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>并发模型</strong></td>
+<td style="text-align:left">连接级串行</td>
+<td style="text-align:left">模块级无锁（GIL 约束）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>WAL 处理</strong></td>
+<td style="text-align:left">原生 SQLite WAL 协议</td>
+<td style="text-align:left">手动帧过滤与补丁</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 与替代解密方案的对比</h3>
+<h4>方案 A：完整 PBKDF2 派生</h4>
+<p>$$
+T_{\text{PBKDF2}} = 256000 \times T_{\text{HMAC-SHA512}} \approx 2.5 \text{s (现代 CPU)}
+$$</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">指标</th>
+<th style="text-align:left">PBKDF2 暴力破解</th>
+<th style="text-align:left">内存提取 (wechat-decrypt)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">首次运行时间</td>
+<td style="text-align:left">$\sim$2.5s × 数据库数量</td>
+<td style="text-align:left">$\sim$100ms（内存扫描）</td>
+</tr>
+<tr>
+<td style="text-align:left">可靠性</td>
+<td style="text-align:left">依赖密码强度</td>
+<td style="text-align:left">确定性成功（缓存命中时）</td>
+</tr>
+<tr>
+<td style="text-align:left">侵入性</td>
+<td style="text-align:left">无</td>
+<td style="text-align:left">需管理员权限读取进程内存</td>
+</tr>
+<tr>
+<td style="text-align:left">可扩展性</td>
+<td style="text-align:left">线性于数据库数量</td>
+<td style="text-align:left">常数时间（单次内存扫描）</td>
+</tr>
+</tbody>
+</table>
+<h4>方案 B：Hook 拦截（Frida/WinDbg）</h4>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">指标</th>
+<th style="text-align:left">动态 Hook</th>
+<th style="text-align:left">内存扫描 (wechat-decrypt)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">稳定性</td>
+<td style="text-align:left">易触发反调试/崩溃</td>
+<td style="text-align:left">只读访问，无副作用</td>
+</tr>
+<tr>
+<td style="text-align:left">实现复杂度</td>
+<td style="text-align:left">高（需符号解析、运行时注入）</td>
+<td style="text-align:left">中（正则匹配 + HMAC 验证）</td>
+</tr>
+<tr>
+<td style="text-align:left">通用性</td>
+<td style="text-align:left">版本敏感（偏移量变化）</td>
+<td style="text-align:left">相对鲁棒（密钥格式稳定）</td>
+</tr>
+<tr>
+<td style="text-align:left">实时性</td>
+<td style="text-align:left">真实时拦截</td>
+<td style="text-align:left">近实时（轮询延迟）</td>
+</tr>
+</tbody>
+</table>
+<h3>7.3 理论联系：与磁盘加密算法的类比</h3>
+<p>SQLCipher 页加密可视为 <strong>细粒度透明磁盘加密（FDE）</strong> 的特例：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">特性</th>
+<th style="text-align:left">BitLocker/LUKS</th>
+<th style="text-align:left">SQLCipher</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">加密粒度</td>
+<td style="text-align:left">扇区（512B/4KB）</td>
+<td style="text-align:left">数据库页（4KB）</td>
+</tr>
+<tr>
+<td style="text-align:left">IV 来源</td>
+<td style="text-align:left">扇区号 + 盐（ESSIV）</td>
+<td style="text-align:left">页内随机 IV</td>
+</tr>
+<tr>
+<td style="text-align:left">完整性</td>
+<td style="text-align:left">XTS/AES-GCM（部分）</td>
+<td style="text-align:left">每页 HMAC-SHA512</td>
+</tr>
+<tr>
+<td style="text-align:left">密钥派生</td>
+<td style="text-align:left">用户口令 → VMK → FVEK</td>
+<td style="text-align:left">用户口令 → PBKDF2 → 页密钥</td>
+</tr>
+</tbody>
+</table>
+<p>关键差异：SQLCipher 的 <strong>页内 IV</strong> 设计允许随机访问无需顺序解密，但牺牲了压缩效率（每页 80B 开销 ≈ 2% 空间膨胀）。</p>
+<hr />
+<h2>8. 结论</h2>
+<p><code>decrypt_page</code> 算法是 wechat-decrypt 工具链的核心原语，其设计体现了<strong>密码学严谨性与工程实用性的平衡</strong>：</p>
+<ol>
+<li><strong>形式化清晰</strong>：页结构分解、IV 定位、第一页特殊处理均有数学精确描述</li>
+<li><strong>实现紧凑</strong>：数十行 Python 代码覆盖全部功能边界</li>
+<li><strong>系统嵌入</strong>：作为 <code>verify_key_for_db</code>、<code>full_decrypt</code>、<code>decrypt_wal</code> 的基石，支撑起完整的微信数据库解密能力</li>
+</ol>
+<p>该算法的局限性亦值得注意：</p>
+<ul>
+<li><strong>无内置完整性保护</strong>：依赖上层 HMAC 验证或应用场景容忍（只读分析）</li>
+<li><strong>硬编码参数</strong>：页大小、保留区尺寸绑定 SQLCipher 4 默认配置</li>
+<li><strong>平台假设</strong>：小端序、特定 <code>sqlite3</code> 文件头版本</li>
+</ul>
+<p>未来演进方向可探索：<strong>AES-GCM 模式迁移</strong>（集成认证与加密）、<strong>GPU 批量解密</strong>（大规模数据库场景）、以及 <strong>eBPF 内核级实时拦截</strong>（替代轮询监控）。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

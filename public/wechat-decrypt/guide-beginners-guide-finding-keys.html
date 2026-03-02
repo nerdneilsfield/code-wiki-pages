@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第二章：How to Steal the Keys from Memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-02T19:25<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv on">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-multi-table-user-message-lookup.html" class="nv">Multi Table User Message Lookup</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-protobuf-message-parsing.html" class="nv">Protobuf Message Parsing</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconciliation.html" class="nv">Wal Frame Reconciliation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第二章：How to Steal the Keys from Memory</h1>
+<h2>2.1 为什么我们需要&quot;偷&quot;密钥？</h2>
+<p>想象你有一个保险箱，里面存着珍贵的聊天记录。微信就是这个保险箱的制造商——他们用了最坚固的锁（AES-256加密），而且钥匙的打造过程极其繁琐：需要把原始密码在火上锻造25万6千次（PBKDF2算法），才能出一把能开锁的钥匙。</p>
+<p>传统的破解思路是：&quot;我慢慢打造一把钥匙&quot;。但这太慢了——打造一把钥匙可能要几分钟，而你有几十个数据库需要解锁。</p>
+<p><code>find_all_keys</code>模块的思路完全不同：<strong>既然微信自己已经打造了钥匙，而且正拿在手里（存在内存里），我们为什么不直接&quot;借&quot;过来用呢？</strong></p>
+<p>这就像你想进一个房间，与其自己配钥匙，不如趁主人开门的时候，瞥一眼他手里的钥匙长什么样。</p>
+<div class="mermaid">flowchart LR
+    subgraph "传统方法<br/>暴力破解"
+        A[用户密码] -->|PBKDF2<br/>256,000次迭代| B[派生密钥]
+        B --> C[解密数据库]
+        style A fill:#ffe1e1
+        style B fill:#ffe1e1
+    end
+    
+    subgraph "我们的方法<br/>内存提取"
+        D[微信进程内存] -->|扫描 x'...' 模式| E[提取缓存密钥]
+        E --> F[直接解密]
+        style D fill:#e1f5ff
+        style E fill:#e1f5ff
+    end
+    
+    C --> G[结果相同]
+    F --> G
+</div>
+<p><strong>流程说明</strong>：左边是&quot;笨办法&quot;——从密码硬算密钥，耗时耗力；右边是我们的&quot;聪明办法&quot;——直接从微信内存里找到已经算好的密钥，一步到位。</p>
+<hr />
+<h2>2.2 微信的密钥藏在哪里？</h2>
+<p>要理解怎么找密钥，先得知道微信怎么存密钥。</p>
+<p>微信用了一个叫<strong>WCDB</strong>的数据库引擎（你可以把它想象成SQLCipher的&quot;微信定制版&quot;）。WCDB有个特点：<strong>它很懒，或者说很聪明</strong>——每次打开数据库时，它会花大力气算出密钥，然后把密钥存在内存里，下次直接用，不再重复计算。</p>
+<p>这些缓存在内存里的密钥，格式非常规律：<code>x'后面跟着64到192个十六进制字符'</code>。就像这样：</p>
+<pre><code>x'a3f7b2d8e9c1...（共64或96位十六进制）'
+</code></pre>
+<p>这个<code>x'...'</code>格式是WCDB特有的标记，就像每个员工工牌上都有公司logo一样。我们的任务就是：<strong>在微信进程的内存海洋里，找到所有带这个&quot;logo&quot;的字符串</strong>。</p>
+<div class="mermaid">graph TD
+    A[微信进程内存] --> B[枚举可读内存区域]
+    B --> C[读取内存内容]
+    C --> D[正则匹配 x'[hex]{64,192}']
+    D --> E{是否匹配?}
+    E -->|是| F[提取候选密钥]
+    E -->|否| G[继续扫描]
+    F --> H[验证密钥有效性]
+    H --> I{验证通过?}
+    I -->|是| J[保存到 keys.json]
+    I -->|否| G
+    G --> B
+    
+    style A fill:#e1f5ff
+    style J fill:#d4edda
+</div>
+<p><strong>流程说明</strong>：这是一个循环挖掘的过程——先划定搜索范围（可读内存），然后一块块翻找（读取内存），看到像钥匙的就拿出来比对（正则匹配），最后试开一下保险箱确认真假（验证有效性）。</p>
+<hr />
+<h2>2.3 内存扫描的技术细节</h2>
+<h3>2.3.1 如何&quot;进入&quot;微信的内存空间？</h3>
+<p>Windows系统有一套API专门用来操作进程内存，就像物业有万能钥匙可以进任何房间一样。我们用三个核心函数：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">函数</th>
+<th style="text-align:left">作用</th>
+<th style="text-align:left">日常类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>OpenProcess</code></td>
+<td style="text-align:left">获取进入某个进程的&quot;许可证&quot;</td>
+<td style="text-align:left">向物业申请进某户人家的许可</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>VirtualQueryEx</code></td>
+<td style="text-align:left">查看内存区域的&quot;房产证信息&quot;</td>
+<td style="text-align:left">查这户人家的房间布局和用途</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ReadProcessMemory</code></td>
+<td style="text-align:left">实际读取内存内容</td>
+<td style="text-align:left">进门翻箱倒柜找东西</td>
+</tr>
+</tbody>
+</table>
+<p>这里有个关键概念叫<strong>MBI（Memory Basic Information，内存基本信息）</strong>。你可以把它想象成每个内存区域的&quot;身份证&quot;，上面记录着：</p>
+<ul>
+<li><strong>BaseAddress</strong>：这块内存从哪开始（门牌号）</li>
+<li><strong>RegionSize</strong>：有多大（房间面积）</li>
+<li><strong>Protect</strong>：保护属性（能不能进、能不能看）</li>
+<li><strong>State</strong>：状态（是不是正在使用）</li>
+</ul>
+<div class="mermaid">classDiagram
+    class MBI {
+        +uint64 BaseAddress
+        +uint64 AllocationBase
+        +DWORD AllocationProtect
+        +uint64 RegionSize
+        +DWORD State
+        +DWORD Protect
+        +DWORD Type
+    }
+    
+    class "内存区域筛选条件" {
+        +State == MEM_COMMIT ✓
+        +Protect 属于 READABLE ✓
+        +0 < Size < 500MB ✓
+    }
+    
+    MBI --> "内存区域筛选条件" : 被检查
+</div>
+<p><strong>类图说明</strong>：MBI是Windows系统返回的内存信息结构，我们通过检查它的State（是否已提交）、Protect（是否可读）、RegionSize（大小是否合理）来决定要不要扫描这块区域。</p>
+<h3>2.3.2 遍历内存：从0到&quot;天涯海角&quot;</h3>
+<p>64位Windows系统的理论寻址空间非常大，上限是<code>0x7FFFFFFFFFFF</code>（约128TB）。但我们不会真的全部扫一遍——很多区域是空的或者不可读的。</p>
+<p><code>enum_regions</code>函数的工作方式很像<strong>扫地机器人</strong>：</p>
+<ol>
+<li>从地址0开始</li>
+<li>用<code>VirtualQueryEx</code>查询当前位置是什么区域</li>
+<li>记录区域信息，跳到下一个区域</li>
+<li>重复直到走遍整个地址空间</li>
+</ol>
+<div class="mermaid">sequenceDiagram
+    participant Main as 主程序
+    participant WinAPI as Windows API
+    participant Mem as 微信内存
+    
+    Main->>WinAPI: VirtualQueryEx(地址=0)
+    WinAPI-->>Mem: 查询内存信息
+    Mem-->>WinAPI: 返回MBI结构
+    WinAPI->>Main: 区域A的信息
+    
+    Main->>WinAPI: VirtualQueryEx(地址=区域A结束)
+    WinAPI-->>Mem: 查询下一区域
+    Mem-->>WinAPI: 返回MBI结构
+    WinAPI->>Main: 区域B的信息
+    
+    Note over Main,Mem: 循环直到到达地址空间上限
+</div>
+<p><strong>时序图说明</strong>：这是一个典型的&quot;探路&quot;过程——问系统&quot;这里是什么&quot;，系统回答后，再问&quot;下一个是什么&quot;，直到走完所有地方。</p>
+<h3>2.3.3 大海捞针：正则匹配</h3>
+<p>找到可读内存区域后，我们要读取其中的内容，然后用正则表达式搜索密钥模式。</p>
+<p>正则表达式<code>b&quot;x'([0-9a-fA-F]{64,192})'&quot;</code>的含义：</p>
+<ul>
+<li><code>b&quot;...&quot;</code>：二进制字符串（内存里是字节）</li>
+<li><code>x'</code>：WCDB密钥的固定前缀，就像文件头的魔数</li>
+<li><code>[0-9a-fA-F]{64,192}</code>：64到192个十六进制字符</li>
+<li><code>'</code>：闭合单引号</li>
+</ul>
+<p>这个长度范围很有讲究：</p>
+<ul>
+<li><strong>64位</strong>：只有加密密钥（32字节的enc_key）</li>
+<li><strong>96位</strong>：密钥+盐值（32字节enc_key + 16字节salt）</li>
+<li><strong>更长</strong>：可能是多个密钥连在一起，我们取前64位和后32位分别作为密钥和盐值</li>
+</ul>
+<div class="mermaid">flowchart TD
+    A[匹配的十六进制字符串] --> B{长度判断}
+    
+    B -->|96位| C[标准格式<br/>前64位=enc_key<br/>后32位=salt]
+    B -->|64位| D[仅密钥<br/>需逐个数据库尝试]
+    B -->|>96位| E[超长格式<br/>前64位=enc_key<br/>后32位=salt]
+    
+    C --> F[直接验证]
+    D --> G[遍历所有数据库<br/>寻找匹配的salt]
+    E --> F
+    
+    F --> H{HMAC验证通过?}
+    G --> H
+    
+    H -->|是| I[确认有效密钥]
+    H -->|否| J[丢弃或尝试其他组合]
+    
+    style C fill:#d4edda
+    style I fill:#d4edda
+</div>
+<p><strong>流程说明</strong>：找到候选密钥后，根据长度分三种情况处理。最省心的是96位标准格式，密钥和盐值一目了然；64位的比较麻烦，得像试钥匙一样挨个试；超长的就按固定规则截取。</p>
+<hr />
+<h2>2.4 验证：防止拿到假钥匙</h2>
+<p>找到看起来像密钥的字符串还不够——万一是个巧合呢？我们需要<strong>验证</strong>。</p>
+<h3>2.4.1 为什么不用完整解密来验证？</h3>
+<p>想象一下验证钥匙真假：你可以把保险箱里的东西全拿出来看一遍（完整解密），也可以只看看锁芯转没转动（HMAC验证）。显然后者快得多。</p>
+<p>微信用的SQLCipher 4有个特性：每页数据都带有一个<strong>HMAC-SHA512校验码</strong>，就像快递包裹上的防伪标签。我们可以用这个标签快速验证密钥是否正确，而不用解密整页数据。</p>
+<h3>2.4.2 HMAC验证的具体步骤</h3>
+<div class="mermaid">sequenceDiagram
+    participant V as verify_key_for_db
+    participant DB as 数据库第1页
+    participant Crypto as 加密库
+    
+    V->>DB: 读取salt、IV、密文、存储的HMAC
+    Note right of V: 从页头提取元数据
+    
+    V->>V: salt XOR 0x3a = mac_salt
+    Note right of V: 生成MAC专用的盐值
+    
+    V->>Crypto: PBKDF2(enc_key, mac_salt, 2轮)
+    Note right of V: 只迭代2次，不是256000次！
+    Crypto-->>V: mac_key
+    
+    V->>Crypto: HMAC-SHA512(mac_key, IV+密文)
+    Crypto-->>V: 计算的HMAC
+    
+    V->>V: 比较两个HMAC
+    Note right of V: 相同则密钥正确
+</div>
+<p><strong>时序图说明</strong>：验证过程就像核对快递单号——先从包裹上读取单号（提取存储的HMAC），然后用同样的算法算一遍（重新计算HMAC），对比两者是否一致。关键是这里的PBKDF2只用2轮迭代，比正常的256000轮快了十万倍。</p>
+<hr />
+<h2>2.5 完整工作流程</h2>
+<p>把所有步骤串起来，<code>find_all_keys</code>的执行流程是这样的：</p>
+<div class="mermaid">flowchart TB
+    subgraph "准备阶段"
+        A[启动] --> B[读取config.json]
+        B --> C[收集所有.db文件]
+        C --> D[读取每库第1页<br/>提取salt建立映射]
+    end
+    
+    subgraph "入侵阶段"
+        D --> E[tasklist找Weixin.exe PID]
+        E --> F[OpenProcess打开进程]
+        F --> G[enum_regions枚举内存]
+        G --> H[read_mem读取各区域]
+        H --> I[正则匹配找候选密钥]
+    end
+    
+    subgraph "验证阶段"
+        I --> J[按格式分类处理密钥]
+        J --> K[verify_key_for_db验证]
+        K --> L{验证通过?}
+        L -->|否| M[尝试交叉验证]
+        L -->|是| N[记录密钥-salt对应关系]
+        M --> O{交叉验证通过?}
+        O -->|是| N
+        O -->|否| P[丢弃该候选]
+    end
+    
+    subgraph "收尾阶段"
+        N --> Q[输出all_keys.json]
+        P --> R[继续扫描其他区域]
+        R --> H
+    end
+    
+    style A fill:#e1f5ff
+    style Q fill:#d4edda
+</div>
+<p><strong>流程说明</strong>：整个过程分为四幕戏——先摸清目标家底（哪些数据库、各自的salt是什么），然后潜入现场（打开微信进程、扫描内存），接着鉴别真伪（验证找到的密钥），最后收工交卷（输出JSON文件）。</p>
+<hr />
+<h2>2.6 输出：keys.json 里有什么？</h2>
+<p>成功运行后，你会得到一个<code>all_keys.json</code>文件，内容大概长这样：</p>
+<pre><code class="language-json">{
+  &quot;contact\\contact.db&quot;: {
+    &quot;enc_key&quot;: &quot;a3f7b2d8e9c1...&quot;,
+    &quot;salt&quot;: &quot;4d8e9f2a...&quot;
+  },
+  &quot;message_0\\message_0.db&quot;: {
+    &quot;enc_key&quot;: &quot;b8c5d1e7f3a9...&quot;,
+    &quot;salt&quot;: &quot;7e2b4c8d...&quot;
+  }
+}
+</code></pre>
+<p>这个文件是整个工具链的<strong>通行证</strong>：</p>
+<ul>
+<li><code>wechat-decrypt</code>用它解密数据库</li>
+<li><code>monitor_web</code>用它实时监控消息</li>
+<li><code>mcp_server</code>用它响应AI查询</li>
+</ul>
+<p>没有它，后续所有模块都无法工作。所以第一章说过：<code>find_all_keys</code>是整个项目的<strong>基石模块</strong>。</p>
+<hr />
+<h2>2.7 动手实践</h2>
+<h3>前置条件检查清单</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">项目</th>
+<th style="text-align:left">要求</th>
+<th style="text-align:left">如果不满足会怎样</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">操作系统</td>
+<td style="text-align:left">Windows</td>
+<td style="text-align:left">代码用了Windows API，其他系统不兼容</td>
+</tr>
+<tr>
+<td style="text-align:left">Python版本</td>
+<td style="text-align:left">3.10+</td>
+<td style="text-align:left">类型注解语法可能不支持</td>
+</tr>
+<tr>
+<td style="text-align:left">微信状态</td>
+<td style="text-align:left">必须正在运行</td>
+<td style="text-align:left">内存里没有缓存的密钥</td>
+</tr>
+<tr>
+<td style="text-align:left">运行权限</td>
+<td style="text-align:left">管理员</td>
+<td style="text-align:left">无法读取其他进程内存</td>
+</tr>
+<tr>
+<td style="text-align:left">微信版本</td>
+<td style="text-align:left">4.0</td>
+<td style="text-align:left">其他版本的内存格式可能不同</td>
+</tr>
+</tbody>
+</table>
+<h3>运行命令</h3>
+<pre><code class="language-bash"># 确保config.json配置正确
+python -m find_all_keys
+</code></pre>
+<p>如果一切顺利，你会看到类似这样的输出：</p>
+<pre><code>[+] Found WeChat PID: 12345
+[+] Scanning memory regions...
+[+] Found 42 candidate keys
+[+] Verified: contact\contact.db -&gt; enc_key: a3f7...
+[+] Verified: message_0\message_0.db -&gt; enc_key: b8c5...
+[+] Saved 15 keys to all_keys.json
+</code></pre>
+<h3>常见问题排查</h3>
+<p><strong>问题：Permission denied</strong></p>
+<ul>
+<li>原因：没有用管理员权限运行</li>
+<li>解决：右键 → &quot;以管理员身份运行&quot;</li>
+</ul>
+<p><strong>问题：No WeChat process found</strong></p>
+<ul>
+<li>原因：微信没开，或者进程名不对</li>
+<li>解决：确认微信已启动，检查任务管理器里的进程名是否是<code>Weixin.exe</code></li>
+</ul>
+<p><strong>问题：Found 0 keys</strong></p>
+<ul>
+<li>原因1：微信刚启动，还没打开过数据库</li>
+<li>解决：等一会儿，或者手动点开几个聊天窗口</li>
+<li>原因2：微信版本不兼容</li>
+<li>解决：确认是微信4.0版本</li>
+</ul>
+<hr />
+<h2>2.8 设计哲学：为什么这样做？</h2>
+<p>回顾<code>find_all_keys</code>的设计，有几个值得学习的思路：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">设计决策</th>
+<th style="text-align:left">替代方案</th>
+<th style="text-align:left">我们的选择</th>
+<th style="text-align:left">理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">从内存提取</td>
+<td style="text-align:left">暴力破解PBKDF2</td>
+<td style="text-align:left">内存提取</td>
+<td style="text-align:left">快几个数量级，用户体验好</td>
+</tr>
+<tr>
+<td style="text-align:left">正则匹配</td>
+<td style="text-align:left">解析WCDB数据结构</td>
+<td style="text-align:left">简单正则</td>
+<td style="text-align:left">鲁棒性强，不依赖具体版本</td>
+</tr>
+<tr>
+<td style="text-align:left">HMAC验证</td>
+<td style="text-align:left">完整解密验证</td>
+<td style="text-align:left">HMAC验证</td>
+<td style="text-align:left">微秒级 vs 秒级，差距巨大</td>
+</tr>
+<tr>
+<td style="text-align:left">多种格式处理</td>
+<td style="text-align:left">只支持标准格式</td>
+<td style="text-align:left">三种格式都支持</td>
+<td style="text-align:left">宁可多试，不可漏掉</td>
+</tr>
+</tbody>
+</table>
+<p>这就像解谜游戏里的<strong>捷径设计</strong>——与其按照出题人的思路硬解，不如观察系统行为，找到更优雅的通关方式。</p>
+<hr />
+<h2>2.9 小结</h2>
+<p>本章我们学习了：</p>
+<ul>
+<li><strong>为什么</strong>要从内存提取密钥（绕过25万次迭代的PBKDF2）</li>
+<li><strong>怎么找</strong>到密钥（扫描<code>x'...'</code>模式的内存区域）</li>
+<li><strong>怎么确认</strong>是真密钥（HMAC快速验证）</li>
+<li><strong>怎么用</strong>这个结果（生成<code>all_keys.json</code>供后续模块使用）</li>
+</ul>
+<p>下一章，我们将跟随这些密钥的旅程，看看解密后的数据如何在系统中流动，最终到达你的浏览器和AI助手。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

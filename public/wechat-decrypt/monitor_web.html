@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>monitor_web 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-02T19:25<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-multi-table-user-message-lookup.html" class="nv">Multi Table User Message Lookup</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-protobuf-message-parsing.html" class="nv">Protobuf Message Parsing</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconciliation.html" class="nv">Wal Frame Reconciliation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv on">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>monitor_web 模块技术深度解析</h1>
+<h2>1. 问题域与解决方案</h2>
+<h3>问题背景</h3>
+<p>在现代即时通讯应用中，会话数据通常以加密的 SQLite 数据库形式存储，以保护用户隐私。然而，这给需要实时监控和展示会话更新的应用场景带来了挑战：</p>
+<ol>
+<li>原始数据库文件是加密的，无法直接查询</li>
+<li>数据库使用 Write-Ahead Logging (WAL) 机制，最新数据可能未完全写入主数据库</li>
+<li>需要实时、低延迟地将新消息推送给订阅者</li>
+<li>需要一个 Web 界面来展示历史消息和实时更新</li>
+</ol>
+<h3>设计洞察</h3>
+<p>monitor_web 模块采用了一种&quot;解密-监控-推送&quot;的三层架构，通过定期解密数据库并检测变化，结合 SSE (Server-Sent Events) 实现实时消息推送。这种设计既保证了数据的安全性，又提供了良好的实时性。</p>
+<h2>2. 核心概念与心理模型</h2>
+<h3>核心抽象</h3>
+<ol>
+<li><strong>SessionMonitor</strong>：会话监控核心，负责加密数据库的解密、状态查询和变更检测</li>
+<li><strong>ThreadedServer</strong>：基于多线程的 HTTP 服务器，处理并发连接</li>
+<li><strong>Handler</strong>：HTTP 请求处理器，负责提供静态页面、历史消息 API 和 SSE 流</li>
+<li><strong>SSE 广播机制</strong>：实时消息推送系统，使用队列和锁保证多线程安全</li>
+</ol>
+<h3>心理模型</h3>
+<p>想象 SessionMonitor 是一位<strong>密码破译员兼侦探</strong>：</p>
+<ul>
+<li>它持有解密密钥，能定期打开加密的数据库保险箱</li>
+<li>它仔细比对当前和上次看到的会话状态，找出新消息</li>
+<li>发现新消息后，它像<strong>广播站</strong>一样，通过 SSE 渠道将消息推送给所有订阅的客户端</li>
+<li>同时，它还维护一份<strong>消息档案</strong>，供新连接的客户端查询历史记录</li>
+</ul>
+<h2>3. 架构与数据流程</h2>
+<h3>系统架构图</h3>
+<div class="mermaid">graph TD
+    A[加密会话DB] -->|解密| B[SessionMonitor]
+    C[WAL文件] -->|Patch| B
+    B -->|检测变更| D[消息队列]
+    D -->|SSE广播| E[ThreadedServer]
+    E -->|推送更新| F[Web客户端]
+    F -->|请求历史| E
+    E -->|查询| G[消息日志]
+    B -->|保存新消息| G
+</div>
+<h3>数据流程详解</h3>
+<ol>
+<li>
+<p><strong>数据库解密流程</strong>：</p>
+<ul>
+<li><code>SessionMonitor.check_updates()</code> 被周期性调用</li>
+<li>调用 <code>do_full_refresh()</code> 解密主数据库</li>
+<li>如有 WAL 文件，通过 <code>decrypt_wal_full()</code> 将最新变更应用到解密后的数据库</li>
+</ul>
+</li>
+<li>
+<p><strong>变更检测流程</strong>：</p>
+<ul>
+<li><code>query_state()</code> 从解密数据库读取当前会话状态</li>
+<li>与 <code>prev_state</code> 比较，识别新消息</li>
+<li>新消息按时间排序后加入 <code>messages_log</code></li>
+</ul>
+</li>
+<li>
+<p><strong>实时推送流程</strong>：</p>
+<ul>
+<li><code>broadcast_sse()</code> 将消息格式化后加入所有客户端队列</li>
+<li><code>Handler</code> 的 <code>/stream</code> 端点从队列读取并推送给客户端</li>
+<li>每 15 秒发送心跳保持连接活跃</li>
+</ul>
+</li>
+</ol>
+<h2>4. 核心组件深度解析</h2>
+<h3>SessionMonitor 类</h3>
+<p><strong>设计意图</strong>：作为整个模块的核心，负责加密数据库的解密、会话状态监控和新消息检测。</p>
+<p><strong>关键方法解析</strong>：</p>
+<ol>
+<li>
+<p><strong><code>__init__(enc_key, session_db, contact_names)</code></strong></p>
+<ul>
+<li>初始化时接收加密密钥、数据库路径和联系人名称映射</li>
+<li>设置 WAL 文件路径（SQLite 的默认 WAL 命名规则）</li>
+<li>初始化状态缓存和性能统计变量</li>
+</ul>
+</li>
+<li>
+<p><strong><code>do_full_refresh()</code></strong></p>
+<ul>
+<li><strong>设计意图</strong>：创建加密数据库的完整解密副本，包括应用 WAL 中的最新变更</li>
+<li><strong>实现细节</strong>：
+<ul>
+<li>先调用 <code>full_decrypt()</code> 解密主数据库</li>
+<li>再通过 <code>decrypt_wal_full()</code> 应用 WAL 中的有效帧</li>
+<li>记录解密时间和处理的页数用于性能监控</li>
+</ul>
+</li>
+<li><strong>为什么这样设计</strong>：
+<ul>
+<li>每次都创建完整副本而非增量更新，简化了实现</li>
+<li>虽然有一定性能开销，但对于消息监控场景是可接受的</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>
+<p><strong><code>check_updates()</code></strong></p>
+<ul>
+<li><strong>设计意图</strong>：执行完整的检查流程，包括解密、状态比较和消息推送</li>
+<li><strong>工作流程</strong>：
+<ol>
+<li>执行完整刷新</li>
+<li>查询当前状态</li>
+<li>与前一状态比较，识别新消息</li>
+<li>格式化新消息并加入日志</li>
+<li>通过 SSE 广播新消息</li>
+<li>更新 <code>prev_state</code></li>
+</ol>
+</li>
+<li><strong>关键设计决策</strong>：
+<ul>
+<li>所有新消息先收集后按时间排序，确保时序正确性</li>
+<li>异常处理确保单个错误不会破坏整个监控流程</li>
+<li>详细的性能日志便于优化和调试</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h3>ThreadedServer 类</h3>
+<p><strong>设计意图</strong>：提供一个支持多线程的 HTTP 服务器，能够处理多个并发客户端连接。</p>
+<p><strong>实现特点</strong>：</p>
+<ul>
+<li>继承自 <code>ThreadingMixIn</code> 和 <code>HTTPServer</code></li>
+<li>设置 <code>daemon_threads = True</code> 确保主线程退出时子线程也能正确终止</li>
+<li>这种组合是 Python 标准库中创建多线程 HTTP 服务器的经典模式</li>
+</ul>
+<h3>Handler 类</h3>
+<p><strong>设计意图</strong>：处理不同类型的 HTTP 请求，提供 Web UI、历史消息 API 和 SSE 流。</p>
+<p><strong>关键端点解析</strong>：</p>
+<ol>
+<li>
+<p><strong><code>/</code> 和 <code>/index.html</code></strong></p>
+<ul>
+<li>提供静态 HTML 页面</li>
+<li>设计简洁，所有 UI 逻辑包含在单个 <code>HTML_PAGE</code> 中</li>
+</ul>
+</li>
+<li>
+<p><strong><code>/api/history</code></strong></p>
+<ul>
+<li>返回历史消息 JSON 数组</li>
+<li>使用 <code>messages_lock</code> 确保线程安全</li>
+<li>消息按时间戳排序返回</li>
+</ul>
+</li>
+<li>
+<p><strong><code>/stream</code></strong></p>
+<ul>
+<li><strong>设计意图</strong>：实现 SSE (Server-Sent Events) 推送</li>
+<li><strong>实现细节</strong>：
+<ul>
+<li>创建一个队列并注册到 <code>sse_clients</code></li>
+<li>循环从队列读取消息并推送给客户端</li>
+<li>15 秒超时发送心跳保持连接</li>
+<li>异常时确保清理队列注册</li>
+</ul>
+</li>
+<li><strong>为什么这样设计</strong>：
+<ul>
+<li>每个客户端有自己的队列，避免消息丢失</li>
+<li>使用锁保护 <code>sse_clients</code> 列表，确保多线程安全</li>
+<li>心跳机制解决网络中间设备的超时断开问题</li>
+</ul>
+</li>
+</ul>
+</li>
+</ol>
+<h2>5. 依赖分析</h2>
+<h3>模块依赖</h3>
+<ul>
+<li>
+<p><strong>内部依赖</strong>：</p>
+<ul>
+<li><code>full_decrypt</code>：用于解密完整的 SQLite 数据库</li>
+<li><code>decrypt_wal_full</code>：用于解密并应用 WAL 文件中的变更</li>
+<li><code>format_msg_type</code>、<code>msg_type_icon</code>：消息类型格式化工具</li>
+</ul>
+</li>
+<li>
+<p><strong>外部依赖</strong>：</p>
+<ul>
+<li><code>sqlite3</code>：数据库操作</li>
+<li><code>threading</code>、<code>queue</code>：多线程支持</li>
+<li><code>http.server</code>：HTTP 服务器基础</li>
+</ul>
+</li>
+</ul>
+<h3>数据契约</h3>
+<ol>
+<li>
+<p><strong>输入契约</strong>：</p>
+<ul>
+<li><code>enc_key</code>：有效的数据库加密密钥</li>
+<li><code>session_db</code>：存在且可访问的加密 SQLite 数据库路径</li>
+<li><code>contact_names</code>：用户名到显示名的映射字典</li>
+</ul>
+</li>
+<li>
+<p><strong>输出契约</strong>：</p>
+<ul>
+<li>SSE 消息格式：JSON 对象，包含时间戳、聊天信息、发送者、内容等字段</li>
+<li>历史 API 返回：按时间排序的消息 JSON 数组</li>
+</ul>
+</li>
+</ol>
+<h3>调用关系</h3>
+<pre><code>SessionMonitor.check_updates()
+├─&gt; do_full_refresh()
+│  ├─&gt; full_decrypt()
+│  └─&gt; decrypt_wal_full()
+├─&gt; query_state()
+└─&gt; broadcast_sse()
+    └─&gt; [sse_clients 队列操作]
+
+Handler.do_GET()
+├─&gt; [返回 HTML]
+├─&gt; [查询 messages_log]
+└─&gt; [注册到 sse_clients 并推送]
+</code></pre>
+<h2>6. 设计决策与权衡</h2>
+<h3>1. 全量解密 vs 增量解密</h3>
+<p><strong>决策</strong>：每次都执行完整解密，而不是尝试增量更新。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>SQLite WAL 机制的复杂性使得增量解密难以正确实现</li>
+<li>全量解密实现简单，逻辑清晰，不易出错</li>
+<li>对于监控场景，数据库大小通常不会增长到无法处理的程度</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：代码简单可靠，不需要维护复杂的状态</li>
+<li>缺点：每次都有一定的性能开销，特别是对于大型数据库</li>
+</ul>
+<h3>2. 轮询 vs 事件驱动</h3>
+<p><strong>决策</strong>：采用定期轮询检查数据库变化，而不是尝试监听文件系统事件。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>SQLite 写入操作的复杂性使得文件系统事件不可靠</li>
+<li>轮询实现简单，可控性强</li>
+<li>对于消息监控场景，秒级延迟通常是可接受的</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：实现简单，不受文件系统特定行为影响</li>
+<li>缺点：有一定的资源浪费，延迟取决于轮询间隔</li>
+</ul>
+<h3>3. SSE vs WebSocket</h3>
+<p><strong>决策</strong>：使用 SSE (Server-Sent Events) 而不是 WebSocket。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>通信是单向的（服务器到客户端），SSE 更适合这种场景</li>
+<li>SSE 实现更简单，不需要处理 WebSocket 的握手和帧协议</li>
+<li>浏览器原生支持，客户端代码简单</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：实现简单，适合单向推送场景</li>
+<li>缺点：不支持客户端到服务器的消息传递（本场景不需要）</li>
+</ul>
+<h3>4. 每个客户端一个队列 vs 广播机制</h3>
+<p><strong>决策</strong>：为每个连接的客户端创建一个单独的队列。</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>确保消息不会因为一个客户端处理慢而影响其他客户端</li>
+<li>实现简单，队列满时可以灵活处理</li>
+<li>易于清理和资源管理</li>
+</ul>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li>优点：客户端之间隔离好，一个慢客户端不会拖慢整个系统</li>
+<li>缺点：内存使用随着客户端数量线性增长</li>
+</ul>
+<h2>7. 使用指南与最佳实践</h2>
+<h3>初始化流程</h3>
+<pre><code class="language-python"># 1. 创建 SessionMonitor 实例
+monitor = SessionMonitor(
+    enc_key=your_encryption_key,
+    session_db=&quot;path/to/encrypted.db&quot;,
+    contact_names={&quot;user1&quot;: &quot;张三&quot;, &quot;user2&quot;: &quot;李四&quot;}
+)
+
+# 2. 创建并启动服务器
+server = ThreadedServer(('0.0.0.0', 8000), Handler)
+server_thread = threading.Thread(target=server.serve_forever)
+server_thread.daemon = True
+server_thread.start()
+
+# 3. 定期调用 check_updates()
+while True:
+    monitor.check_updates()
+    time.sleep(1)  # 每秒检查一次
+</code></pre>
+<h3>配置建议</h3>
+<ol>
+<li><strong>轮询间隔</strong>：根据实际需求调整，通常 1-2 秒是合理的折中</li>
+<li><strong><code>MAX_LOG</code></strong>：根据预期的消息量和内存限制设置，保留足够的历史记录但不占用过多内存</li>
+<li><strong>心跳间隔</strong>：当前设置为 15 秒，可根据网络环境调整</li>
+</ol>
+<h3>扩展点</h3>
+<ol>
+<li><strong>自定义消息格式化</strong>：修改 <code>check_updates()</code> 中消息构造部分</li>
+<li><strong>添加过滤规则</strong>：在消息广播前添加条件判断</li>
+<li><strong>权限控制</strong>：在 <code>Handler</code> 中添加认证逻辑</li>
+<li><strong>持久化</strong>：将 <code>messages_log</code> 持久化到磁盘</li>
+</ol>
+<h2>8. 注意事项与潜在陷阱</h2>
+<h3>线程安全</h3>
+<ul>
+<li>所有访问 <code>messages_log</code> 和 <code>sse_clients</code> 的地方都必须使用对应的锁</li>
+<li>不要在持有锁的情况下执行耗时操作</li>
+</ul>
+<h3>资源管理</h3>
+<ul>
+<li>SSE 连接异常时确保队列被正确清理</li>
+<li>长时间运行时注意 <code>messages_log</code> 的内存占用</li>
+</ul>
+<h3>数据库相关</h3>
+<ul>
+<li>不要在数据库写入高峰期频繁调用 <code>check_updates()</code></li>
+<li>确保有足够的磁盘空间用于解密后的数据库副本</li>
+</ul>
+<h3>性能考虑</h3>
+<ul>
+<li>大型数据库会导致每次 <code>check_updates()</code> 耗时较长</li>
+<li>可以考虑添加性能监控，在解密时间过长时发出警告</li>
+</ul>
+<h3>错误处理</h3>
+<ul>
+<li>当前实现中的异常处理较为简单，生产环境可能需要更完善的错误恢复机制</li>
+<li>注意网络异常和客户端断开连接的处理</li>
+</ul>
+<h2>9. 总结</h2>
+<p>monitor_web 模块通过简洁而有效的设计，解决了加密数据库实时监控和 Web 展示的问题。它的核心价值在于将复杂的数据库解密、变更检测和实时推送逻辑封装在一个易于理解和使用的模块中。</p>
+<p>虽然在某些方面采用了较为简单的实现方式（如全量解密和轮询），但这些选择在特定场景下是合理的权衡，带来了代码的简洁性和可靠性。对于需要监控加密会话数据库并提供实时 Web 界面的应用来说，monitor_web 提供了一个现成的、可直接使用的解决方案。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

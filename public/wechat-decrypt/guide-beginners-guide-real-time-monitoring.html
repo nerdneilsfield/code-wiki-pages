@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第四章：用 Monitor_Web 搭建实时消息看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-02T19:25<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv on">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-multi-table-user-message-lookup.html" class="nv">Multi Table User Message Lookup</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-protobuf-message-parsing.html" class="nv">Protobuf Message Parsing</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconciliation.html" class="nv">Wal Frame Reconciliation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第四章：用 Monitor_Web 搭建实时消息看板</h1>
+<blockquote>
+<p><strong>本章目标</strong>：深入理解&quot;解密-监控-推送&quot;循环——SessionMonitor 如何通过 WAL 轮询发现新消息，并通过 Server-Sent Events 将消息实时推送到浏览器。</p>
+</blockquote>
+<hr />
+<h2>4.1 从静态查询到实时监控：为什么需要 Monitor_Web？</h2>
+<p>想象你正在经营一家餐厅。前三章我们学会的是&quot;翻账本&quot;——每次想看营业数据，都得去保险柜取出厚厚的账簿，一页页翻阅。但真实的生意场景需要的是<strong>实时监控大屏</strong>：新订单一出现，屏幕上立刻弹出提示；后厨出餐了，前台马上能看到状态更新。</p>
+<p>微信消息监控也是如此。<code>decrypt_db</code> 模块像一位&quot;档案管理员&quot;，每次你需要查询时，它才去解密数据库、返回结果。而 <code>monitor_web</code> 则像一位<strong>24小时值守的接线员</strong>：</p>
+<ul>
+<li>每隔几秒就检查一次&quot;保险箱&quot;（加密数据库）</li>
+<li>发现新消息后立刻通过广播系统通知所有&quot;分机&quot;（浏览器客户端）</li>
+<li>同时维护一份完整的通话记录，供新来的接线员查阅</li>
+</ul>
+<div class="mermaid">graph LR
+    subgraph "静态查询模式 decrypt_db"
+        A[用户请求] --> B[临时解密] --> C[返回结果] --> D[清理现场]
+    end
+    
+    subgraph "实时监控模式 monitor_web"
+        E[定时轮询] --> F[解密+检测变化] --> G[SSE推送] --> H[多个浏览器实时显示]
+        G --> I[保存历史记录]
+    end
+</div>
+<p>这种模式的转变，核心解决三个问题：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">问题</th>
+<th style="text-align:left">静态查询的痛点</th>
+<th style="text-align:left">实时监控的方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>时效性</strong></td>
+<td style="text-align:left">手动触发，延迟不可控</td>
+<td style="text-align:left">秒级轮询，自动发现</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>并发性</strong></td>
+<td style="text-align:left">单次查询，结果不共享</td>
+<td style="text-align:left">SSE广播，多客户端同步</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>连续性</strong></td>
+<td style="text-align:left">无状态，每次从头查</td>
+<td style="text-align:left">维护消息日志，支持历史回溯</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>4.2 核心角色：SessionMonitor —— 密码破译员兼侦探</h2>
+<p>想象 <code>SessionMonitor</code> 是一位身兼数职的专家：</p>
+<p><strong>作为密码破译员</strong>，他持有万能钥匙，能打开加密的微信数据库保险箱。但他不只是开门——他还要把保险箱里的&quot;草稿纸&quot;（WAL文件）也整理进来，因为最新的消息可能还写在草稿纸上，没正式归档。</p>
+<p><strong>作为侦探</strong>，他有一双过目不忘的眼睛。每次打开保险箱，他都会快速扫描所有会话的状态，与记忆中的上一次的&quot;快照&quot;仔细比对，找出任何细微的变化——一条新消息、一个未读标记的变动。</p>
+<p><strong>作为广播站调度员</strong>，一旦发现新情况，他立即通过专用频道（SSE）向所有订阅者发出通报。同时，他还会把这条消息抄录进档案室（<code>messages_log</code>），方便后来的人查阅历史。</p>
+<div class="mermaid">classDiagram
+    class SessionMonitor {
+        +enc_key: bytes
+        +session_db: str
+        +wal_path: str
+        +prev_state: dict
+        +messages_log: list
+        +sse_clients: list
+        
+        +do_full_refresh() tuple
+        +query_state() dict
+        +check_updates() None
+        +broadcast_sse(msg) None
+    }
+    
+    class ThreadedServer {
+        +serve_forever()
+    }
+    
+    class Handler {
+        +do_GET()
+        -serve_html()
+        -serve_history()
+        -serve_stream()
+    }
+    
+    SessionMonitor --> ThreadedServer : 提供数据
+    ThreadedServer --> Handler : 处理请求
+    Handler --> SessionMonitor : 查询/订阅
+</div>
+<h3>4.2.1 解密流程：打开保险箱的全套动作</h3>
+<p><code>SessionMonitor.do_full_refresh()</code> 方法执行一套标准化的&quot;开箱流程&quot;：</p>
+<div class="mermaid">flowchart TD
+    A[开始刷新] --> B{主数据库存在?}
+    B -->|是| C[full_decrypt 解密主库]
+    B -->|否| Z[报错退出]
+    C --> D{WAL文件存在?}
+    D -->|是| E[decrypt_wal_full 应用WAL变更]
+    D -->|否| F[跳过WAL]
+    E --> G[合并到解密副本]
+    F --> H[返回解密后的数据库路径]
+    G --> H
+    H --> I[记录性能指标]
+</div>
+<p>你可以把这个过程想象成<strong>整理办公桌</strong>：</p>
+<ol>
+<li><strong>拿出正式文件柜</strong>（解密主数据库）：这是已经归档的所有资料</li>
+<li><strong>检查临时便签区</strong>（读取WAL文件）：看看有没有还没归档的新内容</li>
+<li><strong>整合完整视图</strong>（合并主库+WAL）：确保看到的数据是最新的全貌</li>
+</ol>
+<blockquote>
+<p><strong>为什么是&quot;全量解密&quot;而非&quot;增量更新&quot;？</strong></p>
+<p>想象你要确认办公室里有没有新文件。一种方法是记住每个抽屉上次的样子，只检查变动的部分——这很高效，但需要极其复杂的记忆和管理。另一种方法是每次把整个办公室的照片拍下来对比——虽然多花点时间，但绝不会漏掉任何东西。</p>
+<p><code>monitor_web</code> 选择了后者。SQLite 的 WAL 机制相当复杂，尝试做增量解密容易引入难以排查的 bug。对于消息监控场景，数据库通常不会太大，全量解密的性能开销完全可以接受。</p>
+</blockquote>
+<h3>4.2.2 变更检测：侦探的&quot;找不同&quot;游戏</h3>
+<p>解密完成后，<code>query_state()</code> 方法会从数据库中提取当前所有会话的状态，然后与 <code>prev_state</code>（上一次的状态快照）进行比对。</p>
+<div class="mermaid">sequenceDiagram
+    participant SM as SessionMonitor
+    participant DB as 解密后的数据库
+    participant PS as prev_state缓存
+    
+    SM->>DB: SELECT 所有会话的最新消息
+    DB-->>SM: 当前状态字典 {chat_id: last_msg_time}
+    
+    SM->>PS: 读取上一次的状态
+    PS-->>SM: prev_state 字典
+    
+    loop 遍历每个会话
+        SM->>SM: 对比时间戳
+        alt 有新消息
+            SM->>SM: 标记为新增
+        else 无变化
+            SM->>SM: 跳过
+        end
+    end
+    
+    SM->>PS: 更新 prev_state = 当前状态
+</div>
+<p>这个比对过程就像玩&quot;找不同&quot;游戏：两张几乎一样的图片，侦探要快速找出哪里多了个小人、哪里变了颜色。在代码中，这体现为对每条会话的 <code>last_msg_time</code> 和 <code>unread_count</code> 的精确比较。</p>
+<hr />
+<h2>4.3 实时推送：SSE —— 比 WebSocket 更简单的&quot;单向广播&quot;</h2>
+<p>现在我们已经发现了新消息，如何告诉浏览器？这里 <code>monitor_web</code> 做了一个关键的技术选择：<strong>Server-Sent Events (SSE)</strong>，而非更常见的 WebSocket。</p>
+<h3>4.3.1 SSE vs WebSocket：选对工具很重要</h3>
+<p>想象你要设计一个小区的通知系统：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">方案</th>
+<th style="text-align:left">工作原理</th>
+<th style="text-align:left">适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>WebSocket</strong></td>
+<td style="text-align:left">双向对讲机，双方随时说话</td>
+<td style="text-align:left">聊天室、游戏、协同编辑</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>SSE</strong></td>
+<td style="text-align:left">小区广播喇叭，物业单向播报</td>
+<td style="text-align:left">股价推送、新闻直播、消息通知</td>
+</tr>
+</tbody>
+</table>
+<p>微信消息监控是典型的<strong>单向推送</strong>场景：服务器有新消息就告诉浏览器，浏览器不需要向服务器发送实时指令。SSE 在这种场景下有三个明显优势：</p>
+<ol>
+<li><strong>实现简单</strong>：基于普通 HTTP，不需要复杂的握手协议</li>
+<li><strong>自动重连</strong>：浏览器原生支持断线重连，代码里不用操心</li>
+<li><strong>穿透性好</strong>：大多数防火墙和代理都对标准 HTTP 友好</li>
+</ol>
+<div class="mermaid">graph TD
+    subgraph "WebSocket 双向通道"
+        A[浏览器] <-->|双向帧协议| B[WebSocket服务器]
+        A -->|发送消息| B
+        B -->|推送更新| A
+    end
+    
+    subgraph "SSE 单向广播"
+        C[浏览器1] -->|HTTP GET /stream| D[SSE服务器]
+        C <-->|text/event-stream| D
+        E[浏览器2] -->|HTTP GET /stream| D
+        E <-->|text/event-stream| D
+        F[浏览器3] -->|HTTP GET /stream| D
+        F <-->|text/event-stream| D
+        D -->|广播相同消息| C
+        D -->|广播相同消息| E
+        D -->|广播相同消息| F
+    end
+</div>
+<h3>4.3.2 SSE 的实现机制：每个客户端一个专属信箱</h3>
+<p><code>monitor_web</code> 的 SSE 实现采用了**&quot;每个客户端一个队列&quot;**的设计：</p>
+<div class="mermaid">graph TD
+    A[新消息产生] --> B[broadcast_sse]
+    B --> C{遍历所有客户端}
+    C --> D[客户端A队列]
+    C --> E[客户端B队列]
+    C --> F[客户端C队列]
+    
+    D --> G[Handler /stream 端点]
+    E --> H[Handler /stream 端点]
+    F --> I[Handler /stream 端点]
+    
+    G --> J[浏览器A]
+    H --> K[浏览器B]
+    I --> L[浏览器C]
+    
+    M[15秒心跳] --> G
+    M --> H
+    M --> I
+</div>
+<p>你可以把这想象成<strong>酒店的前台留言系统</strong>：</p>
+<ul>
+<li>每位住客（浏览器）入住时，前台为他准备一个专属信箱（<code>queue.Queue</code>）</li>
+<li>有紧急通知时（新消息），前台把同样的纸条复印多份，分别投入每个信箱</li>
+<li>住客可以随时来前台查看自己的信箱，取走所有留言</li>
+<li>如果住客长时间没来（15秒），前台会塞一张&quot; heartbeat &quot;纸条进去，确保他知道连接还活着</li>
+</ul>
+<p>这种设计的精妙之处在于<strong>隔离性</strong>：如果某个浏览器网络卡顿、处理缓慢，只会积压它自己的队列，不会影响其他客户端接收消息。</p>
+<h3>4.3.3 代码层面的 SSE 协议</h3>
+<p>SSE 的消息格式非常简单，是纯文本的：</p>
+<pre><code>data: {&quot;time&quot;: &quot;16:26&quot;, &quot;chat&quot;: &quot;交流群&quot;, &quot;sender&quot;: &quot;张三&quot;, &quot;content&quot;: &quot;大家好&quot;}
+
+data: {&quot;time&quot;: &quot;16:27&quot;, &quot;chat&quot;: &quot;工作群&quot;, &quot;sender&quot;: &quot;李四&quot;, &quot;content&quot;: &quot;收到&quot;}
+
+event: heartbeat
+data: 
+
+</code></pre>
+<p>每行以 <code>data:</code> 开头，一条消息以两个换行符结束。<code>monitor_web</code> 的 <code>Handler.serve_stream()</code> 方法就是负责把这些格式化后的 JSON 字符串源源不断地写给浏览器：</p>
+<pre><code class="language-python"># 简化的核心逻辑
+def serve_stream(self):
+    # 1. 注册新客户端：创建一个专属队列
+    q = queue.Queue()
+    with sse_lock:
+        sse_clients.append(q)
+    
+    try:
+        while True:
+            # 2. 等待消息或超时（15秒）
+            try:
+                msg = q.get(timeout=15)
+                self.wfile.write(f&quot;data: {msg}\n\n&quot;.encode())
+            except queue.Empty:
+                # 3. 超时发送心跳，保持连接
+                self.wfile.write(b&quot;event: heartbeat\ndata: \n\n&quot;)
+    finally:
+        # 4. 客户端断开，清理资源
+        with sse_lock:
+            sse_clients.remove(q)
+</code></pre>
+<hr />
+<h2>4.4 完整数据流：从加密数据库到浏览器屏幕</h2>
+<p>让我们把整个过程串起来，看看一条新消息是如何穿越重重障碍，最终出现在你的浏览器上的：</p>
+<div class="mermaid">sequenceDiagram
+    participant WX as 微信进程
+    participant ENC as 加密数据库<br/>+ WAL文件
+    participant MON as SessionMonitor
+    participant SRV as ThreadedServer
+    participant BR as 浏览器
+    
+    Note over WX,BR: 阶段1：消息写入（微信内部）
+    WX->>ENC: 写入新消息到WAL
+    
+    Note over MON,BR: 阶段2：轮询发现（每秒执行）
+    loop check_updates 每秒调用
+        MON->>MON: do_full_refresh()
+        MON->>ENC: 读取并解密主库
+        MON->>ENC: 读取并解密WAL
+        MON->>MON: 合并完整数据
+        
+        MON->>MON: query_state() 查询当前状态
+        MON->>MON: 与 prev_state 比对
+        
+        alt 发现新消息
+            MON->>MON: 格式化消息，加入 messages_log
+            MON->>MON: broadcast_sse() 推送到所有队列
+        end
+        
+        MON->>MON: 更新 prev_state
+    end
+    
+    Note over SRV,BR: 阶段3：实时推送
+    SRV->>SRV: Handler 从队列取出消息
+    SRV->>BR: SSE 数据流推送
+    
+    BR->>BR: JavaScript 解析JSON<br/>更新DOM显示新消息
+    
+    Note over BR,SRV: 阶段4：历史查询（页面加载时）
+    BR->>SRV: GET /api/history
+    SRV->>MON: 读取 messages_log
+    MON-->>SRV: 返回历史消息数组
+    SRV-->>BR: JSON响应
+</div>
+<p>这个过程有几个关键的时间节点值得注意：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">阶段</th>
+<th style="text-align:left">典型耗时</th>
+<th style="text-align:left">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">数据库解密</td>
+<td style="text-align:left">50-200ms</td>
+<td style="text-align:left">取决于数据库大小</td>
+</tr>
+<tr>
+<td style="text-align:left">WAL 应用</td>
+<td style="text-align:left">10-50ms</td>
+<td style="text-align:left">通常很小</td>
+</tr>
+<tr>
+<td style="text-align:left">状态查询与比对</td>
+<td style="text-align:left">5-20ms</td>
+<td style="text-align:left">纯内存操作</td>
+</tr>
+<tr>
+<td style="text-align:left">SSE 推送</td>
+<td style="text-align:left">&lt;1ms</td>
+<td style="text-align:left">仅入队操作</td>
+</tr>
+<tr>
+<td style="text-align:left">网络传输</td>
+<td style="text-align:left">10-100ms</td>
+<td style="text-align:left">取决于网络状况</td>
+</tr>
+</tbody>
+</table>
+<p>总延迟通常在 <strong>100-500ms</strong> 之间，对于消息监控场景已经足够实时。</p>
+<hr />
+<h2>4.5 WAL 机制深度解析：为什么需要&quot;草稿纸&quot;？</h2>
+<p>前面多次提到 WAL（Write-Ahead Logging），这是 SQLite 保证数据安全的核心机制，也是 <code>monitor_web</code> 必须正确处理的关键细节。</p>
+<h3>4.5.1 WAL 的工作方式：先写日志，再归档</h3>
+<p>想象你是一个严谨的会计师：</p>
+<p><strong>传统方式（回滚日志模式）</strong>：每次修改账本前，先把整页复印一份锁进抽屉。如果改错了，拿出来复原。这种方式安全，但每次都要复印整页，很慢。</p>
+<p><strong>WAL 方式（预写日志模式）</strong>：你有一本专门的&quot;草稿本&quot;。所有新交易先记在草稿本上，等积攒到一定数量或闲下来时，再一次性誊写到正式账本。这样正式账本很少被翻动，性能更好。</p>
+<div class="mermaid">flowchart LR
+    subgraph "传统模式"
+        A[修改请求] --> B[复制原页到journal]
+        B --> C[修改数据库页]
+        C --> D[提交时删除journal]
+    end
+    
+    subgraph "WAL模式"
+        E[修改请求] --> F[追加写入WAL文件]
+        F --> G[后台或checkpoint时<br/>批量写回数据库]
+        G --> H[WAL可重用或截断]
+    end
+</div>
+<h3>4.5.2 WAL 的&quot;盐值&quot;机制：识别有效数据</h3>
+<p>WAL 文件有一个重要特性：<strong>它是循环使用的</strong>。当写满一定大小后，SQLite 会从头开始覆盖旧数据。这就带来一个问题：<code>monitor_web</code> 怎么知道哪些帧是新数据，哪些是上一轮遗留的垃圾？</p>
+<p>答案是 <strong>salt（盐值）</strong>。WAL 文件的头部有一个随机生成的 salt，每个有效的数据帧也会携带这个 salt。只有匹配的帧才是当前周期的有效数据。</p>
+<div class="mermaid">graph TD
+    A[WAL文件结构] --> B[WAL Header<br/>包含 salt-1, salt-2]
+    A --> C[Frame 1<br/>header salt = salt-1]
+    A --> D[Frame 2<br/>header salt = salt-1]
+    A --> E[Frame 3<br/>header salt = 旧salt-2<br/>← 上一轮遗留，跳过]
+    A --> F[Frame 4<br/>header salt = salt-1]
+    
+    B -.->|匹配| C
+    B -.->|匹配| D
+    B -.->|不匹配| E
+    B -.->|匹配| F
+</div>
+<p><code>decrypt_wal_full()</code> 函数的核心逻辑就是：<strong>只解密那些帧头 salt 与 WAL 头部 salt 匹配的帧</strong>，其余的全部忽略。这确保了即使 WAL 文件中混杂着旧数据，也不会污染我们的解密结果。</p>
+<hr />
+<h2>4.6 动手实践：启动你自己的消息看板</h2>
+<p>理论讲完，我们来看看实际怎么用。启动 <code>monitor_web</code> 只需要三步：</p>
+<h3>步骤1：准备密钥和配置</h3>
+<p>确保你已经运行过 <code>find_all_keys.py</code>，生成了 <code>all_keys.json</code>。然后创建 <code>config.json</code>：</p>
+<pre><code class="language-json">{
+    &quot;keys_file&quot;: &quot;all_keys.json&quot;,
+    &quot;wx_dir&quot;: &quot;C:\\Users\\你的用户名\\Documents\\WeChat Files\\wxid_xxx&quot;
+}
+</code></pre>
+<h3>步骤2：编写启动脚本</h3>
+<pre><code class="language-python"># run_monitor.py
+import time
+import threading
+from config import Config
+from monitor_web import SessionMonitor, ThreadedServer, Handler
+
+# 加载配置
+cfg = Config(&quot;config.json&quot;)
+
+# 获取第一个找到的密钥（实际使用时应匹配对应数据库）
+enc_key = cfg.keys[0][&quot;key&quot;]
+
+# 会话数据库路径
+session_db = cfg.session_path  # 通常是 Msg/session.db
+
+# 联系人名称映射（可选，用于美化显示）
+contact_names = {}  # 可以从 contact.db 加载
+
+# 创建监控器
+monitor = SessionMonitor(
+    enc_key=enc_key,
+    session_db=session_db,
+    contact_names=contact_names
+)
+
+# 启动 Web 服务器
+server = ThreadedServer(('0.0.0.0', 8080), Handler)
+server_thread = threading.Thread(target=server.serve_forever)
+server_thread.daemon = True
+server_thread.start()
+
+print(&quot;🚀 监控服务已启动，访问 http://localhost:8080&quot;)
+
+# 主循环：每秒检查一次更新
+while True:
+    monitor.check_updates()
+    time.sleep(1)
+</code></pre>
+<h3>步骤3：打开浏览器查看</h3>
+<p>运行 <code>python run_monitor.py</code>，然后用浏览器访问 <code>http://localhost:8080</code>。你会看到一个简洁的实时消息面板：</p>
+<pre><code>┌─────────────────────────────────────────┐
+│  💬 WeChat 消息监控                      │
+├─────────────────────────────────────────┤
+│ [实时消息流]                             │
+│                                         │
+│ 16:26:34 [交流群] 张三: 大家晚上好！      ✨
+│ 16:26:45 [工作群] 李四: 收到，明天处理     ✨
+│ 16:25:12 [家庭群] 妈妈: (图片)            │
+│ ...                                     │
+│                                         │
+│ [连接状态: ● 实时]                       │
+└─────────────────────────────────────────┘
+</code></pre>
+<p>带 ✨ 的是刚刚收到的新消息，它们会通过 SSE 实时弹出，同时伴有轻微的动画效果。</p>
+<hr />
+<h2>4.7 设计权衡与优化空间</h2>
+<p><code>monitor_web</code> 的实现做了几个务实的取舍，了解这些有助于你在特定场景下做出调整：</p>
+<h3>4.7.1 全量解密 vs 增量解密</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">方案</th>
+<th style="text-align:left">优点</th>
+<th style="text-align:left">缺点</th>
+<th style="text-align:left">适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>当前：全量解密</strong></td>
+<td style="text-align:left">代码简单可靠，无状态依赖</td>
+<td style="text-align:left">大数据库时性能下降</td>
+<td style="text-align:left">普通用户，数据库 &lt; 1GB</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>优化：增量解密</strong></td>
+<td style="text-align:left">性能提升10-100倍</td>
+<td style="text-align:left">实现复杂，需跟踪页版本</td>
+<td style="text-align:left">超大群组，高频监控</td>
+</tr>
+</tbody>
+</table>
+<p>如果你的数据库非常大（数GB），可以考虑在 <code>do_full_refresh()</code> 中加入智能判断：只有当文件修改时间变化超过阈值时才执行全量解密，否则仅检查 WAL。</p>
+<h3>4.7.2 轮询间隔的调整</h3>
+<p>当前默认每秒检查一次，这是一个<strong>保守且通用</strong>的设置：</p>
+<pre><code class="language-python"># 当前设置
+time.sleep(1)  # 每秒检查
+
+# 可选调整
+time.sleep(0.5)  # 更实时，CPU占用稍高
+time.sleep(5)    # 更省电，延迟增加
+</code></pre>
+<p>建议根据实际场景测试：打开浏览器的开发者工具，观察 Network 面板的 <code>/stream</code> 连接，同时对比微信 PC 版的实际消息到达时间。</p>
+<h3>4.7.3 消息日志的持久化</h3>
+<p>当前的 <code>messages_log</code> 只保存在内存中，程序重启就会丢失。如果需要长期保留历史，可以简单扩展：</p>
+<pre><code class="language-python"># 在 check_updates() 中加入
+with open(&quot;message_history.jsonl&quot;, &quot;a&quot;, encoding=&quot;utf-8&quot;) as f:
+    for msg in new_messages:
+        f.write(json.dumps(msg, ensure_ascii=False) + &quot;\n&quot;)
+</code></pre>
+<p>或者接入真正的数据库（如 SQLite 或 PostgreSQL），支持更复杂的查询和分析。</p>
+<hr />
+<h2>4.8 小结：从&quot;翻账本&quot;到&quot;直播台&quot;</h2>
+<p>本章我们深入探索了 <code>monitor_web</code> 模块的&quot;解密-监控-推送&quot;循环：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">组件</th>
+<th style="text-align:left">角色类比</th>
+<th style="text-align:left">核心职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>SessionMonitor</code></td>
+<td style="text-align:left">密码破译员 + 侦探 + 广播站</td>
+<td style="text-align:left">解密数据库、检测变化、推送消息</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>ThreadedServer</code></td>
+<td style="text-align:left">电话交换台</td>
+<td style="text-align:left">处理多路并发连接</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>Handler</code></td>
+<td style="text-align:left">接线员</td>
+<td style="text-align:left">响应 HTTP 请求，维护 SSE 流</td>
+</tr>
+<tr>
+<td style="text-align:left">SSE 机制</td>
+<td style="text-align:left">单向广播喇叭</td>
+<td style="text-align:left">服务器→浏览器的实时推送</td>
+</tr>
+<tr>
+<td style="text-align:left">WAL 处理</td>
+<td style="text-align:left">草稿本整理</td>
+<td style="text-align:left">捕获尚未归档的最新消息</td>
+</tr>
+</tbody>
+</table>
+<p>这个架构的价值在于<strong>将复杂性封装在底层</strong>：使用者只需几行代码就能搭建一个功能完整的实时消息看板，而不必关心 SQLCipher 的加密细节、SQLite 的 WAL 机制、或是 HTTP 流的协议规范。</p>
+<p>在下一章，我们将把目光转向 AI 集成——如何让 Claude 等大语言模型直接&quot;读懂&quot;你的微信数据，用自然语言查询替代繁琐的 SQL 操作。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

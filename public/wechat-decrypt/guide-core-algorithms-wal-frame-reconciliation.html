@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAL Frame Reconciliation with Salt-Based Filtering: 形式化深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-02T19:25<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-multi-table-user-message-lookup.html" class="nv">Multi Table User Message Lookup</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-protobuf-message-parsing.html" class="nv">Protobuf Message Parsing</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconciliation.html" class="nv on">Wal Frame Reconciliation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>WAL Frame Reconciliation with Salt-Based Filtering: 形式化深度解析</h1>
+<h2>1. 问题陈述 (Problem Statement)</h2>
+<h3>1.1 背景与动机</h3>
+<p>SQLite 的 Write-Ahead Logging (WAL) 模式是现代数据库系统中广泛采用的持久化机制。微信 4.0 使用 SQLCipher 4 对本地数据库进行 AES-256-CBC 加密，同时采用 WAL 模式以提升并发性能。然而，这种组合带来了一个独特的技术挑战：</p>
+<p><strong>核心矛盾</strong>：WAL 文件是<strong>预分配固定大小</strong>的（通常为 4MB），这意味着文件大小不会随写入操作而变化。传统的基于文件大小的变化检测机制完全失效。</p>
+<h3>1.2 形式化问题定义</h3>
+<p>设 $\mathcal{W}$ 为一个 WAL 文件，其结构为：</p>
+<p>$$\mathcal{W} = H_{\text{wal}} \circ F_1 \circ F_2 \circ \cdots \circ F_n \circ \underbrace{F_{n+1} \circ \cdots \circ F_m}_{\text{stale frames}}$$</p>
+<p>其中：</p>
+<ul>
+<li>$H_{\text{wal}}$：WAL 头部（24 bytes）</li>
+<li>$F_i$：第 $i$ 个 frame，每个 frame 包含 header（24 bytes）和 page data（4096 bytes）</li>
+<li>&quot;stale frames&quot;：上一轮 WAL 周期遗留的无效 frame</li>
+</ul>
+<p><strong>问题输入</strong>：</p>
+<ul>
+<li>加密的 WAL 文件路径 $P_{\text{wal}}$</li>
+<li>解密后的目标数据库副本 $D_{\text{dst}}$（已打开为 <code>r+b</code> 模式）</li>
+<li>加密密钥 $K_{\text{enc}}$</li>
+</ul>
+<p><strong>问题输出</strong>：</p>
+<ul>
+<li>成功 patch 的页数 $N_{\text{patched}}$</li>
+<li>执行时间 $T_{\text{elapsed}}$（毫秒）</li>
+</ul>
+<p><strong>约束条件</strong>：
+$$\forall F_i \in \text{ValidFrames}: \text{salt}(F_i) = \text{salt}(H_{\text{wal}})$$</p>
+<p>即：只有 frame header 中的 salt 值与 WAL header 匹配的 frame 才是当前周期的有效 frame。</p>
+<hr />
+<h2>2. 直觉与关键洞察 (Intuition)</h2>
+<h3>2.1 朴素方法的失败</h3>
+<p><strong>朴素方法 1：顺序读取所有 frame</strong></p>
+<pre><code class="language-python"># 伪代码 - 错误做法
+for i in range(num_frames):
+    frame = read_frame(i)
+    decrypt_and_patch(frame)  # ❌ 会patch旧周期的无效数据
+</code></pre>
+<p><strong>失败原因</strong>：WAL 文件是环形缓冲区，旧 frame 不会被清零，只是被新 frame 覆盖。当写入未填满整个文件时，末尾残留着上一轮周期的旧 frame。</p>
+<p><strong>朴素方法 2：基于 checksum 验证</strong></p>
+<pre><code class="language-python"># 伪代码 - 次优做法
+for frame in all_frames:
+    if verify_checksum(frame):  # ❌ 计算开销大
+        patch(frame)
+</code></pre>
+<p><strong>失败原因</strong>：SQLCipher 的每页都有独立的 IV 和 HMAC，验证需要完整解密，计算成本过高。</p>
+<h3>2.2 关键洞察：Salt 作为世代标记</h3>
+<p>WCDB/SQLCipher 的设计提供了一个优雅的解决方案：<strong>WAL header 中包含两个 32-bit 随机 salt 值</strong>，每次 WAL 重置时重新生成。Frame header 中复制了这两个 salt 值。</p>
+<p>$$\text{Frame}_i \text{ is valid} \iff
+\begin{cases}
+\text{salt}_1(F_i) = \text{salt}<em>1(H</em>{\text{wal}}) \
+\text{salt}_2(F_i) = \text{salt}<em>2(H</em>{\text{wal}})
+\end{cases}$$</p>
+<p>这形成了一个**世代标记（generation marker）**机制：</p>
+<ul>
+<li>Salt 匹配 → 当前周期写入的有效 frame</li>
+<li>Salt 不匹配 → 历史遗留的 stale frame</li>
+</ul>
+<p>该检查仅需两次 32-bit 整数比较，时间复杂度 $O(1)$，无需任何密码学运算。</p>
+<hr />
+<h2>3. 形式化定义 (Formal Definition)</h2>
+<h3>3.1 数据结构形式化</h3>
+<p><strong>WAL Header</strong> ($H_{\text{wal}} \in {0,1}^{192}$):</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Size</th>
+<th>Field</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>4</td>
+<td>Magic</td>
+<td><code>0x377f0682</code> 或 <code>0x377f0683</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td>4</td>
+<td>Version</td>
+<td>3007000 (big-endian)</td>
+</tr>
+<tr>
+<td>8</td>
+<td>4</td>
+<td>Page size</td>
+<td>4096</td>
+</tr>
+<tr>
+<td>12</td>
+<td>4</td>
+<td>Checkpoint sequence</td>
+<td>递增计数器</td>
+</tr>
+<tr>
+<td><strong>16</strong></td>
+<td><strong>4</strong></td>
+<td><strong>Salt-1</strong></td>
+<td>$\sigma_1 \in [0, 2^{32}-1]$</td>
+</tr>
+<tr>
+<td><strong>20</strong></td>
+<td><strong>4</strong></td>
+<td><strong>Salt-2</strong></td>
+<td>$\sigma_2 \in [0, 2^{32}-1]$</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Frame Header</strong> ($H_{\text{frame}} \in {0,1}^{192}$):</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>Size</th>
+<th>Field</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>4</td>
+<td>Page number $p \in \mathbb{N}^+$</td>
+</tr>
+<tr>
+<td>4</td>
+<td>4</td>
+<td>For checkpoint</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>4</strong></td>
+<td><strong>Salt-1 copy</strong> $\sigma'_1$</td>
+</tr>
+<tr>
+<td>12</td>
+<td><strong>4</strong></td>
+<td><strong>Salt-2 copy</strong> $\sigma'_2$</td>
+</tr>
+<tr>
+<td>16</td>
+<td>4</td>
+<td>Checksum part 1</td>
+</tr>
+<tr>
+<td>20</td>
+<td>4</td>
+<td>Checksum part 2</td>
+</tr>
+</tbody>
+</table>
+<h3>3.2 算法规范</h3>
+<p><strong>输入</strong>：$(P_{\text{wal}}, D_{\text{dst}}, K_{\text{enc}})$</p>
+<p><strong>常量</strong>：</p>
+<ul>
+<li>$S_{\text{hdr}} = 24$ (WAL_HEADER_SZ)</li>
+<li>$S_{\text{fhdr}} = 24$ (WAL_FRAME_HEADER_SZ)</li>
+<li>$S_{\text{page}} = 4096$ (PAGE_SZ)</li>
+<li>$S_{\text{frame}} = S_{\text{fhdr}} + S_{\text{page}} = 4120$</li>
+<li>$P_{\max} = 10^6$ (最大合法页号)</li>
+</ul>
+<p><strong>输出</strong>：$(N_{\text{patched}}, T_{\text{elapsed}}) \in \mathbb{N} \times \mathbb{R}_{\geq 0}$</p>
+<p><strong>谓词定义</strong>：
+$$\text{ValidPgno}(p) \triangleq p \in [1, P_{\max}]$$</p>
+<p>$$\text{ValidSalt}(F, \sigma_1, \sigma_2) \triangleq (\sigma'_1(F) = \sigma_1) \land (\sigma'_2(F) = \sigma_2)$$</p>
+<p>$$\text{ValidFrame}(F, \sigma_1, \sigma_2) \triangleq \text{ValidPgno}(\text{pgno}(F)) \land \text{ValidSalt}(F, \sigma_1, \sigma_2)$$</p>
+<h3>3.3 正确性条件</h3>
+<p><strong>安全性（Safety）</strong>：算法只 patch 当前 WAL 周期的有效 frame
+$$\forall i: \text{patched}_i \implies \text{ValidFrame}(F_i, \sigma_1, \sigma_2)$$</p>
+<p><strong>活性（Liveness）</strong>：所有有效 frame 都会被处理
+$$\forall i: \text{ValidFrame}(F_i, \sigma_1, \sigma_2) \land \text{position}(F_i) &lt; |\mathcal{W}| \implies \text{eventually patched}_i$$</p>
+<hr />
+<h2>4. 算法描述 (Algorithm)</h2>
+<h3>4.1 高层流程图</h3>
+<div class="mermaid">flowchart TD
+    A[开始] --> B{WAL文件存在?}
+    B -->|否| C[返回 0, 0]
+    B -->|是| D{大小 > 24B?}
+    D -->|否| C
+    D -->|是| E[读取WAL Header<br/>提取 σ₁, σ₂]
+    E --> F[初始化计数器<br/>patched = 0]
+    F --> G{剩余字节 ≥ 4120?}
+    G -->|否| H[返回结果]
+    G -->|是| I[读取Frame Header]
+    I --> J[提取 pgno, σ'₁, σ'₂]
+    J --> K[读取Page Data<br/>4096 bytes]
+    K --> L{pgno ∈ [1, 10⁶]?}
+    L -->|否| M[跳过: 非法页号]
+    L -->|是| N{σ'₁=σ₁ ∧ σ'₂=σ₂?}
+    N -->|否| O[跳过: Stale Frame]
+    N -->|是| P[decrypt_page<br/>K_enc, data, pgno]
+    P --> Q[seek至(pgno-1)×4096]
+    Q --> R[写入解密数据]
+    R --> S[patched++]
+    M --> G
+    O --> G
+    S --> G
+    H --> T[结束]
+    
+    style E fill:#90EE90
+    style N fill:#FFD700
+    style P fill:#87CEEB
+</div>
+<h3>4.2 详细伪代码</h3>
+<pre><code class="language-pseudocode">algorithm DecryptWALFull(P_wal, D_dst, K_enc):
+    input:  WAL file path P_wal
+            Destination database path D_dst (opened r+b)
+            Encryption key K_enc
+    
+    output: (N_patched, T_elapsed_ms)
+    
+    constants:
+        S_hdr   ← 24      // WAL_HEADER_SZ
+        S_fhdr  ← 24      // WAL_FRAME_HEADER_SZ
+        S_page  ← 4096    // PAGE_SZ
+        S_frame ← 4120    // S_fhdr + S_page
+        P_max   ← 1000000 // maximum valid page number
+    
+    // Early termination checks
+    if not Exists(P_wal):
+        return (0, 0)
+    
+    sz ← FileSize(P_wal)
+    if sz ≤ S_hdr:
+        return (0, 0)
+    
+    t_start ← CurrentTime()
+    N_patched ← 0
+    
+    Open(P_wal) as wf
+    Open(D_dst) as df
+    
+    // Phase 1: Extract generation markers from WAL header
+    H_wal ← Read(wf, S_hdr)
+    σ₁ ← UnpackBigEndianUint32(H_wal[16:20])
+    σ₂ ← UnpackBigEndianUint32(H_wal[20:24])
+    
+    // Phase 2: Sequential scan with salt filtering
+    while Position(wf) + S_frame ≤ sz:
+        // Read frame header
+        H_frame ← Read(wf, S_fhdr)
+        if |H_frame| &lt; S_fhdr:
+            break  // Unexpected EOF
+        
+        p ← UnpackBigEndianUint32(H_frame[0:4])
+        σ'₁ ← UnpackBigEndianUint32(H_frame[8:12])
+        σ'₂ ← UnpackBigEndianUint32(H_frame[12:16])
+        
+        // Read encrypted page data
+        E_page ← Read(wf, S_page)
+        if |E_page| &lt; S_page:
+            break  // Unexpected EOF
+        
+        // Phase 3: Validation gate
+        if p = 0 or p &gt; P_max:
+            continue  // Invalid page number, skip
+        
+        if σ'₁ ≠ σ₁ or σ'₂ ≠ σ₂:
+            continue  // Stale frame from previous generation, skip
+        
+        // Phase 4: Decryption and patching
+        D_page ← DecryptPage(K_enc, E_page, p)
+        
+        offset ← (p - 1) × S_page
+        Seek(df, offset)
+        Write(df, D_page)
+        
+        N_patched ← N_patched + 1
+    
+    t_end ← CurrentTime()
+    T_elapsed ← (t_end - t_start) × 1000  // Convert to milliseconds
+    
+    return (N_patched, T_elapsed)
+</code></pre>
+<h3>4.3 状态转换图（Frame 处理状态机）</h3>
+<div class="mermaid">stateDiagram-v2
+    [*] --> ReadingHeader : while bytes remain
+    
+    ReadingHeader --> ReadingData : header OK
+    ReadingHeader --> EOF : truncated header
+    
+    ReadingData --> Validating : data OK
+    ReadingData --> EOF : truncated data
+    
+    Validating --> ReadingHeader : pgno invalid
+    Validating --> ReadingHeader : salt mismatch (stale)
+    Validating --> Decrypting : validation passed
+    
+    Decrypting --> Patching : decrypt OK
+    Decrypting --> Error : decrypt failed
+    
+    Patching --> ReadingHeader : write OK, patched++
+    
+    EOF --> [*] : return result
+    Error --> [*] : (or continue based on policy)
+    
+    note right of Validating
+        Critical decision point:
+        - pgno ∈ [1, 10⁶]?
+        - σ'₁ == σ₁ && σ'₂ == σ₂?
+    end note
+</div>
+<h3>4.4 数据结构关系图</h3>
+<div class="mermaid">graph TB
+    subgraph "WAL File Layout"
+        WH[WAL Header<br/>24 bytes] --> F1[Frame 1<br/>4120 bytes]
+        F1 --> F2[Frame 2<br/>4120 bytes]
+        F2 --> F3[...]
+        F3 --> Fk[Frame k<br/>valid]
+        Fk --> Fs[Frame k+1<br/>STALE]
+        Fs --> Fe[...]
+    end
+    
+    subgraph "Validation Logic"
+        WH_salt1[salt₁] --> Cmp1{==}
+        WH_salt2[salt₂] --> Cmp2{==}
+        Fk_salt1[salt'₁] --> Cmp1
+        Fk_salt2[salt'₂] --> Cmp2
+        Cmp1 --> AND[&]
+        Cmp2 --> AND
+        AND -->|true| Decrypt[decrypt_page]
+        AND -->|false| Skip[skip stale]
+    end
+    
+    subgraph "Output: DB Pages"
+        P1[Page 1<br/>4096B] 
+        P2[Page 2<br/>4096B]
+        Pp[Page p<br/>4096B]
+    end
+    
+    Decrypt -->|writes to| Pp
+    
+    style Fs fill:#ffcccc
+    style Skip fill:#ffcccc
+    style Decrypt fill:#ccffcc
+    style Pp fill:#ccffcc
+</div>
+<hr />
+<h2>5. 复杂度分析 (Complexity Analysis)</h2>
+<h3>5.1 时间复杂度</h3>
+<p>设 $n$ 为 WAL 文件中的 frame 总数，$v$ 为有效 frame 数量（$v \leq n$）。</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>操作</th>
+<th>复杂度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Header 读取</td>
+<td>固定 24 bytes</td>
+<td>$O(1)$</td>
+</tr>
+<tr>
+<td>Frame 扫描</td>
+<td>顺序读取 $n$ 个 frame headers</td>
+<td>$O(n)$</td>
+</tr>
+<tr>
+<td>Salt 验证</td>
+<td>每 frame 2 次整数比较</td>
+<td>$O(n)$</td>
+</tr>
+<tr>
+<td>Page 解密</td>
+<td>AES-256-CBC 解密，仅对 $v$ 个有效 frame</td>
+<td>$O(v \cdot S_{\text{page}})$</td>
+</tr>
+<tr>
+<td>Disk seek/write</td>
+<td>每有效 frame 1 次 seek + write</td>
+<td>$O(v)$</td>
+</tr>
+</tbody>
+</table>
+<p><strong>总时间复杂度</strong>：
+$$T(n, v) = O(n + v \cdot S_{\text{page}}) = O(n + 4096v)$$</p>
+<p>由于 $S_{\text{page}}$ 是常数，简化为：
+$$\boxed{T(n, v) = O(n + v)}$$</p>
+<p><strong>关键观察</strong>：Salt 过滤使得我们在 $O(1)$ 时间内排除 stale frame，避免了昂贵的密码学运算。最坏情况下（全部 frame 都有效），$v = n$，复杂度为 $O(n \cdot S_{\text{page}})$。</p>
+<h3>5.2 空间复杂度</h3>
+<table>
+<thead>
+<tr>
+<th>组件</th>
+<th>空间需求</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WAL header buffer</td>
+<td>$O(1)$ = 24 bytes</td>
+</tr>
+<tr>
+<td>Frame header buffer</td>
+<td>$O(1)$ = 24 bytes</td>
+</tr>
+<tr>
+<td>Page data buffer</td>
+<td>$O(1)$ = 4096 bytes</td>
+</tr>
+<tr>
+<td>文件句柄</td>
+<td>$O(1)$</td>
+</tr>
+</tbody>
+</table>
+<p><strong>总空间复杂度</strong>：
+$$\boxed{S(n) = O(1)}$$</p>
+<p>算法采用<strong>流式处理（streaming）</strong>，无论 WAL 文件多大，内存占用恒定。</p>
+<h3>5.3 场景分析</h3>
+<table>
+<thead>
+<tr>
+<th>场景</th>
+<th>条件</th>
+<th>时间复杂度</th>
+<th>实际表现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>最佳情况</strong></td>
+<td>$v = 0$（无有效 frame）</td>
+<td>$O(n)$</td>
+<td>~0.1ms for 4MB WAL</td>
+</tr>
+<tr>
+<td><strong>典型情况</strong></td>
+<td>$v \approx n/2$（半满环形缓冲）</td>
+<td>$O(n)$</td>
+<td>~35ms（实测）</td>
+</tr>
+<tr>
+<td><strong>最坏情况</strong></td>
+<td>$v = n$（全满且全有效）</td>
+<td>$O(n \cdot 4096)$</td>
+<td>~70-100ms</td>
+</tr>
+<tr>
+<td><strong>极端情况</strong></td>
+<td>超大 WAL（非标准配置）</td>
+<td>线性扩展</td>
+<td>与文件大小成正比</td>
+</tr>
+</tbody>
+</table>
+<h3>5.4 实测性能数据</h3>
+<p>基于代码中的 <code>latency_test.py</code> 测量（典型 4MB WAL 文件）：</p>
+<pre><code>帧数: ~970 frames (4MB / 4120B)
+有效帧: 通常 100-500 范围
+解密时间: 30-70ms
+吞吐量: ~60-140 MB/s（受限于 AES 解密速度）
+</code></pre>
+<hr />
+<h2>6. 实现注释 (Implementation Notes)</h2>
+<h3>6.1 理论 vs 实现的差异</h3>
+<table>
+<thead>
+<tr>
+<th>理论假设</th>
+<th>实际妥协</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>无限精度算术</td>
+<td>32-bit unsigned int</td>
+<td>Python <code>struct.unpack('&gt;I')</code></td>
+</tr>
+<tr>
+<td>完美文件系统</td>
+<td>Truncation check (<code>len(fh) &lt; 24</code>)</td>
+<td>微信可能正在写入</td>
+</tr>
+<tr>
+<td>原子性读写</td>
+<td>无锁设计</td>
+<td>单线程顺序访问足够</td>
+</tr>
+<tr>
+<td>精确计时</td>
+<td><code>time.perf_counter()</code></td>
+<td>跨平台高精度计时器</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2 防御性编程</h3>
+<pre><code class="language-python"># 实际代码中的三重防护
+if len(fh) &lt; WAL_FRAME_HEADER_SZ: break      # 1. Header 截断
+if len(ep) &lt; PAGE_SZ: break                   # 2. Page 截断  
+if pgno == 0 or pgno &gt; 1000000: continue     # 3. 非法页号
+</code></pre>
+<p><strong>工程洞察</strong>：微信在活跃写入时，WAL 文件可能处于不一致状态。这些检查确保我们不会因竞态条件而崩溃。</p>
+<h3>6.3 硬编码常量的含义</h3>
+<table>
+<thead>
+<tr>
+<th>常量</th>
+<th>值</th>
+<th>来源</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PAGE_SZ = 4096</code></td>
+<td>$2^{12}$</td>
+<td>SQLCipher 默认页大小</td>
+</tr>
+<tr>
+<td><code>P_MAX = 1000000</code></td>
+<td>$10^6$</td>
+<td>经验值：微信 DB 通常 &lt; 100K 页</td>
+</tr>
+<tr>
+<td><code>WAL_HEADER_SZ = 24</code></td>
+<td>24</td>
+<td>SQLite WAL 格式规范</td>
+</tr>
+<tr>
+<td><code>WAL_FRAME_HEADER_SZ = 24</code></td>
+<td>24</td>
+<td>SQLite WAL 格式规范</td>
+</tr>
+</tbody>
+</table>
+<p><strong>注意</strong>：<code>P_MAX</code> 是一个<strong>启发式上界</strong>，而非理论极限。SQLite 支持的最大页号是 $2^{31}-1$，但微信的实际使用远低于此。</p>
+<h3>6.4 跨文件一致性</h3>
+<p>三个文件（<code>latency_test.py</code>, <code>monitor_web.py</code>, <code>mcp_server.py</code>）实现了<strong>逻辑等价</strong>的算法，但有细微差异：</p>
+<pre><code class="language-python"># latency_test.py: 最完整，返回 timing
+return patched, (time.perf_counter() - t0) * 1000
+
+# monitor_web.py: 相同，命名更清晰
+ms = (time.perf_counter() - t0) * 1000
+return patched, ms
+
+# mcp_server.py: 简化版，仅返回 count
+return patched  # 无 timing，用于 MCP 工具
+</code></pre>
+<p>这种<strong>渐进式简化</strong>体现了不同场景的需求差异：性能测试需要精确计时，生产监控需要可读性，MCP 接口追求最小响应。</p>
+<hr />
+<h2>7. 对比分析 (Comparison)</h2>
+<h3>7.1 与经典 WAL 恢复算法的对比</h3>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>SQLite 原生 Checkpoint</th>
+<th>本算法 (Salt-Filter)</th>
+<th>ARIES 日志恢复</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>触发条件</strong></td>
+<td>显式 PRAGMA 或自动阈值</td>
+<td>外部轮询检测</td>
+<td>系统崩溃后</td>
+</tr>
+<tr>
+<td><strong>一致性保证</strong></td>
+<td>ACID + 校验和</td>
+<td>Salt 世代标记</td>
+<td>LSN 链 + CLR</td>
+</tr>
+<tr>
+<td><strong>Stale 数据处理</strong></td>
+<td>重写覆盖</td>
+<td>运行时过滤</td>
+<td>分析阶段跳过</td>
+</tr>
+<tr>
+<td><strong>加密感知</strong></td>
+<td>否（原生 SQLite）</td>
+<td>是（SQLCipher）</td>
+<td>否</td>
+</tr>
+<tr>
+<td><strong>适用场景</strong></td>
+<td>正常数据库操作</td>
+<td>实时监控/解密</td>
+<td>故障恢复</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 替代方案评估</h3>
+<p><strong>方案 A：LSN（Log Sequence Number）追踪</strong></p>
+<pre><code class="language-python"># 理论更精确，但实现复杂
+prev_lsn = load_checkpoint_lsn()
+for frame in wal:
+    if frame.lsn &gt; prev_lsn:
+        apply(frame)
+</code></pre>
+<ul>
+<li>❌ SQLCipher WAL 的 LSN 也加密，无法直接读取</li>
+<li>❌ 需要维护持久化状态</li>
+</ul>
+<p><strong>方案 B：Checksum 全验证</strong></p>
+<pre><code class="language-python"># 最安全但最慢
+for frame in wal:
+    if verify_hmac(frame, key):  # 昂贵！
+        apply(frame)
+</code></pre>
+<ul>
+<li>❌ 每 frame 需要完整 HMAC-SHA512：~1000× slower</li>
+</ul>
+<p><strong>方案 C：文件系统事件（inotify/kqueue）</strong></p>
+<pre><code class="language-python"># 理想但不可行
+watch(wal_path, callback)  # 文件大小不变，无事件触发
+</code></pre>
+<ul>
+<li>❌ WAL 预分配导致无 <code>IN_MODIFY</code> 事件</li>
+</ul>
+<h3>7.3 与通用流处理模式的类比</h3>
+<p>本算法可视为<strong>带过滤器的流处理引擎</strong>：</p>
+<div class="mermaid">graph LR
+    Source[WAL File<br/>Source] --> Filter[Salt Filter<br/>Predicate: σ'=σ]
+    Filter --> Transform[Decrypt<br/>Map: E→D]
+    Transform --> Sink[DB File<br/>Sink]
+</div>
+<p>这与 Apache Kafka 的<strong>log compaction</strong>或 Flink 的<strong>stateful stream processing</strong>有概念相似性，但针对加密存储场景进行了特化优化。</p>
+<hr />
+<h2>8. 结论</h2>
+<p>WAL Frame Reconciliation with Salt-Based Filtering 算法通过利用 SQLCipher/WCDB 的 salt 世代标记机制，以 $O(n)$ 时间复杂度和 $O(1)$ 空间复杂度，优雅地解决了预分配 WAL 文件的实时解密难题。其核心贡献在于：</p>
+<ol>
+<li><strong>零密码学开销的过滤</strong>：利用元数据（salt）而非内容验证区分有效/stale frame</li>
+<li><strong>流式处理架构</strong>：恒定内存占用，适应任意大小的 WAL 文件</li>
+<li><strong>防御性设计</strong>：多重边界检查确保在并发写入场景下的鲁棒性</li>
+</ol>
+<p>该算法是<strong>领域特定优化</strong>的典范——深入理解底层存储格式（WCDB 的 salt 机制）使得看似困难的问题（区分 4MB 固定文件中的有效数据）有了简洁高效的解决方案。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

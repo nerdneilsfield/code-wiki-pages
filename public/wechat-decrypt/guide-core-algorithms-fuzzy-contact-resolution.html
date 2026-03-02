@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuzzy Contact Resolution 算法深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-03T00:26<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-fuzzy-contact-resolution.html" class="nv on">Fuzzy Contact Resolution</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-message-content-parsing.html" class="nv">Message Content Parsing</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconciliation.html" class="nv">Wal Frame Reconciliation</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Fuzzy Contact Resolution 算法深度解析</h1>
+<h2>1. 问题陈述</h2>
+<p>在即时通讯系统的数据查询接口中，用户通常使用<strong>人类可读的显示名称</strong>（如备注名、群聊昵称）来指代会话对象，而底层数据库则使用<strong>机器标识符</strong>（如 <code>wxid_xxxxxxxx</code> 或 <code>xxxxxxxx@chatroom</code>）作为主键。这种语义鸿沟导致了一个经典的**实体消解（Entity Resolution）**问题：</p>
+<blockquote>
+<p><strong>定义 1.1（模糊联系人解析问题）</strong>
+给定一个查询字符串 $q \in \Sigma^<em>$（其中 $\Sigma$ 为字符集），以及一个映射集合 $M = {(u_i, d_i)}_{i=1}^{n}$，其中 $u_i \in \mathcal{U}$ 为唯一标识符（username），$d_i \in \mathcal{D}$ 为显示名称（display name）。寻找一个函数 $f: \Sigma^</em> \to \mathcal{U} \cup {\bot}$，使得：</p>
+<ul>
+<li>若 $q = u_j$ 对某个 $j$ 成立，则 $f(q) = u_j$（精确匹配）</li>
+<li>若 $q \approx d_j$（某种相似度度量），则 $f(q) = u_j$（模糊匹配）</li>
+<li>否则 $f(q) = \bot$（未找到）</li>
+</ul>
+</blockquote>
+<p>该问题的核心挑战在于：</p>
+<ul>
+<li><strong>多态输入</strong>：同一联系人可能有多种引用方式（wxid、备注名、群昵称、部分匹配）</li>
+<li><strong>实时性要求</strong>：联系人列表可能动态变化，但缓存策略需要权衡性能与一致性</li>
+<li><strong>容错需求</strong>：用户输入可能存在大小写差异、拼写变体或部分记忆</li>
+</ul>
+<hr />
+<h2>2. 直觉：朴素方法的失效</h2>
+<h3>2.1 朴素方案一：精确字典查找</h3>
+<pre><code class="language-python">def naive_exact_lookup(query, names):
+    return names.get(query)  # O(1) 哈希查找
+</code></pre>
+<p><strong>失效场景</strong>：用户输入 <code>&quot;张三&quot;</code>，但数据库存储的是 <code>{&quot;wxid_abc123&quot;: &quot;张三(工作)&quot;}</code>。</p>
+<h3>2.2 朴素方案二：全局模糊匹配</h3>
+<pre><code class="language-python">def naive_fuzzy_lookup(query, names):
+    best_score, best_match = 0, None
+    for uid, display in names.items():
+        score = similarity(query, display)  # Levenshtein, Jaccard, etc.
+        if score &gt; best_score:
+            best_score, best_match = score, uid
+    return best_match if best_score &gt; threshold else None
+</code></pre>
+<p><strong>失效场景</strong>：</p>
+<ul>
+<li>计算开销：$O(n \cdot |q| \cdot \bar{d})$，对于大规模联系人列表（$n &gt; 5000$）不可接受</li>
+<li>阈值敏感：编辑距离阈值难以统一设定，&quot;Alice&quot; vs &quot;Alicia&quot; 的边界情况</li>
+</ul>
+<h3>2.3 关键洞察</h3>
+<p>实际观察微信联系人数据分布，发现以下<strong>领域特性</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">特性</th>
+<th style="text-align:left">说明</th>
+<th style="text-align:left">算法启示</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>前缀规律性</strong></td>
+<td style="text-align:left">wxid 以 <code>wxid_</code> 开头，群聊以 <code>@chatroom</code> 结尾</td>
+<td style="text-align:left">可通过子串检测快速识别原始 ID</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>精确包含高概率</strong></td>
+<td style="text-align:left">用户倾向于输入显示名的子串（如输入&quot;工作群&quot;匹配&quot;XX工作群&quot;）</td>
+<td style="text-align:left">优先尝试子串匹配而非编辑距离</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>大小写不敏感</strong></td>
+<td style="text-align:left">中文环境无大小写，英文备注通常不区分大小写</td>
+<td style="text-align:left">统一小写化处理</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>稀疏更新</strong></td>
+<td style="text-align:left">联系人列表变更频率远低于查询频率</td>
+<td style="text-align:left">全局缓存 + 惰性加载可行</td>
+</tr>
+</tbody>
+</table>
+<p>基于以上洞察，<code>resolve_username</code> 采用了一种**分层级联（Cascaded Filtering）**策略，而非单一复杂相似度度量。</p>
+<hr />
+<h2>3. 形式化定义</h2>
+<h3>3.1 符号系统</h3>
+<p>设：</p>
+<ul>
+<li>$\mathcal{U}$：用户名空间，$\mathcal{U} = \mathcal{W} \cup \mathcal{C}$，其中
+<ul>
+<li>$\mathcal{W} = {w \in \Sigma^* : w \text{ 以 } \texttt{wxid_} \text{ 为前缀}}$</li>
+<li>$\mathcal{C} = {c \in \Sigma^* : c \text{ 包含 } \texttt{@chatroom}}$</li>
+</ul>
+</li>
+<li>$\mathcal{D}$：显示名称空间，$\mathcal{D} \subseteq \Sigma^*$</li>
+<li>$M \subseteq \mathcal{U} \times \mathcal{D}$：有效联系人对的有限集合</li>
+</ul>
+<p>定义谓词：
+$$
+\begin{aligned}
+\texttt{is_raw_id}(q) &amp;\triangleq (q \in \mathcal{W}) \lor (q \in \mathcal{C}) \lor (\exists u \in \pi_1(M): q = u) \
+\texttt{exact_match}(q, d) &amp;\triangleq q^\downarrow = d^\downarrow \
+\texttt{substring_match}(q, d) &amp;\triangleq q^\downarrow \sqsubseteq d^\downarrow
+\end{aligned}
+$$</p>
+<p>其中 $s^\downarrow$ 表示字符串 $s$ 的小写形式，$\sqsubseteq$ 表示子串关系。</p>
+<h3>3.2 目标函数</h3>
+<p>求解 $f(q; M)$：</p>
+<p>$$
+f(q; M) =
+\begin{cases}
+q &amp; \text{if } \texttt{is_raw_id}(q) \
+u_j &amp; \text{if } \exists j: \texttt{exact_match}(q, d_j) \
+u_k &amp; \text{if } \exists k: \texttt{substring_match}(q, d_k) \land \nexists j: \texttt{exact_match}(q, d_j) \
+\bot &amp; \text{otherwise}
+\end{cases}
+$$</p>
+<p><strong>优先级规则</strong>：原始 ID 判定 &gt; 精确匹配 &gt; 子串匹配 &gt; 失败。</p>
+<h3>3.3 非确定性处理</h3>
+<p>当多个 $k$ 满足子串匹配时，当前实现采用**首次命中（First-Match）**策略，即按 $M$ 的遍历顺序返回第一个匹配项。这隐含假设了 Python 字典的迭代顺序（插入序）具有某种语义相关性（如最近添加的联系人优先）。</p>
+<hr />
+<h2>4. 算法描述</h2>
+<h3>4.1 执行流程图</h3>
+<div class="mermaid">flowchart TD
+    A([输入: chat_name]) --> B{是原始ID?}
+    B -->|是| C[直接返回]
+    B -->|否| D[转换为小写: chat_lower]
+    
+    D --> E[阶段1: 精确匹配遍历]
+    E --> F{找到 exact_match?}
+    F -->|是| G[返回对应 username]
+    F -->|否| H[阶段2: 子串匹配遍历]
+    
+    H --> I{找到 substring_match?}
+    I -->|是| J[返回对应 username]
+    I -->|否| K([返回 None])
+    
+    C --> L([结束])
+    G --> L
+    J --> L
+    K --> L
+    
+    style C fill:#90EE90
+    style G fill:#90EE90
+    style J fill:#90EE90
+    style K fill:#FFB6C1
+</div>
+<h3>4.2 伪代码</h3>
+<pre><code class="language-pseudocode">\begin{algorithm}
+\caption{Fuzzy Contact Resolution}
+\begin{algorithmic}[1]
+\Require Query string $q$, contact map $M: \mathcal{U} \to \mathcal{D}$
+\Ensure Resolved username $u \in \mathcal{U} \cup \{\bot\}$
+
+\Function{ResolveUsername}{$q, M$}
+    \State $\mathcal{U}_{keys} \gets \text{keys}(M)$
+    
+    \Comment{Level 0: Raw identifier detection}
+    \If{$q \in \mathcal{U}_{keys} \lor \text{starts\_with}(q, \texttt{&quot;wxid_&quot;}) \lor \text{contains}(q, \texttt{&quot;@chatroom&quot;})$}
+        \State \Return $q$ \Comment{Identity function for raw IDs}
+    \EndIf
+    
+    \State $q_{low} \gets \text{to\_lower}(q)$
+    
+    \Comment{Level 1: Exact case-insensitive match}
+    \For{$(u, d) \in M$}
+        \If{$q_{low} = \text{to\_lower}(d)$}
+            \State \Return $u$
+        \EndIf
+    \EndFor
+    
+    \Comment{Level 2: Substring containment match}
+    \For{$(u, d) \in M$}
+        \If{$q_{low} \sqsubseteq \text{to\_lower}(d)$}
+            \State \Return $u$
+        \EndIf
+    \EndFor
+    
+    \State \Return $\bot$ \Comment{Resolution failure}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+</code></pre>
+<h3>4.3 实际实现</h3>
+<pre><code class="language-python">def resolve_username(chat_name):
+    &quot;&quot;&quot;将聊天名/备注名/wxid 解析为 username&quot;&quot;&quot;
+    names = get_contact_names()  # 获取全局缓存的联系人映射
+
+    # Level 0: 直接是 username（精确成员测试或模式匹配）
+    if (chat_name in names or 
+        chat_name.startswith('wxid_') or 
+        '@chatroom' in chat_name):
+        return chat_name
+
+    # 预处理：统一小写化
+    chat_lower = chat_name.lower()
+    
+    # Level 1: 精确包含（大小写不敏感）
+    for uname, display in names.items():
+        if chat_lower == display.lower():
+            return uname
+            
+    # Level 2: 子串包含（大小写不敏感）
+    for uname, display in names.items():
+        if chat_lower in display.lower():
+            return uname
+
+    return None  # 解析失败
+</code></pre>
+<hr />
+<h2>5. 复杂度分析</h2>
+<h3>5.1 时间复杂度</h3>
+<p>设 $n = |M|$ 为联系人数量，$L_q = |q|$，$\bar{L}_d$ 为平均显示名长度。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">层级</th>
+<th style="text-align:left">操作</th>
+<th style="text-align:left">最坏情况</th>
+<th style="text-align:left">最好情况</th>
+<th style="text-align:left">平均情况（假设均匀分布）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">L0</td>
+<td style="text-align:left">哈希查找 / 前缀检测</td>
+<td style="text-align:left">$O(L_q)$</td>
+<td style="text-align:left">$O(1)$</td>
+<td style="text-align:left">$O(1)$</td>
+</tr>
+<tr>
+<td style="text-align:left">L1</td>
+<td style="text-align:left">全表扫描 + 字符串比较</td>
+<td style="text-align:left">$O(n \cdot \bar{L}_d)$</td>
+<td style="text-align:left">$O(\bar{L}_d)$</td>
+<td style="text-align:left">$O(n/2 \cdot \bar{L}_d)$</td>
+</tr>
+<tr>
+<td style="text-align:left">L2</td>
+<td style="text-align:left">全表扫描 + 子串搜索</td>
+<td style="text-align:left">$O(n \cdot L_q \cdot \bar{L}_d)$</td>
+<td style="text-align:left">$O(n \cdot \bar{L}_d)$</td>
+<td style="text-align:left">$O(n \cdot L_q \cdot \bar{L}_d / 2)$</td>
+</tr>
+</tbody>
+</table>
+<p><strong>综合复杂度</strong>：
+$$
+T(n, L_q, \bar{L}_d) = O\left(\min\left(1, n \cdot L_q \cdot \bar{L}_d\right)\right)
+$$</p>
+<p>实际上，由于 L0 和 L1 的快速路径，典型调用为 $O(1)$ 或 $O(\bar{L}_d)$。</p>
+<h3>5.2 空间复杂度</h3>
+<ul>
+<li><strong>辅助空间</strong>：$O(1)$（仅存储小写化后的查询字符串）</li>
+<li><strong>依赖空间</strong>：$O(n \cdot \bar{L}_d)$ 用于全局联系人缓存（<code>get_contact_names()</code> 返回的字典）</li>
+</ul>
+<h3>5.3 缓存影响</h3>
+<p><code>get_contact_names()</code> 的实现采用<strong>全局变量缓存 + 惰性初始化</strong>：</p>
+<pre><code class="language-python">_contact_names_cache = None
+
+def get_contact_names():
+    global _contact_names_cache
+    if _contact_names_cache is None:
+        _contact_names_cache = _load_from_db()  # 一次性加载
+    return _contact_names_cache
+</code></pre>
+<p>这使得多次调用的<strong>摊还时间复杂度</strong>降为：
+$$
+T_{amortized}(k \text{ calls}) = O(n \cdot \bar{L}_d + k \cdot \mathbb{E}[\text{search cost}])
+$$</p>
+<hr />
+<h2>6. 工程实现要点</h2>
+<h3>6.1 与理论的偏差</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">理论假设</th>
+<th style="text-align:left">实际妥协</th>
+<th style="text-align:left">理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">完整的 $M$ 已知且静态</td>
+<td style="text-align:left">全局缓存可能过期</td>
+<td style="text-align:left">联系人变更频率低，重启服务即可刷新</td>
+</tr>
+<tr>
+<td style="text-align:left">子串匹配的确定性选择</td>
+<td style="text-align:left">首次命中（依赖字典序）</td>
+<td style="text-align:left">简化实现，实际效果可接受</td>
+</tr>
+<tr>
+<td style="text-align:left">统一的相似度度量</td>
+<td style="text-align:left">分层精确/子串匹配</td>
+<td style="text-align:left">领域特定优化，避免复杂参数调优</td>
+</tr>
+<tr>
+<td style="text-align:left">大小写规范化</td>
+<td style="text-align:left">仅对查询和部分匹配目标小写化</td>
+<td style="text-align:left">减少内存拷贝，username 保持原样</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2 关键设计决策</h3>
+<p><strong>决策 1：为何不使用编辑距离？</strong></p>
+<pre><code>权衡分析：
+- 收益：可处理拼写错误（&quot;张山&quot; → &quot;张三&quot;）
+- 成本：O(|q|·|d|) 的动态规划，n较大时不可接受
+- 结论：微信场景中用户通常复制粘贴或准确记忆子串，
+       拼写错误罕见，故放弃编辑距离
+</code></pre>
+<p><strong>决策 2：两级遍历而非预建索引</strong></p>
+<pre><code>备选方案：倒排索引（inverted index）
+- 将每个 display name 拆分为 token，建立 term → usernames 映射
+- 查询时取交集
+
+实际选择：线性扫描
+- 原因：n 通常 &lt; 10000，线性扫描常数因子低
+- 额外收益：无需维护索引，简化并发控制
+- 临界点：当 n &gt; 50000 时建议改用 Trie 或倒排索引
+</code></pre>
+<p><strong>决策 3：大小写处理的位置</strong></p>
+<pre><code class="language-python"># 方案 A：全局预计算（空间换时间）
+# names_lower = {u: d.lower() for u, d in names.items()}
+
+# 方案 B：查询时计算（时间换空间）— 实际采用
+for uname, display in names.items():
+    if chat_lower == display.lower():  # 重复计算
+</code></pre>
+<p>选择方案 B 的原因：</p>
+<ul>
+<li>联系人查询非热点路径（受限于数据库解密速度）</li>
+<li>节省约 50% 的内存占用（无需存储双份字符串）</li>
+</ul>
+<h3>6.3 潜在陷阱</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">问题</th>
+<th style="text-align:left">场景</th>
+<th style="text-align:left">缓解措施</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>过度匹配</strong></td>
+<td style="text-align:left">查询 <code>&quot;a&quot;</code> 匹配所有含 <code>&quot;a&quot;</code> 的名称</td>
+<td style="text-align:left">业务层限制最小查询长度（如 ≥2 字符）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>歧义消解</strong></td>
+<td style="text-align:left"><code>&quot;工作群&quot;</code> 匹配多个群聊</td>
+<td style="text-align:left">返回首个匹配，依赖用户输入更精确</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>缓存不一致</strong></td>
+<td style="text-align:left">新增联系人后无法立即查询</td>
+<td style="text-align:left">文档注明需重启服务；可考虑 TTL 刷新</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>Unicode 规范化</strong></td>
+<td style="text-align:left"><code>&quot;café&quot;</code> vs <code>&quot;cafe\u0301&quot;</code></td>
+<td style="text-align:left">当前未处理，依赖微信内部一致性</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>7. 与经典算法的比较</h2>
+<h3>7.1 与近似字符串匹配（ASM）算法的对比</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">算法</th>
+<th style="text-align:left">时间复杂度</th>
+<th style="text-align:left">适用场景</th>
+<th style="text-align:left">本算法对比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">Levenshtein DP</td>
+<td style="text-align:left">$O(|q| \cdot |d|)$</td>
+<td style="text-align:left">拼写纠错</td>
+<td style="text-align:left">更快但功能受限</td>
+</tr>
+<tr>
+<td style="text-align:left">BK-Tree / VP-Tree</td>
+<td style="text-align:left">$O(\log n \cdot |q| \cdot |d|)$</td>
+<td style="text-align:left">度量空间搜索</td>
+<td style="text-align:left">无需预建索引</td>
+</tr>
+<tr>
+<td style="text-align:left">Locality Sensitive Hashing</td>
+<td style="text-align:left">$O(1)$ 近似</td>
+<td style="text-align:left">海量数据近似匹配</td>
+<td style="text-align:left">精确匹配保证</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>本算法（级联过滤）</strong></td>
+<td style="text-align:left">$O(n \cdot L_q \cdot \bar{L}_d)$ 最坏</td>
+<td style="text-align:left">中小规模、结构化 ID</td>
+<td style="text-align:left">领域优化，实现极简</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 与信息检索系统的对比</h3>
+<div class="mermaid">graph LR
+    subgraph 传统IR系统
+        A[查询] --> B[分词]
+        B --> C[倒排索引]
+        C --> D[TF-IDF/BM25排序]
+        D --> E[Top-K结果]
+    end
+    
+    subgraph FuzzyContactResolution
+        F[查询] --> G{原始ID?}
+        G -->|Y| H[直接返回]
+        G -->|N| I[小写化]
+        I --> J[精确匹配扫描]
+        J -->|失败| K[子串匹配扫描]
+        K --> L[首个返回]
+    end
+    
+    style H fill:#90EE90
+    style L fill:#90EE90
+</div>
+<p><strong>核心差异</strong>：</p>
+<ul>
+<li>IR 系统追求<strong>相关性排序</strong>，本算法追求<strong>确定性解析</strong></li>
+<li>IR 系统处理<strong>非结构化文本</strong>，本算法利用<strong>结构化 ID 模式</strong></li>
+<li>IR 系统面向<strong>开放域</strong>，本算法针对<strong>封闭联系人空间</strong></li>
+</ul>
+<h3>7.3 改进方向</h3>
+<p>若需扩展至更大规模（$n &gt; 10^5$）：</p>
+<pre><code class="language-python"># 方案：引入 Trie 树优化前缀/子串匹配
+class ContactResolver:
+    def __init__(self, names):
+        self.exact_map = {d.lower(): u for u, d in names.items()}
+        self.trie = SuffixTrie()
+        for u, d in names.items():
+            self.trie.insert(d.lower(), u)
+    
+    def resolve(self, q):
+        q_low = q.lower()
+        # L0, L1 保持不变...
+        # L2 改为 Trie 搜索
+        return self.trie.find_substring(q_low)  # O(|q| + occ)
+</code></pre>
+<p>复杂度提升至 $O(|q| + occ)$，其中 $occ$ 为匹配出现次数。</p>
+<hr />
+<h2>8. 总结</h2>
+<p>Fuzzy Contact Resolution 算法通过<strong>领域驱动的级联过滤</strong>策略，在即时通讯特定的约束条件下，实现了简单、高效、够用的联系人解析。其核心贡献不在于算法复杂度上的突破，而在于对实际数据分布的深刻洞察：</p>
+<blockquote>
+<p><strong>关键洞见</strong>：当输入空间具有强结构特征（<code>wxid_</code> 前缀、<code>@chatroom</code> 后缀）且容错需求可降级为子串匹配时，复杂的相似度度量可被简单的层级过滤替代，从而获得更好的可维护性和运行时性能。</p>
+</blockquote>
+<p>该算法是<strong>工程实用主义</strong>的典型体现——在正确性、性能和实现复杂度之间取得平衡，完美契合微信 MCP Server 的场景需求。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// KaTeX — render $...$, \(...\), \[...\] math in article content
+// Single $...$ is intentionally omitted: it causes false positives with
+// Chinese text, code snippets and shell variables in LLM-generated docs.
+document.addEventListener('DOMContentLoaded',function(){
+  if(typeof renderMathInElement==='undefined')return;
+  renderMathInElement(document.getElementById('mc')||document.body,{
+    delimiters:[
+      {left:'$$',right:'$$',display:true},
+      {left:'\(',right:'\)',display:false},
+      {left:'\[',right:'\]',display:true}
+    ],
+    throwOnError:false
+  });
+});
+</script>
+</body>
+</html>

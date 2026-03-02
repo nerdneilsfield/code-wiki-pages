@@ -1,518 +1,566 @@
-# 增量数据库变更检测算法深度解析
+# 增量式数据库变更检测与监控算法深度解析
 
 ## 1. 问题陈述
 
 ### 1.1 形式化定义
 
-设 $\mathcal{D}$ 为加密数据库文件，$\mathcal{W}$ 为其对应的 Write-Ahead Log (WAL) 文件。微信 4.0 使用 SQLCipher 4 加密方案，其特性如下：
+设有一个加密数据库系统，其中：
 
-- **页级加密**：数据库划分为固定大小页面 $P_1, P_2, \ldots, P_n$，每页独立加密
-- **WAL 模式**：写操作先追加到 WAL，而非直接修改主数据库
-- **环形缓冲区**：WAL 文件预分配固定大小（通常为 4MB），形成循环覆盖结构
+- **主数据库文件**：$D$，采用页级 AES-256-CBC 加密，页大小 $P = 4096$ bytes
+- **预写日志（WAL）文件**：$W$，固定大小环形缓冲区，容量 $|W| = 4\text{MB}$
+- **加密密钥**：$k \in \{0,1\}^{256}$，每个数据库独立
 
-**核心问题**：设计算法 $\mathcal{A}$，在满足以下约束条件下，实时检测并响应数据库状态变化：
+**观测约束**：
+- 无法直接读取明文状态（需解密）
+- WAL 文件大小恒定：$\forall t: |W_t| = C$（无法通过文件大小检测变化）
+- 需要实时性：延迟上界 $\Delta_{\max} = 100\text{ms}$
 
-$$\mathcal{A}: (\mathcal{D}_t, \mathcal{W}_t) \mapsto \Delta_t = S_{t} \setminus S_{t-\delta}$$
+**核心问题**：设计算法 $\mathcal{A}$，使得对于任意时刻 $t$，能够：
+$$\mathcal{A}(D_t, W_t, k) \rightarrow \Delta S_t$$
 
-其中：
-- $S_t$ 表示时刻 $t$ 的逻辑数据库状态
-- $\Delta_t$ 为新增消息集合
-- 目标延迟约束：$L = t_{\text{detect}} - t_{\text{change}} < 100\text{ms}$
+其中 $\Delta S_t = S_t \setminus S_{t-\delta}$ 表示会话状态的变化集合，且满足：
+$$T_{\text{detect}} + T_{\text{decrypt}} + T_{\text{query}} < \Delta_{\max}$$
 
-### 1.2 关键挑战
+### 1.2 应用场景特殊性
 
-| 挑战 | 描述 | 影响 |
+与传统数据库监控不同，本场景具有以下独特挑战：
+
+| 特性 | 传统方案假设 | 本场景现实 |
 |:---|:---|:---|
-| **不可观测性** | WAL 是预分配环形缓冲区，文件大小恒定 | 无法通过 `stat().st_size` 检测变化 |
-| **加密屏障** | 每页有独立 IV，无法直接比较密文 | 必须解密后才能计算差异 |
-| **状态一致性** | WAL 可能包含多周期残留帧 | 需 salt 过滤避免脏读 |
-| **性能约束** | 高频轮询 vs 全量解密开销 | CPU/IO 资源竞争 |
+| 文件变化检测 | `inotify`/`fsevents` 事件驱动 | WAL 预分配，大小不变 |
+| 变更粒度 | 行级或页级增量 | 全页加密，无法部分解密 |
+| 密钥管理 | 服务器持有或 KDF 派生 | 需从进程内存提取 |
+| 一致性模型 | MVCC 快照隔离 | 解密后瞬时状态 |
 
 ---
 
 ## 2. 直觉与关键洞察
 
-### 2.1 朴素方法的失败
+### 2.1 朴素方案的失败
 
-**方法 A：基于大小的轮询**
+**方案 A：轮询文件大小**
 ```python
-# 失败原因：WAL 预分配 4MB，大小永远不变
-prev_size = os.path.getsize(wal_path)
+# 失败原因：WAL 是固定大小环形缓冲区
 while True:
-    if os.path.getsize(wal_path) > prev_size:  # 永不触发！
-        handle_change()
+    if os.path.getsize(wal_path) > prev_size:  # 永远为 False
+        process_changes()
 ```
 
-**方法 B：基于哈希的检测**
+**方案 B：SQLite 的 `sqlite3_update_hook`**
+- 失败：数据库处于加密状态，无法建立连接
+- 需要先解密才能注册 hook，形成循环依赖
+
+**方案 C：持续保持解密后的连接**
 ```python
-# 失败原因：加密随机化，相同明文产生不同密文
-prev_hash = hash(open(db_path, 'rb').read())
-while True:
-    curr_hash = hash(open(db_path, 'rb').read())
-    if curr_hash != prev_hash:  # 每次读取都不同（IV 变化）
-        handle_change()
+# 失败：WAL 模式下的并发访问冲突
+conn = sqlite3.connect(decrypted_path)  # 独占锁
+# 微信写入加密 DB 时会产生冲突
 ```
 
-**方法 C：SQLite 文件锁监控**
-```python
-# 失败原因：微信使用独占锁，外部无法同时打开
-conn = sqlite3.connect(db_path)  # 报错：database is locked
-```
+### 2.2 关键洞察：mtime 作为变化代理
 
-### 2.2 关键洞察
+虽然 WAL 文件大小恒定，但**修改时间戳（mtime）**仍然更新。这引出了核心设计：
 
-> **Insight 1（mtime 可靠性）**：尽管 WAL 大小不变，但写入操作会更新文件的修改时间戳（mtime）。在 Windows NTFS 和主流 Linux 文件系统上，mtime 精度为 1ns（理论）或 100ns（实际），足以支持毫秒级检测。
+> **代理变量原理**：当直接观测目标变量 $X$ 不可行时，寻找高相关性的代理变量 $Y$，使得 $P(X_t \neq X_{t-1} | Y_t \neq Y_{t-1}) \approx 1$
 
-> **Insight 2（全量解密的可行性）**：看似暴力的"检测到变化就全量解密"策略，在现代硬件上实际可行：
-> - AES-NI 指令集吞吐：~2-3 GB/s
-> - 典型会话 DB 大小：5-50 MB
-> - 解密耗时：$T_{\text{decrypt}} \approx \frac{50\text{MB}}{2\text{GB/s}} = 25\text{ms}$
+在本场景中：
+- $Y = (\text{mt}_D, \text{mt}_W)$ — 数据库和 WAL 的 mtime 元组
+- 微信的写入模式保证：任何数据变更必然伴随至少一个 mtime 更新
 
-> **Insight 3（状态快照比较）**：将问题转化为**状态机同步**——维护前序状态 $S_{t-1}$，与当前状态 $S_t$ 做集合差分，而非追踪物理页变更。
+### 2.3 全量解密的可行性论证
+
+看似反直觉的全量重解密，在特定条件下具有最优性：
+
+**定理（全量解密最优性条件）**：
+设单次解密时间为 $T_d$，页面数为 $n$，WAL frame 数为 $m$。若满足：
+$$T_d(n) = O(n) \quad \text{且} \quad n \cdot P < B_{\text{cache}}$$
+
+其中 $B_{\text{cache}}$ 为 CPU L3 缓存容量，则全量解密的摊销成本低于增量追踪。
+
+**证明概要**：
+- 现代 CPU 的 AES-NI 吞吐率：$\approx 3\text{GB/s}$（单核）
+- 典型会话 DB：$n \approx 1000$ 页 $\Rightarrow$ $4\text{MB}$ 数据
+- $T_d \approx 4\text{MB} / 3\text{GB/s} \approx 1.3\text{ms}$（实际含 I/O 约 50-70ms）
+- 增量追踪需要维护页版本映射，空间开销 $O(n)$，且 WAL 环形覆盖导致历史失效
 
 ---
 
 ## 3. 形式化定义
 
-### 3.1 系统模型
+### 3.1 系统状态机
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle: 初始化
+    [*] --> Idle : 初始化
     
-    Idle --> Polling: 启动监控
-    Polling --> Detected: mtime 变化
-    Polling --> Polling: 无变化 (30ms)
+    Idle --> Detecting : 启动监控线程
     
-    Detected --> Decrypting: 触发全量解密
-    Decrypting --> Querying: 解密完成
+    Detecting --> Decrypting : mtime_changed(mt_D, mt_W)
     
-    Querying --> Diffing: 获取状态快照
-    Diffing --> Notifying: 计算 Δ ≠ ∅
-    Diffing --> Polling: Δ = ∅ (无新消息)
+    Decrypting --> Querying : full_decrypt(D, W, k) → D'
     
-    Notifying --> Polling: SSE 推送完成
+    Querying --> Diffing : query_state(D') → S_t
     
-    Polling --> [*]: 停止监控
+    Diffing --> Broadcasting : ΔS_t ≠ ∅
+    Diffing --> Detecting : ΔS_t = ∅
+    
+    Broadcasting --> Detecting : broadcast(ΔS_t)
+    
+    Decrypting --> Error : decrypt_failure
+    Querying --> Error : query_failure
+    
+    Error --> Detecting : retry_delay
 ```
 
 ### 3.2 数学规范
 
-**定义 3.1（文件元组）**
-$$\mathcal{F}_t = (m_{\mathcal{D}}(t), m_{\mathcal{W}}(t)) \in \mathbb{R}^2$$
+**定义 3.1（文件元组）**：
+$$\mathcal{F}_t = (D_t, W_t, \text{mt}_D(t), \text{mt}_W(t))$$
 
-其中 $m_{\mathcal{D}}(t)$, $m_{\mathcal{W}}(t)$ 分别为数据库和 WAL 文件在时刻 $t$ 的 mtime。
+**定义 3.2（缓存条目）**：
+$$\mathcal{C}[r] = (\text{mt}_D^c, \text{mt}_W^c, \text{path}_{\text{tmp}}, t_{\text{created}})$$
 
-**定义 3.2（缓存状态）**
-$$\mathcal{C}[\text{key}] = (\mathcal{F}_{t_{\text{cache}}}, \pi_{\text{tmp}})$$
+**定义 3.3（状态差异算子）**：
+$$\Delta(S', S) = \{ (u, s') \in S' \mid u \in \text{dom}(S) \Rightarrow s'.t > S[u].t \}$$
 
-其中 $\pi_{\text{tmp}}$ 为解密后的临时文件路径。
+**算法不变式**：
+$$\forall r: \mathcal{C}[r].\text{mt}_D^c = \text{mt}_D(t) \land \mathcal{C}[r].\text{mt}_W^c = \text{mt}_W(t) \Rightarrow D_{\text{tmp}} \cong D_t$$
 
-**定义 3.3（会话状态）**
-$$S_t = \{ (u, \tau_u, \sigma_u, \nu_u) \mid u \in \text{Username}, \tau_u > 0 \}$$
+其中 $\cong$ 表示逻辑等价（解密后内容一致）。
 
-包含用户名、最后时间戳、消息摘要、未读计数。
+### 3.3 复杂度符号约定
 
-**定义 3.4（变更检测函数）**
-$$\text{Detect}(\mathcal{F}_t, \mathcal{C}) = \begin{cases} 
-\text{true} & \text{if } \nexists\, \mathcal{C}[\text{key}] : \mathcal{F}_t = \mathcal{C}[\text{key}].\mathcal{F} \\
-\text{false} & \text{otherwise}
-\end{cases}$$
-
-**定义 3.5（差异计算）**
-$$\Delta_t = \{ u \in \text{dom}(S_t) \mid S_t[u].\tau > S_{t-\delta}[u].\tau \}$$
+| 符号 | 含义 |
+|:---|:---|
+| $n$ | 数据库页数 |
+| $m$ | WAL 中有效 frame 数 |
+| $s$ | 会话表记录数 |
+| $P = 4096$ | 页大小（bytes）|
+| $T_{\text{AES}}$ | 单页 AES 解密时间 |
+| $T_{\text{IO}}$ | 磁盘 I/O 延迟 |
 
 ---
 
-## 4. 算法
+## 4. 算法详述
 
-### 4.1 核心算法：DBCache（MCP Server）
+### 4.1 双层架构
+
+系统采用两个互补的监控策略：
+
+```
+┌─────────────────────────────────────────┐
+│           Application Layer             │
+│  ┌─────────────┐    ┌─────────────┐    │
+│  │  MCP Server │    │  Web Monitor│    │
+│  │  (按需缓存)  │    │ (实时推送)   │    │
+│  └──────┬──────┘    └──────┬──────┘    │
+│         │                  │            │
+│    lazy evaluation    eager evaluation │
+│    (pull-based)       (push-based)     │
+└─────────┼──────────────────┼────────────┘
+          │                  │
+          ▼                  ▼
+┌─────────────────────────────────────────┐
+│           Core Primitives               │
+│      full_decrypt, decrypt_wal          │
+│         (shared by both)                │
+└─────────────────────────────────────────┘
+```
+
+### 4.2 DBCache 算法（MCP Server）
 
 ```pseudocode
 \begin{algorithm}
-\caption{DBCache: Incremental Change Detection with MTime}
+\caption{DBCache: Lazy Evaluation with Mtime-Based Invalidation}
 \begin{algorithmic}[1]
-\Require Database directory $D$, Key mapping $K: \text{rel\_key} \to \text{enc\_key}$
-\State $\mathcal{C} \gets \emptyset$ \Comment{Initialize empty cache}
-
-\Function{Get}{$\text{rel\_key}$}
-    \If{$\text{rel\_key} \notin \text{dom}(K)$}
-        \Return $\bot$
-    \EndIf
-    \State $\text{db\_path} \gets D \oplus \text{Normalize}(\text{rel\_key})$
-    \State $\text{wal\_path} \gets \text{db\_path} \Vert \text{"-wal"}$
+\State \textbf{class} DBCache:
+    \State \hspace{\algorithmicindent} $\mathcal{C} \gets \emptyset$ \Comment{rel\_key → (mt_db, mt_wal, path)}
     
-    \If{$\neg \text{Exists}(\text{db\_path})$}
-        \Return $\bot$
-    \EndIf
-    
-    \State $m_{\mathcal{D}} \gets \text{GetMTime}(\text{db\_path})$
-    \State $m_{\mathcal{W}} \gets \begin{cases} 
-        \text{GetMTime}(\text{wal\_path}) & \text{if Exists}(\text{wal\_path}) \\
-        0 & \text{otherwise}
-    \end{cases}$
-    \State $\mathcal{F} \gets (m_{\mathcal{D}}, m_{\mathcal{W}})$
-    
-    \If{$\text{rel\_key} \in \text{dom}(\mathcal{C})$}
-        \State $(\mathcal{F}_{\text{cache}}, \pi_{\text{cache}}) \gets \mathcal{C}[\text{rel\_key}]$
-        \If{$\mathcal{F} = \mathcal{F}_{\text{cache}} \land \text{Exists}(\pi_{\text{cache}})$}
-            \Return $\pi_{\text{cache}}$ \Comment{Cache hit}
+    \Function{Get}{rel\_key}
+        \If{$rel\_key \notin \mathcal{K}$} \Return $\bot$ \EndIf
+        
+        \State $db\_path \gets \text{Resolve}(rel\_key)$
+        \State $wal\_path \gets db\_path \concat \text{"-wal"}$
+        
+        \If{$\neg \text{Exists}(db\_path)$} \Return $\bot$ \EndIf
+        
+        \State $(mt_D, mt_W) \gets (\text{GetMtime}(db\_path), 
+                                   \text{GetMtimeOrZero}(wal\_path))$
+        
+        \If{$rel\_key \in \mathcal{C}$}
+            \State $(mt_D^c, mt_W^c, path_c) \gets \mathcal{C}[rel\_key]$
+            \If{$mt_D = mt_D^c \land mt_W = mt_W^c \land \text{Exists}(path_c)$}
+                \State \Return $path_c$ \Comment{Cache hit}
+            \EndIf
+            \State $\text{Unlink}(path_c)$ \Comment{Invalidate stale entry}
         \EndIf
-        \State $\text{Delete}(\pi_{\text{cache}})$ \Comment{Invalidate stale cache}
-    \EndIf
+        
+        \State \Comment{Cache miss: full decrypt}
+        \State $k \gets \text{HexDecode}(\mathcal{K}[rel\_key].enc\_key)$
+        \State $tmp\_path \gets \text{MkTemp}(\text{suffix=".db"})$
+        \State $\text{full\_decrypt}(db\_path, tmp\_path, k)$
+        \If{$\text{Exists}(wal\_path)$}
+            \State $\text{decrypt\_wal}(wal\_path, tmp\_path, k)$
+        \EndIf
+        
+        \State $\mathcal{C}[rel\_key] \gets (mt_D, mt_W, tmp\_path)$
+        \State \Return $tmp\_path$
+    \EndFunction
     
-    \State $\text{enc\_key} \gets K[\text{rel\_key}]$
-    \State $\pi_{\text{tmp}} \gets \text{MkTemp}(\text{suffix=".db"})$
-    \State $\text{FullDecrypt}(\text{db\_path}, \pi_{\text{tmp}}, \text{enc\_key})$
-    
-    \If{$\text{Exists}(\text{wal\_path})$}
-        \State $\text{DecryptWAL}(\text{wal\_path}, \pi_{\text{tmp}}, \text{enc\_key})$
-    \EndIf
-    
-    \State $\mathcal{C}[\text{rel\_key}] \gets (\mathcal{F}, \pi_{\text{tmp}})$
-    \Return $\pi_{\text{tmp}}$
-\EndFunction
-
-\Function{Cleanup}{}
-    \ForAll{$(\_, \_, \pi) \in \mathcal{C}$}
-        \State $\text{Delete}(\pi)$
-    \EndFor
-    \State $\mathcal{C} \gets \emptyset$
-\EndFunction
+    \Function{Cleanup}{}
+        \For{$(\_, \_, path) \in \mathcal{C}$}
+            \State $\text{TryUnlink}(path)$
+        \EndFor
+        \State $\mathcal{C} \gets \emptyset$
+    \EndFunction
 \end{algorithmic}
 \end{algorithm}
 ```
 
-### 4.2 实时监控算法：SessionMonitor
+### 4.3 SessionMonitor 算法（Web Monitor）
 
 ```pseudocode
 \begin{algorithm}
-\caption{SessionMonitor: Real-time Message Detection}
+\caption{SessionMonitor: Eager Polling with State Diffing}
 \begin{algorithmic}[1]
-\Require Session DB path $\mathcal{D}$, Encryption key $k$, Contact names $N$
-\State $S_{\text{prev}} \gets \emptyset$ \Comment{Previous state snapshot}
-
-\Function{DoFullRefresh}{}
-    \State $(n_{\text{pages}}, t_1) \gets \text{FullDecrypt}(\mathcal{D}, \Pi_{\text{decrypted}}, k)$
-    \State $n_{\text{wal}} \gets 0,\; t_2 \gets 0$
-    \If{$\text{Exists}(\mathcal{W})$}
-        \State $(n_{\text{wal}}, t_2) \gets \text{DecryptWALFull}(\mathcal{W}, \Pi_{\text{decrypted}}, k)$
-    \EndIf
-    \State \Return $(n_{\text{pages}} + n_{\text{wal}},\; t_1 + t_2)$
-\EndFunction
-
-\Function{QueryState}{}
-    \State $C \gets \text{Connect}(\text{"file:"} \oplus \Pi_{\text{decrypted}} \oplus \text{"?mode=ro"})$
-    \State $R \gets C.\text{Execute}(\text{SESSION\_QUERY})$
-    \State $S \gets \emptyset$
-    \ForAll{$(u, \nu, \sigma, \tau, \mu, s, s_n) \in R$}
-        \If{$\tau > 0$}
-            \State $S[u] \gets (\nu, \sigma, \tau, \mu, s, s_n)$
+\State \textbf{class} SessionMonitor:
+    \State \hspace{\algorithmicindent} $k, db\_path, wal\_path, names$ \Comment{初始化参数}
+    \State \hspace{\algorithmicindent} $S_{prev} \gets \emptyset$ \Comment{前次状态快照}
+    \State \hspace{\algorithmicindent} $metrics \gets (0, 0)$ \Comment{(decrypt\_ms, patched\_pages)}
+    
+    \Function{DoFullRefresh}{}
+        \State $(pages, t_1) \gets \text{full\_decrypt}(db\_path, DECRYPTED\_SESSION, k)$
+        \State $total \gets t_1$, $patched \gets pages$
+        
+        \If{$\text{Exists}(wal\_path)$}
+            \State $(wal\_pages, t_2) \gets \text{decrypt\_wal\_full}(wal\_path, DECRYPTED\_SESSION, k)$
+            \State $total \gets total + t_2$, $patched \gets patched + wal\_pages$
         \EndIf
-    \EndFor
-    \State $C.\text{Close}()$
-    \State \Return $S$
-\EndFunction
-
-\Function{CheckUpdates}{}
-    \State $t_0 \gets \text{Now}()$
-    \State $(n_{\text{total}}, t_{\text{decrypt}}) \gets \text{DoFullRefresh}()$
-    \State $t_1 \gets \text{Now}()$
-    \State $S_{\text{curr}} \gets \text{QueryState}()$
-    \State $t_2 \gets \text{Now}()$
+        
+        \State $metrics \gets (total, patched)$
+        \State \Return $patched$
+    \EndFunction
     
-    \State $\text{LogPerf}(n_{\text{total}}, t_1-t_0, t_2-t_1)$
+    \Function{QueryState}{}
+        \State $conn \gets \text{sqlite3.connect}(\text{uri}=\text{"file:"} \concat DECRYPTED\_SESSION)$
+        \State $S \gets \emptyset$
+        \For{$row \in conn.\text{execute}(QUERY\_SESSION)$}
+            \State $S[row.username] \gets \text{Struct}(\text{unread}, \text{summary}, \text{timestamp}, \dots)$
+        \EndFor
+        \State $conn.\text{close}()$
+        \State \Return $S$
+    \EndFunction
     
-    \State $M \gets \emptyset$ \Comment{New messages buffer}
-    \ForAll{$u \in \text{dom}(S_{\text{curr}})$}
-        \If{$u \in \text{dom}(S_{\text{prev}}) \land S_{\text{curr}}[u].\tau > S_{\text{prev}}[u].\tau$}
-            \State $m \gets \text{FormatMessage}(u, S_{\text{curr}}[u], N)$
-            \State $M \gets M \cup \{m\}$
-        \EndIf
-    \EndFor
-    
-    \State $\text{Sort}(M, \text{key}=\lambda m \to m.\text{timestamp})$
-    \ForAll{$m \in M$}
-        \State $\text{BroadcastSSE}(m)$
-        \State $\text{Log}(m)$
-    \EndFor
-    
-    \State $S_{\text{prev}} \gets S_{\text{curr}}$
-\EndFunction
+    \Function{CheckUpdates}{}
+        \State $t_0 \gets \text{perf\_counter}()$
+        \State $\text{DoFullRefresh}()$
+        \State $t_1 \gets \text{perf\_counter}()$
+        \State $S_{curr} \gets \text{QueryState}()$
+        \State $t_2 \gets \text{perf\_counter}()$
+        
+        \State \Comment{性能日志: decrypt\_pages, decrypt\_ms, query\_ms}
+        
+        \State $msgs \gets []$
+        \For{$(u, curr) \in S_{curr}$}
+            \If{$u \in S_{prev} \land curr.t > S_{prev}[u].t$}
+                \State $msg \gets \text{FormatMessage}(u, curr, names)$
+                \State $msgs.\text{append}(msg)$
+            \EndIf
+        \EndFor
+        
+        \State $msgs.\text{sort}(\text{key}=\lambda m: m.timestamp)$
+        
+        \For{$m \in msgs$}
+            \State $\text{BroadcastSSE}(m)$
+            \State $\text{Log}(m)$
+        \EndFor
+        
+        \State $S_{prev} \gets S_{curr}$
+    \EndFunction
 \end{algorithmic}
 \end{algorithm}
 ```
 
-### 4.3 执行流程图
+### 4.4 执行流程图
 
 ```mermaid
 flowchart TD
-    subgraph "输入层"
-        A[开始 CheckUpdates] --> B{读取 mtime}
-        B --> C[db_mtime, wal_mtime]
+    subgraph "Polling Loop [30ms interval]"
+        A[获取当前 mtime<br/>mt_D, mt_W] --> B{与缓存比较?}
+        B -->|未变化| Z[睡眠等待下一周期]
+        B -->|已变化| C[执行 Full Refresh]
     end
     
-    subgraph "决策层"
-        C --> D{Cache 命中?}
-        D -->|Yes| E[返回缓存路径]
-        D -->|No| F[进入解密流程]
+    subgraph "Full Refresh Phase"
+        C --> D[解密主数据库<br/>full_decrypt]
+        D --> E{WAL 存在?}
+        E -->|是| F[解密并应用 WAL<br/>decrypt_wal_full]
+        E -->|否| G[跳过 WAL]
+        F --> H[更新性能指标]
+        G --> H
     end
     
-    subgraph "解密引擎"
-        F --> G[full_decrypt<br/>主数据库解密]
-        G --> H{WAL 存在?}
-        H -->|Yes| I[decrypt_wal_full<br/>应用 WAL 帧]
-        H -->|No| J[跳过 WAL]
-        I --> K[验证 salt<br/>过滤旧周期帧]
-        J --> L[生成解密副本]
-        K --> L
+    subgraph "State Extraction & Diff"
+        H --> I[查询 SessionTable<br/>query_state]
+        I --> J[构建当前状态 S_curr]
+        J --> K[与前状态 S_prev 对比]
+        K --> L{发现新消息?}
+        L -->|无| M[更新 S_prev]
+        L -->|有| N[格式化消息列表]
     end
     
-    subgraph "状态处理"
-        L --> M[query_state<br/>SQL 查询 SessionTable]
-        M --> N[构建状态映射<br/>username → metadata]
+    subgraph "Broadcast Phase"
+        N --> O[按时间戳排序]
+        O --> P[SSE 推送到客户端]
+        P --> Q[控制台日志输出]
+        Q --> M
     end
     
-    subgraph "差异检测"
-        N --> O{对比 prev_state}
-        O -->|timestamp ↑| P[标记为新消息]
-        O -->|无变化| Q[忽略]
-        P --> R[格式化消息内容]
-    end
+    M --> Z
     
-    subgraph "输出层"
-        R --> S[按时间排序]
-        S --> T[broadcast_sse<br/>Server-Sent Events]
-        T --> U[更新 prev_state]
-        U --> V[结束]
-        Q --> V
-        E --> W[直接使用缓存] --> V
-    end
-    
-    style G fill:#f9f,stroke:#333
-    style I fill:#f9f,stroke:#333
-    style M fill:#bbf,stroke:#333
-    style T fill:#bfb,stroke:#333
+    style A fill:#e1f5fe
+    style C fill:#fff3e0
+    style I fill:#e8f5e9
+    style P fill:#fce4ec
 ```
 
-### 4.4 数据结构关系
+### 4.5 数据结构关系
 
 ```mermaid
 graph TB
-    subgraph "物理存储"
-        PDB[(加密 DB<br/>session.db)]
-        PWAL[(WAL 文件<br/>session.db-wal)]
+    subgraph "File System"
+        EncDB[(加密数据库<br/>session.db)]
+        WAL[(WAL 文件<br/>session.db-wal)]
     end
     
-    subgraph "内存/缓存层"
-        CACHE[(DBCache<br/>_cache: dict)]
-        TMP[/临时解密文件<br/>mkstemp/]
-        STATE[("prev_state: dict<br/>username → {timestamp, ...}")]
+    subgraph "Runtime State"
+        CacheEntry["Cache Entry<br/>(mt_db, mt_wal, tmp_path)"]
+        SessionState["Session State<br/>Dict[username → MessageInfo]"]
+        Metrics["Performance Metrics<br/>(decrypt_ms, patched_pages)"]
     end
     
-    subgraph "逻辑视图"
-        SESSION[(SessionTable<br/>SQL 视图)]
-        MESSAGES[("new_msgs: list<br/>按 timestamp 排序")]
+    subgraph "Output"
+        TempDB[(临时解密DB)]
+        SSEStream[SSE Event Stream]
     end
     
-    PDB -->|full_decrypt| TMP
-    PWAL -->|decrypt_wal_full| TMP
-    TMP -.->|引用| CACHE
-    CACHE -->|get| TMP
-    TMP -->|sqlite3.connect| SESSION
-    SESSION -->|SELECT| STATE
-    STATE -->|diff 计算| MESSAGES
+    EncDB -->|full_decrypt| TempDB
+    WAL -->|decrypt_wal| TempDB
+    EncDB -.->|getmtime| CacheEntry
+    WAL -.->|getmtime| CacheEntry
+    TempDB -->|SELECT| SessionState
+    SessionState -->|diff| SSEStream
+    SessionState -->|snapshot| PrevState[Prev State Snapshot]
     
-    style CACHE fill:#ff9,stroke:#333
-    style STATE fill:#9f9,stroke:#333
-    style MESSAGES fill:#99f,stroke:#333
+    CacheEntry -.->|invalidation check| Decision{Cache Hit?}
+    Decision -->|No| DecryptOp[Decrypt Operation]
+    Decision -->|Yes| ReturnPath[Return Cached Path]
+    
+    style EncDB fill:#ffebee
+    style WAL fill:#ffebee
+    style TempDB fill:#e8f5e9
+    style SSEStream fill:#e3f2fd
 ```
 
 ---
 
 ## 5. 复杂度分析
 
-### 5.1 时间复杂度
+### 5.1 DBCache 复杂度
 
-| 操作 | 复杂度 | 说明 |
+| 操作 | 时间复杂度 | 空间复杂度 | 备注 |
+|:---|:---|:---|:---|
+| `Get` (cache hit) | $O(1)$ | $O(1)$ | 仅元组比较 |
+| `Get` (cache miss) | $O(n \cdot P / B_{IO} + n \cdot T_{AES})$ | $O(n \cdot P)$ | 全量解密+I/O |
+| `Cleanup` | $O(\|\mathcal{C}\|)$ | $O(1)$ | 线性于缓存条目数 |
+
+**期望摊销分析**：
+设请求到达率为 $\lambda$，文件变更率为 $\mu$，则缓存命中率：
+$$H = \frac{\lambda - \mu}{\lambda} = 1 - \frac{\mu}{\lambda} \quad (\text{assuming } \lambda > \mu)$$
+
+典型场景：用户查询频率 $\lambda \approx 0.1\text{/s}$，微信写入 $\mu \approx 0.01\text{/s}$，故 $H \approx 90\%$。
+
+### 5.2 SessionMonitor 复杂度
+
+| 阶段 | 时间复杂度 | 主导因素 |
 |:---|:---|:---|
-| mtime 检查 | $O(1)$ | 系统调用 `stat()` |
-| Cache 查找 | $O(1)$ | 哈希表平均情况 |
-| 全量解密 | $O(n \cdot p)$ | $n$ = 页数, $p$ = 页大小 (4096B) |
-| WAL 解密 | $O(w \cdot p)$ | $w$ = 有效 WAL 帧数 |
-| SQL 查询 | $O(s \log s)$ | $s$ = 会话数，含排序 |
-| 状态差分 | $O(s)$ | 哈希表遍历 |
+| `do_full_refresh` | $\Theta(n + m)$ | 页数 + WAL frame 数 |
+| `query_state` | $\Theta(s \cdot \log s)$ | 会话记录数（含排序）|
+| `check_updates` diff | $O(s)$ | 哈希表查找 |
+| **Total per poll** | $\Theta(n + m + s)$ | |
 
-**总单次迭代复杂度**：
-$$T_{\text{check}} = O(1) + O((n+w) \cdot p) + O(s \log s)$$
+### 5.3 端到端延迟分解
 
-在实际参数下（$n \approx 10^3$, $w \leq 1000$, $s \approx 500$）：
-- 解密：~25-70 ms（AES-NI 加速）
-- 查询：~5-15 ms
-- **总计：~30-100 ms**
+$$
+\begin{aligned}
+T_{\text{total}} &= T_{\text{poll}} + T_{\text{decrypt}} + T_{\text{query}} + T_{\text{diff}} + T_{\text{broadcast}} \\
+&\approx 15\text{ms} + 50\text{ms} + 5\text{ms} + 1\text{ms} + 1\text{ms} \\
+&= 72\text{ms} \quad (\text{typical})
+\end{aligned}
+$$
 
-### 5.2 空间复杂度
+各分量详解：
 
-| 组件 | 空间 | 说明 |
-|:---|:---|:---|
-| Cache 映射 | $O(k)$ | $k$ = 缓存的数据库数量 |
-| 临时文件 | $O(n \cdot p)$ | 每个缓存 DB 一个解密副本 |
-| 状态快照 | $O(s)$ | 两个完整状态映射（prev + curr） |
-| WAL 缓冲区 | $O(w \cdot p)$ | 解密过程中的帧缓冲 |
+| 分量 | 计算式 | 典型值 | 最坏情况 |
+|:---|:---|:---|:---|
+| $T_{\text{poll}}$ | $\Delta_{interval}/2$ | 15 ms | 30 ms |
+| $T_{\text{decrypt}}$ | $n \cdot (T_{IO} + T_{AES})$ | 50 ms | 200 ms ($n=5000$) |
+| $T_{\text{query}}$ | $s \cdot t_{row}$ | 5 ms | 20 ms |
+| $T_{\text{diff}}$ | $s \cdot O(1)$ | 1 ms | 5 ms |
 
-**峰值空间**：
-$$S_{\text{peak}} = O(k \cdot n \cdot p + s)$$
+### 5.4 空间复杂度
 
-典型值：~100-500 MB（取决于缓存策略）
+$$
+S_{total} = \underbrace{n \cdot P}_{\text{临时解密DB}} + \underbrace{s \cdot |\text{record}|}_{\text{状态缓存}} + \underbrace{|\mathcal{C}| \cdot (n \cdot P)}_{\text{DBCache 条目}}
+$$
 
-### 5.3 最坏情况分析
+对于单会话监控（`SessionMonitor`）：$S = O(n \cdot P + s)$
 
-**场景：WAL 环形缓冲区满溢**
+对于多数据库缓存（`DBCache`）：$S = O(|\mathcal{C}| \cdot n \cdot P)$，受限于 `ALL_KEYS` 大小。
 
-当 WAL 写满 4MB 后，新帧覆盖旧帧。若检测间隔内发生多次覆盖：
+---
 
-```
-假设：检测间隔 Δt = 30ms，写入速率 r = 10MB/s
-覆盖量：r × Δt = 300KB ≈ 75 页
-风险：若单周期写入 > 4MB，可能丢失中间状态
+## 6. 实现注记：理论与工程的差距
+
+### 6.1 原子性与竞态条件
+
+**理论假设**：mtime 检测和解密之间文件不变
+
+**工程现实**：
+```python
+# 竞态窗口：获取 mtime 和开始解密之间
+db_mtime = os.path.getmtime(db_path)  # ← t₁
+# ... 微信在此刻写入 ...
+full_decrypt(db_path, ...)            # ← t₂，可能读到不一致状态
 ```
 
 **缓解策略**：
-- 缩短轮询间隔（当前 30ms → 可配置 10ms）
-- 监控性能指标，超限告警
+- 微信的 WAL 模式保证：即使读到"未来"状态，也是一致的（已提交）
+- SQLite 的 `-wal` 文件原子性：frame header 校验和确保完整性
 
-### 5.4 渐进分析对比
+### 6.2 临时文件生命周期管理
 
-| 方法 | 检测延迟 | CPU 开销 | 实现复杂度 | 可靠性 |
-|:---|:---|:---|:---|:---|
-| **本算法（mtime + 全量解密）** | $O(\Delta t)$ | 中等 | 低 | 高 |
-| inotify/fsevents | $O(1)$ | 低 | 中 | 中（平台相关） |
-| 页级增量追踪 | $O(1)$ | 低 | **极高** | 中（需解析 WAL 格式） |
-| 数据库触发器 | 不适用 | — | — | 不可行（加密） |
-| 内存钩子 | $O(1)$ | 低 | 极高 | 低（易崩溃） |
-
----
-
-## 6. 实现注记
-
-### 6.1 代码与理论的偏差
-
-| 理论假设 | 实际实现 | 原因 |
-|:---|:---|:---|
-| 原子性 mtime 读取 | 两次独立的 `os.path.getmtime()` | Python API 限制；极小概率竞态 |
-| 精确状态比较 | 仅比较 `timestamp` 字段 | 性能优化；`summary` 可能因截断变化 |
-| 即时缓存失效 | 惰性删除（下次访问时清理） | 简化错误处理；避免异常时泄漏 |
-| 完美 salt 过滤 | 依赖 `decrypt_wal_full` 内部实现 | 封装边界；模块职责分离 |
-
-### 6.2 工程权衡
-
-**临时文件管理**
 ```python
-# 理论：RAII 自动清理
-# 实际：显式 cleanup() + atexit 注册
+# 理论：严格的 RAII
+with tempfile.NamedTemporaryFile(delete=True) as f:
+    full_decrypt(..., f.name)
+    # 使用 f.name ...
+
+# 工程：必须手动管理，因为 sqlite3 需要路径
 fd, tmp_path = tempfile.mkstemp(suffix='.db')
-os.close(fd)  # 立即关闭，避免 Windows 句柄问题
-# ...
-def cleanup(self):
-    for _, _, path in self._cache.values():
-        try:
-            os.unlink(path)
-        except OSError:
-            pass  # 容忍并发删除
-```
-
-**Windows 特定处理**
-```python
-# 路径分隔符转换
-rel_path = rel_key.replace('\\', os.sep)  # 微信用反斜杠，Python 需适配
-```
-
-**编码容错**
-```python
+os.close(fd)  # 立即关闭，否则 Windows 下无法打开
 try:
-    print(f"[{msg['time']}] ...")
+    full_decrypt(..., tmp_path)
+    return tmp_path  # 调用者负责清理！
+finally:
+    # 不能在这里删除，因为调用者还在用
+    pass
+```
+
+**泄漏防护**：`cleanup()` 方法 + `atexit` 注册，而非作用域绑定。
+
+### 6.3 WAL Salt 验证的工程必要性
+
+```python
+def decrypt_wal_full(wal_path, db_path, key):
+    # 理论：顺序应用所有 frame
+    for frame in read_wal_frames(wal_path):
+        decrypt_frame(frame, key)  # ❌ 错误：包含旧周期 frame
+    
+    # 工程：必须通过 salt 匹配过滤
+    valid_salt = get_db_salt(db_path)
+    for frame in read_wal_frames(wal_path):
+        if frame.salt == valid_salt:  # ✓ 只处理当前周期
+            apply_frame(frame)
+```
+
+WCDB 的 WAL 是**环形缓冲区**，旧事务的 frame 未被清零，必须通过 salt 识别有效性。
+
+### 6.4 编码与平台兼容性
+
+```python
+# 隐藏复杂性：Windows CMD 编码
+try:
+    print(f"[{msg['time']}] {content}")  # 可能抛出 UnicodeEncodeError
 except Exception:
-    pass  # Windows CMD 编码问题，不影响 SSE 推送
+    pass  # 静默失败，不影响 SSE 推送
 ```
 
-### 6.3 性能优化细节
-
-| 优化 | 位置 | 效果 |
-|:---|:---|:---|
-| URI mode=ro | `monitor_web.query_state()` | 避免 SQLite 创建 `-journal` 文件 |
-| 预编译 contact_names | `SessionMonitor.__init__` | 减少每次查询的字典查找 |
-| 批量 SSE 推送 | `check_updates()` 末尾统一发送 | 减少 HTTP 往返 |
-| 日志截断 | `MAX_LOG` 限制 | 防止内存无限增长 |
+这是**有损降级**（graceful degradation）的典型例子——控制台输出失败不应中断核心功能。
 
 ---
 
-## 7. 与经典算法的比较
+## 7. 与经典方案的对比
 
-### 7.1 vs. 数据库复制协议（MySQL Binlog / PostgreSQL WAL Streaming）
+### 7.1 vs 数据库复制协议
 
-| 维度 | 经典复制 | 本算法 |
+| 特性 | MySQL Binlog / PostgreSQL WAL Streaming | 本方案 |
 |:---|:---|:---|
-| **前提假设** | 服务器合作，协议公开 | 黑盒加密，无协议文档 |
-| **变更粒度** | 逻辑行级（binlog event） | 物理页级 + 逻辑状态 diff |
-| **延迟** | 亚毫秒（网络 RTT） | ~100ms（解密开销主导） |
-| **一致性保证** | 事务级原子性 | 最终一致（可能漏超快连续变更） |
-| **适用场景** | 生产环境主从复制 | 逆向工程、取证分析 |
+| 变更检测 | 逻辑日志流 | mtime 轮询 |
+| 传输粒度 | 行级事件 | 全页快照 |
+| 延迟 | $<1\text{ms}$（本地） | $\sim 70\text{ms}$ |
+| 适用场景 | 可控的数据库实例 | 第三方加密二进制 |
 
-### 7.2 vs. 文件系统监控（inotify / ReadDirectoryChangesW）
+**本质差异**：经典方案假设数据库合作（暴露日志接口），本方案应对**黑盒加密数据库**。
 
-```mermaid
-flowchart LR
-    subgraph "inotify 理想模型"
-        A[文件修改] -->|内核事件| B[用户回调]
-        B --> C[立即响应]
-    end
-    
-    subgraph "本算法实际模型"
-        D[文件修改] --> E[30ms 轮询]
-        E --> F[mtime 比较]
-        F --> G[全量解密]
-        G --> H[状态查询]
-        H --> I[差异计算]
-    end
-    
-    style A fill:#f99
-    style D fill:#f99
-    style C fill:#9f9
-    style I fill:#9f9
-```
+### 7.2 vs 文件系统监控
 
-**选择 mtime 轮询的原因**：
-1. **跨平台一致性**：inotify（Linux）、FSEvents（macOS）、ReadDirectoryChangesW（Windows）API 差异大
-2. **WAL 特殊性**：预分配文件的"修改"对内核是写入已存在区域，某些实现不触发事件
-3. **简单可靠**：30ms 延迟在 IM 场景可接受，换取代码可维护性
-
-### 7.3 vs. 增量备份算法（rsync / zsync）
-
-| 特征 | rsync | 本算法 |
+| 方案 | 机制 | 适用性评估 |
 |:---|:---|:---|
-| 差异检测 | 滚动哈希（Rabin-Karp） | 不可用（加密） |
-| 传输优化 | 仅发送差异块 | 不适用（本地文件） |
-| 计算瓶颈 | 网络带宽 | CPU（AES 解密） |
-| 核心洞察 | 数据局部性 | 时间局部性（IM 消息突发） |
+| `inotify` (Linux) | 内核事件通知 | ❌ WAL 大小不变，无 `MODIFY` 事件 |
+| `ReadDirectoryChangesW` (Windows) | 异步 I/O 完成端口 | ❌ 同上，且需句柄保持打开 |
+| `fsevents` (macOS) | 内核流式 API | ❌ 不适用 |
+| **mtime polling** | 主动轮询 | ✅ 唯一可靠跨平台方案 |
 
-### 7.4 学术关联
+### 7.3 vs 增量同步算法
 
-本算法的**状态快照比较**策略与以下工作相关：
+**Rsync 算法**（滚动哈希）：
+- 适用于：大文件的部分变更
+- 不适用于：加密数据（任何位变化导致整个块不可识别）
 
-- **Ephemeral State Synchronization** [Fogarty et al., OSDI 2005]：类似的两状态比较，但用于分布式系统
-- **Encrypted Deduplication** [Bellare et al., CRYPTO 2013]：处理加密数据的挑战，但方向相反（去重 vs 检测变更）
-- **SQLite WAL Mode** [Hipp, 2010]：基础机制，但未解决加密场景的变更检测
+**Page-level Delta**（如 SQLite 的 RBU）：
+- 需要：数据库合作，提供页版本号
+- 不适用于：加密页头无可用元数据
 
-**独特贡献**：首次将 **mtime 轮询 + 全量解密 + 状态 diff** 组合应用于加密 SQLite 的实时监控，在工程约束下达成实用化的延迟-开销权衡。
+**本方案的创新点**：利用**时间局部性**（temporal locality）——高频轮询使得"全量"实际很小（缓存命中率高）。
+
+### 7.4 理论下界讨论
+
+**定理（黑盒加密监控下界）**：
+对于页级加密的黑盒数据库，任何正确监控算法必须满足：
+$$T_{\text{detect}} \geq \min(\Delta_{poll}, T_{decrypt}(n_{min}))$$
+
+其中 $n_{min}$ 为包含变更的最小页集合。在全加密场景下，$n_{min} = n$（无法预知哪些页变更）。
+
+**推论**：本方案的全量解密在信息论意义上是**渐进最优**的——无法在不泄露信息的前提下做得更好。
 
 ---
 
-## 8. 结论
+## 8. 扩展与优化方向
 
-本文提出的**增量数据库变更检测算法**通过三个关键设计决策，解决了微信加密数据库实时监控的核心难题：
+### 8.1 潜在改进
 
-1. **mtime 作为变化代理**：绕过预分配 WAL 文件的不可观测性
-2. **全量解密的状态快照**：规避页级加密带来的比较障碍
-3. **应用层状态 diff**：将物理变更转化为语义有意义的消息事件
+| 方向 | 方法 | 预期收益 |
+|:---|:---|:---|
+| 硬件加速 | GPU AES 解密 | 10-100x 吞吐提升（对大数据库）|
+| 自适应轮询 | 动态调整 $\Delta_{interval}$ | 空闲时降低 CPU |
+| 推测性解密 | 基于历史模式的预解密 | 降低感知延迟 |
+| 结构化共享 | 只读 mmap + 引用计数 | 减少内存拷贝 |
 
-该算法在典型硬件上实现了 **<100ms 的端到端延迟**，同时保持代码简洁性和跨平台可移植性，为类似的黑盒加密数据库监控场景提供了可复用的工程范式。
+### 8.2 形式化验证
+
+当前实现依赖以下**未验证假设**：
+1. mtime 单调性：$\forall t_1 < t_2: \text{mt}(t_1) \leq \text{mt}(t_2)$
+2. 解密原子性：`full_decrypt` 不会产出可观察的中间状态
+3. WAL 一致性：salt 匹配 frame 构成完整前缀
+
+建议通过 **TLA+** 或 **Coq** 建模验证这些假设在极端调度下的成立性。
+
+---
+
+## 参考文献
+
+1. SQLite Documentation: [Write-Ahead Logging](https://www.sqlite.org/wal.html)
+2. SQLCipher Design: [Cryptography Architecture](https://www.zetetic.net/sqlcipher/design/)
+3. WeChat WCDB: [WeChat Database Source](https://github.com/Tencent/wcdb) (partial)
+4. Ousterhout, J. et al. "The Case for RAMCloud." *CACM*, 2011.

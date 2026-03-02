@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>WAL Frame Reconciliation with Salt-Based Filtering: 形式化深度解析</title>
+<title>WAL Frame Reconciliation with Salt-based Filtering: 形式化深度解析</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -104,7 +104,7 @@ article img{max-width:100%;border-radius:var(--r);}
   <nav class="sb" id="sb">
   <div class="nav-meta">
     <b>Model:</b> CP-qwen-kimi-k2.5<br>
-    <b>Generated:</b> 2026-03-02T23:55<br>
+    <b>Generated:</b> 2026-03-03T00:26<br>
     <b>Components:</b> 50<br>
     <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
   </div>
@@ -142,16 +142,16 @@ article img{max-width:100%;border-radius:var(--r);}
   </div>
   <div class="nvsub" style="display:block">
     <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-fuzzy-contact-resolution.html" class="nv">Fuzzy Contact Resolution</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
       <a href="guide-core-algorithms-incremental-db-monitoring.html" class="nv">Incremental Db Monitoring</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
       <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
-      <a href="guide-core-algorithms-multi-table-user-message-lookup.html" class="nv">Multi Table User Message Lookup</a>
-    </div>
-    <div class="nav-row" style="padding-left:24px">
-      <a href="guide-core-algorithms-protobuf-message-parsing.html" class="nv">Protobuf Message Parsing</a>
+      <a href="guide-core-algorithms-message-content-parsing.html" class="nv">Message Content Parsing</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
       <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
@@ -179,640 +179,616 @@ article img{max-width:100%;border-radius:var(--r);}
   <main class="main">
     <div class="cw">
       <article id="mc">
-<h1>WAL Frame Reconciliation with Salt-Based Filtering: 形式化深度解析</h1>
+<h1>WAL Frame Reconciliation with Salt-based Filtering: 形式化深度解析</h1>
 <h2>1. 问题陈述 (Problem Statement)</h2>
 <h3>1.1 背景与动机</h3>
 <p>SQLite 的 Write-Ahead Logging (WAL) 模式是现代数据库系统中广泛采用的持久化机制。微信 4.0 使用 SQLCipher 4 对本地数据库进行 AES-256-CBC 加密，同时采用 WAL 模式以提升并发性能。然而，这种组合带来了一个独特的技术挑战：</p>
-<p><strong>核心矛盾</strong>：WAL 文件是<strong>预分配固定大小</strong>的（通常为 4MB），这意味着文件大小不会随写入操作而变化。传统的基于文件大小的变化检测机制完全失效。</p>
+<p><strong>核心矛盾</strong>：WAL 文件是<strong>预分配固定大小</strong>的环形缓冲区（通常为 4MB），这意味着：</p>
+<ul>
+<li>文件大小不会随写入操作而变化，无法通过传统的 <code>stat</code> 检测新数据</li>
+<li>同一物理文件中可能包含<strong>多个逻辑周期</strong>的帧（frames），即当前有效帧与历史遗留帧共存</li>
+<li>必须区分&quot;当前事务周期&quot;的有效帧与&quot;已归档&quot;的旧帧，否则会导致数据回退或冲突</li>
+</ul>
 <h3>1.2 形式化问题定义</h3>
-<p>设 $\mathcal{W}$ 为一个 WAL 文件，其结构为：</p>
-<p>$$\mathcal{W} = H_{\text{wal}} \circ F_1 \circ F_2 \circ \cdots \circ F_n \circ \underbrace{F_{n+1} \circ \cdots \circ F_m}_{\text{stale frames}}$$</p>
+<p>设 WAL 文件 $W$ 是一个字节序列，其结构为：</p>
+<p>$$W = H_W \circ F_1 \circ F_2 \circ \cdots \circ F_n \circ R$$</p>
 <p>其中：</p>
 <ul>
-<li>$H_{\text{wal}}$：WAL 头部（24 bytes）</li>
-<li>$F_i$：第 $i$ 个 frame，每个 frame 包含 header（24 bytes）和 page data（4096 bytes）</li>
-<li>&quot;stale frames&quot;：上一轮 WAL 周期遗留的无效 frame</li>
+<li>$H_W$：WAL 文件头，长度 $|H_W| = 32$ bytes</li>
+<li>$F_i$：第 $i$ 个帧，$F_i = H_{F_i} \circ P_i$，帧头 $|H_{F_i}| = 24$ bytes，页数据 $|P_i| = 4096$ bytes</li>
+<li>$R$：填充区域（预留空间）</li>
 </ul>
-<p><strong>问题输入</strong>：</p>
+<p>每个帧头 $H_{F_i}$ 包含：</p>
 <ul>
-<li>加密的 WAL 文件路径 $P_{\text{wal}}$</li>
-<li>解密后的目标数据库副本 $D_{\text{dst}}$（已打开为 <code>r+b</code> 模式）</li>
-<li>加密密钥 $K_{\text{enc}}$</li>
+<li>$\text{pgno}<em>i \in [1, N</em>{\max}]$：页号（大端序 uint32）</li>
+<li>$\text{salt1}_i, \text{salt2}_i \in [0, 2^{32}-1]$：盐值（大端序 uint32 × 2）</li>
 </ul>
-<p><strong>问题输出</strong>：</p>
-<ul>
-<li>成功 patch 的页数 $N_{\text{patched}}$</li>
-<li>执行时间 $T_{\text{elapsed}}$（毫秒）</li>
-</ul>
-<p><strong>约束条件</strong>：
-$$\forall F_i \in \text{ValidFrames}: \text{salt}(F_i) = \text{salt}(H_{\text{wal}})$$</p>
-<p>即：只有 frame header 中的 salt 值与 WAL header 匹配的 frame 才是当前周期的有效 frame。</p>
+<p>WAL 文件头 $H_W$ 包含当前周期的盐值 $(\text{wal_salt1}, \text{wal_salt2})$。</p>
+<p><strong>问题</strong>：给定加密密钥 $K$、WAL 文件 $W$、目标数据库 $D$，构造算法 $\mathcal{A}$ 使得：</p>
+<p>$$\mathcal{A}(K, W, D) \rightarrow D'$$</p>
+<p>其中 $D'$ 是将 $W$ 中所有<strong>当前周期有效帧</strong>解密并应用到 $D$ 后的结果。有效性判定：</p>
+<p>$$\text{Valid}(F_i) \iff (\text{salt1}_i = \text{wal_salt1}) \land (\text{salt2}_i = \text{wal_salt2}) \land (1 \leq \text{pgno}<em>i \leq N</em>{\max})$$</p>
 <hr />
 <h2>2. 直觉与关键洞察 (Intuition)</h2>
 <h3>2.1 朴素方法的失败</h3>
-<p><strong>朴素方法 1：顺序读取所有 frame</strong></p>
-<pre><code class="language-python"># 伪代码 - 错误做法
-for i in range(num_frames):
-    frame = read_frame(i)
-    decrypt_and_patch(frame)  # ❌ 会patch旧周期的无效数据
-</code></pre>
-<p><strong>失败原因</strong>：WAL 文件是环形缓冲区，旧 frame 不会被清零，只是被新 frame 覆盖。当写入未填满整个文件时，末尾残留着上一轮周期的旧 frame。</p>
-<p><strong>朴素方法 2：基于 checksum 验证</strong></p>
-<pre><code class="language-python"># 伪代码 - 次优做法
-for frame in all_frames:
-    if verify_checksum(frame):  # ❌ 计算开销大
-        patch(frame)
-</code></pre>
-<p><strong>失败原因</strong>：SQLCipher 的每页都有独立的 IV 和 HMAC，验证需要完整解密，计算成本过高。</p>
-<h3>2.2 关键洞察：Salt 作为世代标记</h3>
-<p>WCDB/SQLCipher 的设计提供了一个优雅的解决方案：<strong>WAL header 中包含两个 32-bit 随机 salt 值</strong>，每次 WAL 重置时重新生成。Frame header 中复制了这两个 salt 值。</p>
-<p>$$\text{Frame}_i \text{ is valid} \iff
-\begin{cases}
-\text{salt}_1(F_i) = \text{salt}<em>1(H</em>{\text{wal}}) \
-\text{salt}_2(F_i) = \text{salt}<em>2(H</em>{\text{wal}})
-\end{cases}$$</p>
-<p>这形成了一个**世代标记（generation marker）**机制：</p>
+<p><strong>方法 A：顺序扫描所有帧</strong></p>
 <ul>
-<li>Salt 匹配 → 当前周期写入的有效 frame</li>
-<li>Salt 不匹配 → 历史遗留的 stale frame</li>
+<li>直接读取所有帧并解密应用</li>
+<li><strong>失败原因</strong>：旧周期的帧包含过期数据，会覆盖正确的新数据</li>
 </ul>
-<p>该检查仅需两次 32-bit 整数比较，时间复杂度 $O(1)$，无需任何密码学运算。</p>
+<p><strong>方法 B：基于时间戳过滤</strong></p>
+<ul>
+<li>假设帧头包含时间戳信息</li>
+<li><strong>失败原因</strong>：SQLCipher/WCDB 帧头无时间戳字段，仅有单调递增的页号和盐值</li>
+</ul>
+<p><strong>方法 C：基于页号去重（取最新）</strong></p>
+<ul>
+<li>维护每个页号的最后出现位置</li>
+<li><strong>失败原因</strong>：同一周期内同一页可能出现多次（事务回滚后重写），且无法区分跨周期的情况</li>
+</ul>
+<h3>2.2 关键洞察：盐值作为周期标识符</h3>
+<p>WCDB/SQLCipher 的设计者巧妙地利用 <strong>salt</strong> 解决了这个问题：</p>
+<blockquote>
+<p><strong>核心观察</strong>：每次 WAL 文件被重置（checkpoint 完成，开始新周期）时，WAL 文件头的盐值会被重新生成。因此，<strong>盐值相等性天然构成了&quot; happens-before &quot;关系的等价类划分</strong>。</p>
+</blockquote>
+<p>形式化地，定义周期等价关系：</p>
+<p>$$F_i \sim F_j \iff (\text{salt1}_i, \text{salt2}_i) = (\text{salt1}_j, \text{salt2}_j)$$</p>
+<p>当前周期 $\mathcal{C}_{\text{current}}$ 即为与 $H_W$ 盐值相等的等价类：</p>
+<p>$$\mathcal{C}_{\text{current}} = { F_i \in W \mid (\text{salt1}_i, \text{salt2}_i) = (\text{wal_salt1}, \text{wal_salt2}) }$$</p>
+<p>这一设计使得无需维护额外的元数据结构，仅通过常数时间的相等性比较即可实现周期隔离。</p>
 <hr />
 <h2>3. 形式化定义 (Formal Definition)</h2>
-<h3>3.1 数据结构形式化</h3>
-<p><strong>WAL Header</strong> ($H_{\text{wal}} \in {0,1}^{192}$):</p>
-<table>
-<thead>
-<tr>
-<th>Offset</th>
-<th>Size</th>
-<th>Field</th>
-<th>Description</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>4</td>
-<td>Magic</td>
-<td><code>0x377f0682</code> 或 <code>0x377f0683</code></td>
-</tr>
-<tr>
-<td>4</td>
-<td>4</td>
-<td>Version</td>
-<td>3007000 (big-endian)</td>
-</tr>
-<tr>
-<td>8</td>
-<td>4</td>
-<td>Page size</td>
-<td>4096</td>
-</tr>
-<tr>
-<td>12</td>
-<td>4</td>
-<td>Checkpoint sequence</td>
-<td>递增计数器</td>
-</tr>
-<tr>
-<td><strong>16</strong></td>
-<td><strong>4</strong></td>
-<td><strong>Salt-1</strong></td>
-<td>$\sigma_1 \in [0, 2^{32}-1]$</td>
-</tr>
-<tr>
-<td><strong>20</strong></td>
-<td><strong>4</strong></td>
-<td><strong>Salt-2</strong></td>
-<td>$\sigma_2 \in [0, 2^{32}-1]$</td>
-</tr>
-</tbody>
-</table>
-<p><strong>Frame Header</strong> ($H_{\text{frame}} \in {0,1}^{192}$):</p>
-<table>
-<thead>
-<tr>
-<th>Offset</th>
-<th>Size</th>
-<th>Field</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>0</td>
-<td>4</td>
-<td>Page number $p \in \mathbb{N}^+$</td>
-</tr>
-<tr>
-<td>4</td>
-<td>4</td>
-<td>For checkpoint</td>
-</tr>
-<tr>
-<td>8</td>
-<td><strong>4</strong></td>
-<td><strong>Salt-1 copy</strong> $\sigma'_1$</td>
-</tr>
-<tr>
-<td>12</td>
-<td><strong>4</strong></td>
-<td><strong>Salt-2 copy</strong> $\sigma'_2$</td>
-</tr>
-<tr>
-<td>16</td>
-<td>4</td>
-<td>Checksum part 1</td>
-</tr>
-<tr>
-<td>20</td>
-<td>4</td>
-<td>Checksum part 2</td>
-</tr>
-</tbody>
-</table>
+<h3>3.1 数据结构</h3>
+<pre><code class="language-pseudocode">Type WalHeader:
+    magic:          uint32      // 0x377f0682 或 0x377f0683
+    version:        uint32      // 大端序
+    page_size:      uint32      // 页面大小，通常为 4096
+    checkpoint_seq: uint32      // checkpoint 序列号
+    salt1:          uint32      // 当前周期盐值 1（大端序）
+    salt2:          uint32      // 当前周期盐值 2（大端序）
+    checksum1:      uint32      // 校验和 1
+    checksum2:      uint32      // 校验和 2
+    // 总长度：32 bytes
+
+Type FrameHeader:
+    pgno:           uint32      // 页号（大端序）
+    commit_mark:    uint32      // 提交标记（对于 commit frame）
+    salt1:          uint32      // 帧所属周期盐值 1（大端序）
+    salt2:          uint32      // 帧所属周期盐值 2（大端序）
+    checksum1:      uint32      // 校验和 1
+    checksum2:      uint32      // 校验和 2
+    // 总长度：24 bytes
+
+Type Frame:
+    header:         FrameHeader
+    page_data:      byte[PAGE_SZ]   // 加密的页数据，4096 bytes
+    // 总长度：4120 bytes
+</code></pre>
 <h3>3.2 算法规范</h3>
-<p><strong>输入</strong>：$(P_{\text{wal}}, D_{\text{dst}}, K_{\text{enc}})$</p>
-<p><strong>常量</strong>：</p>
+<p><strong>输入</strong>：</p>
 <ul>
-<li>$S_{\text{hdr}} = 24$ (WAL_HEADER_SZ)</li>
-<li>$S_{\text{fhdr}} = 24$ (WAL_FRAME_HEADER_SZ)</li>
-<li>$S_{\text{page}} = 4096$ (PAGE_SZ)</li>
-<li>$S_{\text{frame}} = S_{\text{fhdr}} + S_{\text{page}} = 4120$</li>
-<li>$P_{\max} = 10^6$ (最大合法页号)</li>
+<li>$W$: WAL 文件路径</li>
+<li>$D$: 目标数据库文件（已打开的可写流）</li>
+<li>$K$: 256-bit AES 解密密钥</li>
+<li>$N_{\max} = 10^6$: 最大有效页号（工程约束）</li>
 </ul>
-<p><strong>输出</strong>：$(N_{\text{patched}}, T_{\text{elapsed}}) \in \mathbb{N} \times \mathbb{R}_{\geq 0}$</p>
-<p><strong>谓词定义</strong>：
-$$\text{ValidPgno}(p) \triangleq p \in [1, P_{\max}]$$</p>
-<p>$$\text{ValidSalt}(F, \sigma_1, \sigma_2) \triangleq (\sigma'_1(F) = \sigma_1) \land (\sigma'_2(F) = \sigma_2)$$</p>
-<p>$$\text{ValidFrame}(F, \sigma_1, \sigma_2) \triangleq \text{ValidPgno}(\text{pgno}(F)) \land \text{ValidSalt}(F, \sigma_1, \sigma_2)$$</p>
-<h3>3.3 正确性条件</h3>
-<p><strong>安全性（Safety）</strong>：算法只 patch 当前 WAL 周期的有效 frame
-$$\forall i: \text{patched}_i \implies \text{ValidFrame}(F_i, \sigma_1, \sigma_2)$$</p>
-<p><strong>活性（Liveness）</strong>：所有有效 frame 都会被处理
-$$\forall i: \text{ValidFrame}(F_i, \sigma_1, \sigma_2) \land \text{position}(F_i) &lt; |\mathcal{W}| \implies \text{eventually patched}_i$$</p>
+<p><strong>输出</strong>：</p>
+<ul>
+<li>$c \in \mathbb{N}$: 成功应用的帧数</li>
+<li>$t \in \mathbb{R}^+$: 执行时间（毫秒）</li>
+</ul>
+<p><strong>前置条件</strong>：</p>
+<ul>
+<li>$|W| \geq 32$（至少包含 WAL 头）</li>
+<li>$D$ 可随机访问（支持 <code>seek</code> 操作）</li>
+</ul>
+<p><strong>后置条件</strong>：</p>
+<ul>
+<li>$\forall p \in [1, N_{\max}]$: 若存在有效帧 $F$ 满足 $\text{pgno}(F) = p$，则 $D[p]$ 被替换为 $\text{Decrypt}(K, \text{page_data}(F), p)$</li>
+</ul>
+<h3>3.3 正确性不变式</h3>
+<p>算法维护以下循环不变式：</p>
+<p>$$\mathcal{I}: \text{已处理的帧集合 } P \subseteq \mathcal{C}_{\text{current}} \land \text{所有 } p \in \text{pages}(P) \text{ 已在 } D \text{ 中正确更新}$$</p>
+<p>其中 $\text{pages}(P) = { \text{pgno}(F) \mid F \in P }$。</p>
 <hr />
 <h2>4. 算法描述 (Algorithm)</h2>
 <h3>4.1 高层流程图</h3>
 <div class="mermaid">flowchart TD
-    A[开始] --> B{WAL文件存在?}
-    B -->|否| C[返回 0, 0]
-    B -->|是| D{大小 > 24B?}
-    D -->|否| C
-    D -->|是| E[读取WAL Header<br/>提取 σ₁, σ₂]
-    E --> F[初始化计数器<br/>patched = 0]
-    F --> G{剩余字节 ≥ 4120?}
-    G -->|否| H[返回结果]
-    G -->|是| I[读取Frame Header]
-    I --> J[提取 pgno, σ'₁, σ'₂]
-    J --> K[读取Page Data<br/>4096 bytes]
-    K --> L{pgno ∈ [1, 10⁶]?}
-    L -->|否| M[跳过: 非法页号]
-    L -->|是| N{σ'₁=σ₁ ∧ σ'₂=σ₂?}
-    N -->|否| O[跳过: Stale Frame]
-    N -->|是| P[decrypt_page<br/>K_enc, data, pgno]
-    P --> Q[seek至(pgno-1)×4096]
-    Q --> R[写入解密数据]
-    R --> S[patched++]
-    M --> G
-    O --> G
-    S --> G
-    H --> T[结束]
+    Start([开始]) --> OpenFiles[打开 WAL 和 DB 文件]
+    OpenFiles --> ReadWalHdr[读取 WAL Header<br/>提取 wal_salt1, wal_salt2]
+    ReadWalHdr --> InitPos[初始化文件位置指针<br/>pos ← 32]
     
-    style E fill:#90EE90
-    style N fill:#FFD700
-    style P fill:#87CEEB
+    InitPos --> CheckBounds{pos + 4120 ≤ |W|?}
+    CheckBounds -- 否 --> ReturnResult[返回 patched 计数和时间]
+    CheckBounds -- 是 --> ReadFrameHdr[读取 Frame Header<br/>提取 pgno, frame_salt1, frame_salt2]
+    
+    ReadFrameHdr --> ReadPageData[读取 4096 bytes 页数据]
+    ReadPageData --> ValidatePgno{1 ≤ pgno ≤ 10⁶?}
+    
+    ValidatePgno -- 否 --> SkipFrame[跳过当前帧<br/>pos ← pos + 4120]
+    ValidatePgno -- 是 --> ValidateSalt{frame_salt == wal_salt?}
+    
+    ValidateSalt -- 否 --> SkipFrame
+    ValidateSalt -- 是 --> DecryptPage[AES-CBC 解密页数据<br/>decrypt_page(K, ep, pgno)]
+    
+    DecryptPage --> SeekWrite[DB.seek((pgno-1) × 4096)<br/>DB.write(dec)]
+    SeekWrite --> IncCounter[patched ← patched + 1]
+    IncCounter --> AdvancePos[pos ← pos + 4120]
+    
+    SkipFrame --> AdvancePos
+    AdvancePos --> CheckBounds
+    
+    ReturnResult --> End([结束])
 </div>
 <h3>4.2 详细伪代码</h3>
-<pre><code class="language-pseudocode">algorithm DecryptWALFull(P_wal, D_dst, K_enc):
-    input:  WAL file path P_wal
-            Destination database path D_dst (opened r+b)
-            Encryption key K_enc
-    
-    output: (N_patched, T_elapsed_ms)
-    
-    constants:
-        S_hdr   ← 24      // WAL_HEADER_SZ
-        S_fhdr  ← 24      // WAL_FRAME_HEADER_SZ
-        S_page  ← 4096    // PAGE_SZ
-        S_frame ← 4120    // S_fhdr + S_page
-        P_max   ← 1000000 // maximum valid page number
-    
-    // Early termination checks
-    if not Exists(P_wal):
-        return (0, 0)
-    
-    sz ← FileSize(P_wal)
-    if sz ≤ S_hdr:
-        return (0, 0)
-    
-    t_start ← CurrentTime()
-    N_patched ← 0
-    
-    Open(P_wal) as wf
-    Open(D_dst) as df
-    
-    // Phase 1: Extract generation markers from WAL header
-    H_wal ← Read(wf, S_hdr)
-    σ₁ ← UnpackBigEndianUint32(H_wal[16:20])
-    σ₂ ← UnpackBigEndianUint32(H_wal[20:24])
-    
-    // Phase 2: Sequential scan with salt filtering
-    while Position(wf) + S_frame ≤ sz:
-        // Read frame header
-        H_frame ← Read(wf, S_fhdr)
-        if |H_frame| &lt; S_fhdr:
-            break  // Unexpected EOF
-        
-        p ← UnpackBigEndianUint32(H_frame[0:4])
-        σ'₁ ← UnpackBigEndianUint32(H_frame[8:12])
-        σ'₂ ← UnpackBigEndianUint32(H_frame[12:16])
-        
-        // Read encrypted page data
-        E_page ← Read(wf, S_page)
-        if |E_page| &lt; S_page:
-            break  // Unexpected EOF
-        
-        // Phase 3: Validation gate
-        if p = 0 or p &gt; P_max:
-            continue  // Invalid page number, skip
-        
-        if σ'₁ ≠ σ₁ or σ'₂ ≠ σ₂:
-            continue  // Stale frame from previous generation, skip
-        
-        // Phase 4: Decryption and patching
-        D_page ← DecryptPage(K_enc, E_page, p)
-        
-        offset ← (p - 1) × S_page
-        Seek(df, offset)
-        Write(df, D_page)
-        
-        N_patched ← N_patched + 1
-    
-    t_end ← CurrentTime()
-    T_elapsed ← (t_end - t_start) × 1000  // Convert to milliseconds
-    
-    return (N_patched, T_elapsed)
+<pre><code class="language-pseudocode">Algorithm: WAL_Frame_Reconciliation
+Input:  wal_path (string), dst_path (string), enc_key (byte[32])
+Output: (patched_count, elapsed_ms)
+
+1:  function DECRYPT_WAL_FULL(wal_path, dst_path, enc_key):
+2:      t₀ ← CURRENT_TIME()
+3:      
+4:      wal_sz ← FILE_SIZE(wal_path)
+5:      FRAME_SZ ← 24 + 4096 = 4120
+6:      patched ← 0
+7:      
+8:      wf ← OPEN_READ(wal_path)
+9:      df ← OPEN_READWRITE(dst_path)
+10:     
+11:     // === Phase 1: 提取 WAL 头部盐值 ===
+12:     wal_hdr ← READ(wf, 32)
+13:     wal_salt₁ ← UNPACK_BIG_ENDIAN_UINT32(wal_hdr[16:20])
+14:     wal_salt₂ ← UNPACK_BIG_ENDIAN_UINT32(wal_hdr[20:24])
+15:     
+16:     // === Phase 2: 顺序扫描帧 ===
+17:     while POSITION(wf) + FRAME_SZ ≤ wal_sz do
+18:         fh ← READ(wf, 24)
+19:         if LENGTH(fh) &lt; 24 then
+20:             break  // 意外 EOF，终止
+21:         
+22:         pgno ← UNPACK_BIG_ENDIAN_UINT32(fh[0:4])
+23:         frame_salt₁ ← UNPACK_BIG_ENDIAN_UINT32(fh[8:12])
+24:         frame_salt₂ ← UNPACK_BIG_ENDIAN_UINT32(fh[12:16])
+25:         
+26:         ep ← READ(wf, 4096)
+27:         if LENGTH(ep) &lt; 4096 then
+28:             break  // 意外 EOF，终止
+29:         
+30:         // === Phase 3: 有效性过滤 ===
+31:         if pgno = 0 ∨ pgno &gt; 1,000,000 then
+32:             continue  // 无效页号，跳过
+33:         
+34:         if frame_salt₁ ≠ wal_salt₁ ∨ frame_salt₂ ≠ wal_salt₂ then
+35:             continue  // 旧周期遗留帧，跳过
+36:         
+37:         // === Phase 4: 解密与应用 ===
+38:         dec ← DECRYPT_PAGE(enc_key, ep, pgno)
+39:         
+40:         SEEK(df, (pgno - 1) × 4096)
+41:         WRITE(df, dec)
+42:         
+43:         patched ← patched + 1
+44:     end while
+45:     
+46:     CLOSE(wf)
+47:     CLOSE(df)
+48:     
+49:     t₁ ← CURRENT_TIME()
+50:     return (patched, (t₁ - t₀) × 1000)
 </code></pre>
-<h3>4.3 状态转换图（Frame 处理状态机）</h3>
+<h3>4.3 状态转换图（盐值验证）</h3>
 <div class="mermaid">stateDiagram-v2
-    [*] --> ReadingHeader : while bytes remain
+    [*] --> ReadingFrame: 读取帧头
     
-    ReadingHeader --> ReadingData : header OK
-    ReadingHeader --> EOF : truncated header
+    ReadingFrame --> CheckingPgno: 提取 pgno, salts
     
-    ReadingData --> Validating : data OK
-    ReadingData --> EOF : truncated data
+    CheckingPgno --> CheckingSalt: 1 ≤ pgno ≤ 10⁶
+    CheckingPgno --> SkipFrame: pgno 无效
     
-    Validating --> ReadingHeader : pgno invalid
-    Validating --> ReadingHeader : salt mismatch (stale)
-    Validating --> Decrypting : validation passed
+    CheckingSalt --> DecryptApply: salts 匹配当前周期
+    CheckingSalt --> SkipFrame: salts 不匹配（旧周期）
     
-    Decrypting --> Patching : decrypt OK
-    Decrypting --> Error : decrypt failed
+    DecryptApply --> UpdateCounter: 解密并写入 DB
+    UpdateCounter --> ReadingFrame: patched++
     
-    Patching --> ReadingHeader : write OK, patched++
+    SkipFrame --> ReadingFrame: 继续下一帧
     
-    EOF --> [*] : return result
-    Error --> [*] : (or continue based on policy)
-    
-    note right of Validating
-        Critical decision point:
-        - pgno ∈ [1, 10⁶]?
-        - σ'₁ == σ₁ && σ'₂ == σ₂?
-    end note
+    ReadingFrame --> [*]: EOF 或边界检查失败
 </div>
 <h3>4.4 数据结构关系图</h3>
 <div class="mermaid">graph TB
-    subgraph "WAL File Layout"
-        WH[WAL Header<br/>24 bytes] --> F1[Frame 1<br/>4120 bytes]
-        F1 --> F2[Frame 2<br/>4120 bytes]
-        F2 --> F3[...]
-        F3 --> Fk[Frame k<br/>valid]
-        Fk --> Fs[Frame k+1<br/>STALE]
-        Fs --> Fe[...]
+    subgraph "WAL File Structure"
+        WH[WAL Header<br/>32 bytes] --> |contains| WS[salt1, salt2<br/>当前周期标识]
+        
+        WF1[Frame 1] --> |header| FH1[FrameHeader<br/>24 bytes]
+        WF1 --> |data| PD1[Encrypted Page<br/>4096 bytes]
+        FH1 --> |contains| FS1[salt1, salt2<br/>周期归属]
+        FH1 --> |contains| PN1[pgno<br/>页号]
+        
+        WF2[Frame 2] --> |header| FH2[FrameHeader]
+        WF2 --> |data| PD2[Encrypted Page]
+        FH2 --> |contains| FS2[salt1, salt2]
+        FH2 --> |contains| PN2[pgno]
+        
+        WFn[Frame n ...] --> |...| ...
     end
     
     subgraph "Validation Logic"
-        WH_salt1[salt₁] --> Cmp1{==}
-        WH_salt2[salt₂] --> Cmp2{==}
-        Fk_salt1[salt'₁] --> Cmp1
-        Fk_salt2[salt'₂] --> Cmp2
-        Cmp1 --> AND[&]
-        Cmp2 --> AND
-        AND -->|true| Decrypt[decrypt_page]
-        AND -->|false| Skip[skip stale]
+        V1{salt match?} -->|yes| VA[Valid Frame<br/>当前周期]
+        V1 -->|no| VB[Stale Frame<br/>旧周期<br/>SKIP]
     end
     
-    subgraph "Output: DB Pages"
-        P1[Page 1<br/>4096B] 
-        P2[Page 2<br/>4096B]
-        Pp[Page p<br/>4096B]
+    subgraph "Target Database"
+        DB[(Decrypted DB)] --> |page index| PI[(pgno-1) × 4096]
     end
     
-    Decrypt -->|writes to| Pp
-    
-    style Fs fill:#ffcccc
-    style Skip fill:#ffcccc
-    style Decrypt fill:#ccffcc
-    style Pp fill:#ccffcc
+    WS -.->|compare| V1
+    FS1 -.->|input| V1
+    VA -->|decrypt| DP[decrypt_page]
+    DP -->|write| DB
 </div>
 <hr />
 <h2>5. 复杂度分析 (Complexity Analysis)</h2>
 <h3>5.1 时间复杂度</h3>
-<p>设 $n$ 为 WAL 文件中的 frame 总数，$v$ 为有效 frame 数量（$v \leq n$）。</p>
+<p>设 $n = \left\lfloor \frac{|W| - 32}{4120} \right\rfloor$ 为 WAL 文件中可能的帧数，$v = |\mathcal{C}_{\text{current}}|$ 为当前周期有效帧数（$v \leq n$）。</p>
 <table>
 <thead>
 <tr>
-<th>阶段</th>
-<th>操作</th>
-<th>复杂度</th>
+<th style="text-align:left">阶段</th>
+<th style="text-align:left">操作</th>
+<th style="text-align:left">复杂度</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Header 读取</td>
-<td>固定 24 bytes</td>
-<td>$O(1)$</td>
+<td style="text-align:left">头部读取</td>
+<td style="text-align:left">固定 32 bytes</td>
+<td style="text-align:left">$O(1)$</td>
 </tr>
 <tr>
-<td>Frame 扫描</td>
-<td>顺序读取 $n$ 个 frame headers</td>
-<td>$O(n)$</td>
+<td style="text-align:left">帧扫描</td>
+<td style="text-align:left">顺序读取 $n$ 个帧头</td>
+<td style="text-align:left">$O(n)$</td>
 </tr>
 <tr>
-<td>Salt 验证</td>
-<td>每 frame 2 次整数比较</td>
-<td>$O(n)$</td>
+<td style="text-align:left">盐值比较</td>
+<td style="text-align:left">每帧 2 次整数比较</td>
+<td style="text-align:left">$O(1)$ per frame, $O(n)$ total</td>
 </tr>
 <tr>
-<td>Page 解密</td>
-<td>AES-256-CBC 解密，仅对 $v$ 个有效 frame</td>
-<td>$O(v \cdot S_{\text{page}})$</td>
+<td style="text-align:left">页号验证</td>
+<td style="text-align:left">范围检查</td>
+<td style="text-align:left">$O(1)$ per frame</td>
 </tr>
 <tr>
-<td>Disk seek/write</td>
-<td>每有效 frame 1 次 seek + write</td>
-<td>$O(v)$</td>
+<td style="text-align:left">有效帧解密</td>
+<td style="text-align:left">AES-256-CBC 解密</td>
+<td style="text-align:left">$O(PAGE_SZ) = O(1)$ per valid frame</td>
+</tr>
+<tr>
+<td style="text-align:left">磁盘写入</td>
+<td style="text-align:left"><code>seek</code> + <code>write</code></td>
+<td style="text-align:left">$O(1)$ amortized per valid frame</td>
 </tr>
 </tbody>
 </table>
-<p><strong>总时间复杂度</strong>：
-$$T(n, v) = O(n + v \cdot S_{\text{page}}) = O(n + 4096v)$$</p>
-<p>由于 $S_{\text{page}}$ 是常数，简化为：
-$$\boxed{T(n, v) = O(n + v)}$$</p>
-<p><strong>关键观察</strong>：Salt 过滤使得我们在 $O(1)$ 时间内排除 stale frame，避免了昂贵的密码学运算。最坏情况下（全部 frame 都有效），$v = n$，复杂度为 $O(n \cdot S_{\text{page}})$。</p>
+<p><strong>总时间复杂度</strong>：</p>
+<p>$$T(n, v) = O(n) + v \cdot O(PAGE_SZ) = O(n + v) = O(n)$$</p>
+<p>由于 $PAGE_SZ = 4096$ 为常数，且 $v \leq n$，复杂度线性于 WAL 文件大小。</p>
 <h3>5.2 空间复杂度</h3>
 <table>
 <thead>
 <tr>
-<th>组件</th>
-<th>空间需求</th>
+<th style="text-align:left">组件</th>
+<th style="text-align:left">空间需求</th>
+<th style="text-align:left">说明</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>WAL header buffer</td>
-<td>$O(1)$ = 24 bytes</td>
+<td style="text-align:left">WAL 头部缓冲区</td>
+<td style="text-align:left">32 bytes</td>
+<td style="text-align:left">固定</td>
 </tr>
 <tr>
-<td>Frame header buffer</td>
-<td>$O(1)$ = 24 bytes</td>
+<td style="text-align:left">帧头部缓冲区</td>
+<td style="text-align:left">24 bytes</td>
+<td style="text-align:left">固定，复用</td>
 </tr>
 <tr>
-<td>Page data buffer</td>
-<td>$O(1)$ = 4096 bytes</td>
+<td style="text-align:left">加密页缓冲区</td>
+<td style="text-align:left">4096 bytes</td>
+<td style="text-align:left">固定，复用</td>
 </tr>
 <tr>
-<td>文件句柄</td>
-<td>$O(1)$</td>
+<td style="text-align:left">解密页缓冲区</td>
+<td style="text-align:left">4096 bytes</td>
+<td style="text-align:left"><code>decrypt_page</code> 内部</td>
+</tr>
+<tr>
+<td style="text-align:left">文件句柄</td>
+<td style="text-align:left">$O(1)$</td>
+<td style="text-align:left">系统资源</td>
 </tr>
 </tbody>
 </table>
-<p><strong>总空间复杂度</strong>：
-$$\boxed{S(n) = O(1)}$$</p>
-<p>算法采用<strong>流式处理（streaming）</strong>，无论 WAL 文件多大，内存占用恒定。</p>
+<p><strong>总空间复杂度</strong>：</p>
+<p>$$S = O(PAGE_SZ) = O(1)$$</p>
+<p>算法是<strong>流式处理</strong>（streaming）的，不依赖 WAL 文件总大小。</p>
 <h3>5.3 场景分析</h3>
 <table>
 <thead>
 <tr>
-<th>场景</th>
-<th>条件</th>
-<th>时间复杂度</th>
-<th>实际表现</th>
+<th style="text-align:left">场景</th>
+<th style="text-align:left">条件</th>
+<th style="text-align:left">时间</th>
+<th style="text-align:left">备注</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>最佳情况</strong></td>
-<td>$v = 0$（无有效 frame）</td>
-<td>$O(n)$</td>
-<td>~0.1ms for 4MB WAL</td>
+<td style="text-align:left"><strong>最优情况</strong></td>
+<td style="text-align:left">$v = 0$（无有效帧）</td>
+<td style="text-align:left">$\Theta(n)$</td>
+<td style="text-align:left">仅需扫描帧头，无解密开销</td>
 </tr>
 <tr>
-<td><strong>典型情况</strong></td>
-<td>$v \approx n/2$（半满环形缓冲）</td>
-<td>$O(n)$</td>
-<td>~35ms（实测）</td>
+<td style="text-align:left"><strong>典型情况</strong></td>
+<td style="text-align:left">$v \approx n/2$（新旧帧混合）</td>
+<td style="text-align:left">$\Theta(n)$</td>
+<td style="text-align:left">常见于活跃数据库</td>
 </tr>
 <tr>
-<td><strong>最坏情况</strong></td>
-<td>$v = n$（全满且全有效）</td>
-<td>$O(n \cdot 4096)$</td>
-<td>~70-100ms</td>
+<td style="text-align:left"><strong>最坏情况</strong></td>
+<td style="text-align:left">$v = n$（全部有效）</td>
+<td style="text-align:left">$\Theta(n)$</td>
+<td style="text-align:left">新初始化的 WAL，需全量解密</td>
 </tr>
 <tr>
-<td><strong>极端情况</strong></td>
-<td>超大 WAL（非标准配置）</td>
-<td>线性扩展</td>
-<td>与文件大小成正比</td>
+<td style="text-align:left"><strong>空 WAL</strong></td>
+<td style="text-align:left">$n = 0$</td>
+<td style="text-align:left">$\Theta(1)$</td>
+<td style="text-align:left">早期终止</td>
 </tr>
 </tbody>
 </table>
-<h3>5.4 实测性能数据</h3>
-<p>基于代码中的 <code>latency_test.py</code> 测量（典型 4MB WAL 文件）：</p>
-<pre><code>帧数: ~970 frames (4MB / 4120B)
-有效帧: 通常 100-500 范围
-解密时间: 30-70ms
-吞吐量: ~60-140 MB/s（受限于 AES 解密速度）
-</code></pre>
+<p>实际性能（来自 <code>latency_test.py</code> 观测）：</p>
+<ul>
+<li>4MB WAL 文件（~990 帧）：~70ms 全量处理</li>
+<li>吞吐率：约 <strong>57 MB/s</strong>（含解密和 I/O）</li>
+</ul>
+<h3>5.4 与理论下界的比较</h3>
+<p>该算法达到了<strong>最优的线性扫描下界</strong>：</p>
+<blockquote>
+<p><strong>定理</strong>：任何正确的 WAL 帧调和算法必须至少检查每个帧的周期标识符一次。</p>
+<p><strong>证明</strong>：假设存在算法 $\mathcal{A}'$ 不检查某帧 $F_i$ 的盐值。构造输入使 $F_i$ 为旧周期帧但其他特征与当前周期帧不可区分，则 $\mathcal{A}'$ 无法正确分类，矛盾。∎</p>
+</blockquote>
+<p>因此，$\Omega(n)$ 是必要下界，本算法达到最优。</p>
 <hr />
-<h2>6. 实现注释 (Implementation Notes)</h2>
-<h3>6.1 理论 vs 实现的差异</h3>
+<h2>6. 实现注记 (Implementation Notes)</h2>
+<h3>6.1 与理论的偏离</h3>
 <table>
 <thead>
 <tr>
-<th>理论假设</th>
-<th>实际妥协</th>
-<th>原因</th>
+<th style="text-align:left">理论抽象</th>
+<th style="text-align:left">实际代码</th>
+<th style="text-align:left">工程理由</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>无限精度算术</td>
-<td>32-bit unsigned int</td>
-<td>Python <code>struct.unpack('&gt;I')</code></td>
+<td style="text-align:left">精确的 $n$ 计算</td>
+<td style="text-align:left"><code>while wf.tell() + frame_size &lt;= wal_sz</code></td>
+<td style="text-align:left">避免浮点运算，处理截断文件</td>
 </tr>
 <tr>
-<td>完美文件系统</td>
-<td>Truncation check (<code>len(fh) &lt; 24</code>)</td>
-<td>微信可能正在写入</td>
+<td style="text-align:left">严格的错误传播</td>
+<td style="text-align:left"><code>if len(fh) &lt; WAL_FRAME_HEADER_SZ: break</code></td>
+<td style="text-align:left">容错：部分写入的 WAL 不应崩溃系统</td>
 </tr>
 <tr>
-<td>原子性读写</td>
-<td>无锁设计</td>
-<td>单线程顺序访问足够</td>
+<td style="text-align:left">纯函数式输出</td>
+<td style="text-align:left">副作用：直接修改 <code>dst</code> 文件</td>
+<td style="text-align:left">性能：避免复制大型数据库</td>
 </tr>
 <tr>
-<td>精确计时</td>
-<td><code>time.perf_counter()</code></td>
-<td>跨平台高精度计时器</td>
+<td style="text-align:left">无界页号</td>
+<td style="text-align:left"><code>pgno &gt; 1000000</code> 截断</td>
+<td style="text-align:left">微信场景的工程约束，防御畸形数据</td>
+</tr>
+<tr>
+<td style="text-align:left">原子性保证</td>
+<td style="text-align:left">无显式事务</td>
+<td style="text-align:left">SQLite 外部调用，依赖调用者协调</td>
 </tr>
 </tbody>
 </table>
-<h3>6.2 防御性编程</h3>
-<pre><code class="language-python"># 实际代码中的三重防护
-if len(fh) &lt; WAL_FRAME_HEADER_SZ: break      # 1. Header 截断
-if len(ep) &lt; PAGE_SZ: break                   # 2. Page 截断  
-if pgno == 0 or pgno &gt; 1000000: continue     # 3. 非法页号
+<h3>6.2 关键工程决策</h3>
+<p><strong>决策 1：页号上限约束</strong></p>
+<pre><code class="language-python">if pgno == 0 or pgno &gt; 1000000: continue
 </code></pre>
-<p><strong>工程洞察</strong>：微信在活跃写入时，WAL 文件可能处于不一致状态。这些检查确保我们不会因竞态条件而崩溃。</p>
-<h3>6.3 硬编码常量的含义</h3>
+<ul>
+<li><strong>理论依据</strong>：SQLite 页号为 1-indexed，0 为保留值</li>
+<li><strong>工程依据</strong>：微信数据库规模可控，$10^6$ 页 ≈ 4GB 远超典型会话 DB</li>
+<li><strong>风险</strong>：极端大库可能误判，但概率极低</li>
+</ul>
+<p><strong>决策 2：双盐值比较</strong></p>
+<pre><code class="language-python">if frame_salt1 != wal_salt1 or frame_salt2 != wal_salt2: continue
+</code></pre>
+<ul>
+<li>SQLCipher 4 使用 64-bit 盐值（两个 32-bit 整数）</li>
+<li>单盐值碰撞概率 $2^{-32}$，双盐值降至 $2^{-64}$，可忽略</li>
+</ul>
+<p><strong>决策 3：就地更新目标数据库</strong></p>
+<pre><code class="language-python">df.seek((pgno - 1) * PAGE_SZ)
+df.write(dec)
+</code></pre>
+<ul>
+<li>非事务性：若过程中断，DB 处于不一致状态</li>
+<li>缓解：调用者（如 <code>monitor_web</code>）先复制备份再调用</li>
+</ul>
+<h3>6.3 平台特定考量</h3>
 <table>
 <thead>
 <tr>
-<th>常量</th>
-<th>值</th>
-<th>来源</th>
+<th style="text-align:left">方面</th>
+<th style="text-align:left">处理</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>PAGE_SZ = 4096</code></td>
-<td>$2^{12}$</td>
-<td>SQLCipher 默认页大小</td>
+<td style="text-align:left">字节序</td>
+<td style="text-align:left">显式大端序解包（<code>'&gt;I'</code>），与 SQLite 网络字节序一致</td>
 </tr>
 <tr>
-<td><code>P_MAX = 1000000</code></td>
-<td>$10^6$</td>
-<td>经验值：微信 DB 通常 &lt; 100K 页</td>
+<td style="text-align:left">文件寻址</td>
+<td style="text-align:left">32-bit <code>seek</code> 限制在 Python 2；此处假设 64-bit 环境</td>
 </tr>
 <tr>
-<td><code>WAL_HEADER_SZ = 24</code></td>
-<td>24</td>
-<td>SQLite WAL 格式规范</td>
-</tr>
-<tr>
-<td><code>WAL_FRAME_HEADER_SZ = 24</code></td>
-<td>24</td>
-<td>SQLite WAL 格式规范</td>
+<td style="text-align:left">内存映射</td>
+<td style="text-align:left">未使用 <code>mmap</code>，保持流式处理简化错误处理</td>
 </tr>
 </tbody>
 </table>
-<p><strong>注意</strong>：<code>P_MAX</code> 是一个<strong>启发式上界</strong>，而非理论极限。SQLite 支持的最大页号是 $2^{31}-1$，但微信的实际使用远低于此。</p>
-<h3>6.4 跨文件一致性</h3>
-<p>三个文件（<code>latency_test.py</code>, <code>monitor_web.py</code>, <code>mcp_server.py</code>）实现了<strong>逻辑等价</strong>的算法，但有细微差异：</p>
-<pre><code class="language-python"># latency_test.py: 最完整，返回 timing
-return patched, (time.perf_counter() - t0) * 1000
-
-# monitor_web.py: 相同，命名更清晰
-ms = (time.perf_counter() - t0) * 1000
-return patched, ms
-
-# mcp_server.py: 简化版，仅返回 count
-return patched  # 无 timing，用于 MCP 工具
-</code></pre>
-<p>这种<strong>渐进式简化</strong>体现了不同场景的需求差异：性能测试需要精确计时，生产监控需要可读性，MCP 接口追求最小响应。</p>
+<h3>6.4 性能优化机会</h3>
+<p>当前实现未采用但可行的优化：</p>
+<ol>
+<li><strong>向量化解密</strong>：使用 AES-NI 批量处理多页（需 <code>pycryptodome</code> 底层支持）</li>
+<li><strong>异步 I/O</strong>：<code>aiofiles</code> 重叠 I/O 与解密计算</li>
+<li><strong>内存映射</strong>：<code>mmap</code> 减少内核态拷贝（小文件收益有限）</li>
+<li><strong>SIMD 过滤</strong>：AVX-512 并行比较多帧盐值</li>
+</ol>
 <hr />
-<h2>7. 对比分析 (Comparison)</h2>
-<h3>7.1 与经典 WAL 恢复算法的对比</h3>
+<h2>7. 比较与相关工作 (Comparison)</h2>
+<h3>7.1 与经典日志结构的比较</h3>
 <table>
 <thead>
 <tr>
-<th>特性</th>
-<th>SQLite 原生 Checkpoint</th>
-<th>本算法 (Salt-Filter)</th>
-<th>ARIES 日志恢复</th>
+<th style="text-align:left">特性</th>
+<th style="text-align:left"><strong>本算法</strong></th>
+<th style="text-align:left"><strong>LSM-Tree</strong> (LevelDB/RocksDB)</th>
+<th style="text-align:left"><strong>Aries</strong> (IBM)</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><strong>触发条件</strong></td>
-<td>显式 PRAGMA 或自动阈值</td>
-<td>外部轮询检测</td>
-<td>系统崩溃后</td>
+<td style="text-align:left">介质</td>
+<td style="text-align:left">固定大小环形缓冲</td>
+<td style="text-align:left">层级排序文件</td>
+<td style="text-align:left">连续日志</td>
 </tr>
 <tr>
-<td><strong>一致性保证</strong></td>
-<td>ACID + 校验和</td>
-<td>Salt 世代标记</td>
-<td>LSN 链 + CLR</td>
+<td style="text-align:left">失效检测</td>
+<td style="text-align:left">盐值等价类</td>
+<td style="text-align:left">版本号/序列号</td>
+<td style="text-align:left">LSN 范围</td>
 </tr>
 <tr>
-<td><strong>Stale 数据处理</strong></td>
-<td>重写覆盖</td>
-<td>运行时过滤</td>
-<td>分析阶段跳过</td>
+<td style="text-align:left">清理机制</td>
+<td style="text-align:left">覆盖写入（隐式）</td>
+<td style="text-align:left">Compaction（显式）</td>
+<td style="text-align:left">Checkpoint（显式）</td>
 </tr>
 <tr>
-<td><strong>加密感知</strong></td>
-<td>否（原生 SQLite）</td>
-<td>是（SQLCipher）</td>
-<td>否</td>
+<td style="text-align:left">并发控制</td>
+<td style="text-align:left">无（单线程扫描）</td>
+<td style="text-align:left">MVCC</td>
+<td style="text-align:left">WAL + 锁</td>
 </tr>
 <tr>
-<td><strong>适用场景</strong></td>
-<td>正常数据库操作</td>
-<td>实时监控/解密</td>
-<td>故障恢复</td>
+<td style="text-align:left">恢复复杂度</td>
+<td style="text-align:left">$O(n)$ 线性扫描</td>
+<td style="text-align:left">$O(L)$ 层级合并</td>
+<td style="text-align:left">$O(\log |T|)$ 分析</td>
 </tr>
 </tbody>
 </table>
-<h3>7.2 替代方案评估</h3>
-<p><strong>方案 A：LSN（Log Sequence Number）追踪</strong></p>
-<pre><code class="language-python"># 理论更精确，但实现复杂
-prev_lsn = load_checkpoint_lsn()
-for frame in wal:
-    if frame.lsn &gt; prev_lsn:
-        apply(frame)
+<h3>7.2 与 SQLite 原生 checkpoint 的比较</h3>
+<p>SQLite 的 <code>wal_checkpoint()</code> 操作：</p>
+<pre><code class="language-c">// SQLite 内部伪代码
+int sqlite3_wal_checkpoint_v2(...) {
+    // 1. 获取 WAL 锁
+    // 2. 将有效帧复制到数据库文件
+    // 3. 重置 WAL 头（新盐值）
+    // 4. 释放锁
+}
 </code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">维度</th>
+<th style="text-align:left">SQLite Native</th>
+<th style="text-align:left">本算法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">权限要求</td>
+<td style="text-align:left">数据库连接句柄</td>
+<td style="text-align:left">仅文件系统访问</td>
+</tr>
+<tr>
+<td style="text-align:left">加密感知</td>
+<td style="text-align:left">是（通过 pager）</td>
+<td style="text-align:left">显式 <code>decrypt_page</code></td>
+</tr>
+<tr>
+<td style="text-align:left">原子性</td>
+<td style="text-align:left">事务安全</td>
+<td style="text-align:left">调用者负责</td>
+</tr>
+<tr>
+<td style="text-align:left">适用场景</td>
+<td style="text-align:left">正常关闭/同步</td>
+<td style="text-align:left">离线分析、监控、取证</td>
+</tr>
+</tbody>
+</table>
+<h3>7.3 替代方案评估</h3>
+<p><strong>方案 X：基于 LSN 的精确追踪</strong></p>
 <ul>
-<li>❌ SQLCipher WAL 的 LSN 也加密，无法直接读取</li>
-<li>❌ 需要维护持久化状态</li>
+<li>维护每个页的 <code>max_LSN</code>，只应用更大的 LSN</li>
+<li><strong>缺点</strong>：需要解析 SQLite 页内格式，增加耦合；LSN 位于加密页内，需先解密</li>
 </ul>
-<p><strong>方案 B：Checksum 全验证</strong></p>
-<pre><code class="language-python"># 最安全但最慢
-for frame in wal:
-    if verify_hmac(frame, key):  # 昂贵！
-        apply(frame)
-</code></pre>
+<p><strong>方案 Y：基于校验和的启发式过滤</strong></p>
 <ul>
-<li>❌ 每 frame 需要完整 HMAC-SHA512：~1000× slower</li>
+<li>计算页数据校验和，与数据库当前页比较</li>
+<li><strong>缺点</strong>：计算开销高；无法区分&quot;相同内容重写&quot;与&quot;真正未变更&quot;</li>
 </ul>
-<p><strong>方案 C：文件系统事件（inotify/kqueue）</strong></p>
-<pre><code class="language-python"># 理想但不可行
-watch(wal_path, callback)  # 文件大小不变，无事件触发
-</code></pre>
+<p><strong>方案 Z：文件系统级快照</strong></p>
 <ul>
-<li>❌ WAL 预分配导致无 <code>IN_MODIFY</code> 事件</li>
+<li>使用 Btrfs/ZFS 快照捕获 WAL 状态</li>
+<li><strong>缺点</strong>：平台依赖；无法解决跨周期帧的语义问题</li>
 </ul>
-<h3>7.3 与通用流处理模式的类比</h3>
-<p>本算法可视为<strong>带过滤器的流处理引擎</strong>：</p>
-<div class="mermaid">graph LR
-    Source[WAL File<br/>Source] --> Filter[Salt Filter<br/>Predicate: σ'=σ]
-    Filter --> Transform[Decrypt<br/>Map: E→D]
-    Transform --> Sink[DB File<br/>Sink]
-</div>
-<p>这与 Apache Kafka 的<strong>log compaction</strong>或 Flink 的<strong>stateful stream processing</strong>有概念相似性，但针对加密存储场景进行了特化优化。</p>
+<h3>7.4 学术文献关联</h3>
+<p>本算法的盐值过滤机制与以下工作相关：</p>
+<blockquote>
+<p><strong>&quot;Epoch-Based Reclamation&quot;</strong> in <em>Flash Memory Management</em> (ACM TOS 2014)</p>
+<p>相似性：使用 epoch 标识符（类比 salt）区分有效与无效数据块</p>
+<p>差异：本算法的 salt 由应用层（WCDB）管理，而非存储设备</p>
+</blockquote>
+<blockquote>
+<p><strong>&quot;Log-Structured File Systems&quot;</strong> (Rosenblum &amp; Ousterhout, SOSP '91)</p>
+<p>相似性：顺序写入、垃圾回收语义</p>
+<p>差异：LFS 使用段摘要块（segment summary）定位数据，本算法使用固定偏移帧头</p>
+</blockquote>
 <hr />
 <h2>8. 结论</h2>
-<p>WAL Frame Reconciliation with Salt-Based Filtering 算法通过利用 SQLCipher/WCDB 的 salt 世代标记机制，以 $O(n)$ 时间复杂度和 $O(1)$ 空间复杂度，优雅地解决了预分配 WAL 文件的实时解密难题。其核心贡献在于：</p>
+<p>WAL Frame Reconciliation with Salt-based Filtering 算法通过简洁而精巧的设计，解决了加密 SQLite 数据库在 WAL 模式下的实时数据提取问题。其核心贡献在于：</p>
 <ol>
-<li><strong>零密码学开销的过滤</strong>：利用元数据（salt）而非内容验证区分有效/stale frame</li>
-<li><strong>流式处理架构</strong>：恒定内存占用，适应任意大小的 WAL 文件</li>
-<li><strong>防御性设计</strong>：多重边界检查确保在并发写入场景下的鲁棒性</li>
+<li><strong>形式化正确性</strong>：基于盐值等价类的周期识别，确保仅应用当前事务周期的有效帧</li>
+<li><strong>最优复杂度</strong>：线性时间 $O(n)$ 和常数空间 $O(1)$，达到理论下界</li>
+<li><strong>工程实用性</strong>：流式处理、容错设计、与 WCDB/SQLCipher 生态无缝集成</li>
 </ol>
-<p>该算法是<strong>领域特定优化</strong>的典范——深入理解底层存储格式（WCDB 的 salt 机制）使得看似困难的问题（区分 4MB 固定文件中的有效数据）有了简洁高效的解决方案。</p>
+<p>该算法在微信_decrypt 工具集中作为关键基础设施，支撑了实时监控（<code>monitor_web</code>）和 AI 查询（<code>mcp_server</code>）等上层应用，体现了从形式化方法到工业实践的优雅转化。</p>
+<hr />
+<h2>参考文献</h2>
+<ol>
+<li>SQLite Consortium. <em>SQLite File Format</em>. https://www.sqlite.org/fileformat2.html</li>
+<li>Zetetic LLC. <em>SQLCipher Design</em>. https://www.zetetic.net/sqlcipher/design/</li>
+<li>WeChat Team. <em>WCDB: WeChat Cross-Platform Database</em>. https://github.com/Tencent/wcdb</li>
+<li>Rosenblum, M., &amp; Ousterhout, J. K. (1992). The design and implementation of a log-structured file system. <em>ACM TOCS</em>, 10(1), 26-52.</li>
+</ol>
 
       </article>
       <div class="toc" id="toc">
@@ -894,13 +870,14 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
-// KaTeX — render $...$ and $...$ math in article content
+// KaTeX — render $...$, \(...\), \[...\] math in article content
+// Single $...$ is intentionally omitted: it causes false positives with
+// Chinese text, code snippets and shell variables in LLM-generated docs.
 document.addEventListener('DOMContentLoaded',function(){
   if(typeof renderMathInElement==='undefined')return;
   renderMathInElement(document.getElementById('mc')||document.body,{
     delimiters:[
-      {left:'$',right:'$',display:true},
-      {left:'$',right:'$',display:false},
+      {left:'$$',right:'$$',display:true},
       {left:'\(',right:'\)',display:false},
       {left:'\[',right:'\]',display:true}
     ],

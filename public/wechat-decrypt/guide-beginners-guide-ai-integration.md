@@ -1,548 +1,449 @@
-# 第五章：用自然语言查询微信——MCP 让 AI 成为你的聊天记录助手
+# 第五章：用自然语言查询微信数据 —— mcp_server 模块详解
 
-还记得第四章里那个实时监控消息的网页看板吗？它很棒，但有一个局限：**你只能被动地盯着屏幕看**。如果你想问"上周张三在群里说了什么关于项目的事"，或者"帮我找找谁提到过'周末聚餐'"，传统的浏览方式就力不从心了。
-
-这一章，我们要给系统装上**会思考的脑袋**——通过 MCP（Model Context Protocol）协议，让 Claude 这样的 AI 助手直接读懂你的微信数据，用自然语言完成复杂查询。
+> 学习目标：理解 DBCache 缓存策略如何像"智能冰箱"一样管理解密数据，以及 FastMCP 如何让 Claude AI 像调用手机 App 一样自然地操作你的微信数据库。
 
 ---
 
-## 从"人找信息"到"信息找人"
+## 5.1 从"翻箱倒柜"到"随问随答"
 
-想象你有一栋巨大的图书馆（你的微信聊天记录），里面有几百万本书（消息）。传统的做法是：
-
-- **decrypt_db**：把书从加密箱子里拿出来，摆到书架上（批量解密）
-- **monitor_web**：派个图书管理员坐在门口，新书到了就喊一嗓子（实时推送）
-
-但它们都需要**你自己走进去翻找**。而 `mcp_server` 模块做的是另一件事：训练一只**聪明的寻回犬**（AI 助手），你只需说"找那本关于红色封面的书"，它就叼着结果跑回来。
+想象你有一个巨大的档案室，里面存放着过去十年的日记本，但每本都被锁在保险箱里。传统的查询方式是这样的：
 
 ```mermaid
-flowchart LR
-    subgraph 传统方式["传统方式：人找信息"]
-        A[用户] -->|打开浏览器| B[Monitor_Web]
-        B -->|滚动浏览| C[海量消息]
-        C -->|人工筛选| D[目标信息]
-    end
-    
-    subgraph AI方式["AI 方式：信息找人"]
-        E[用户] -->|"说句话"| F[Claude AI]
-        F -->|调用工具| G[MCP Server]
-        G -->|自动查询| H[DBCache]
-        H -->|返回结果| F
-        F -->|总结回答| E
-    end
-    
-    style AI方式 fill:#e1f5ff
+flowchart TD
+    A[我想查去年春节的聊天记录] --> B[找到对应的保险箱]
+    B --> C[输入密码打开]
+    C --> D[逐页翻阅查找]
+    D --> E{找到了吗}
+    E -->|没有| F[关上箱子]
+    F --> G[打开下一个保险箱]
+    G --> D
+    E -->|找到了| H[抄录内容]
+    H --> I[关上箱子]
 ```
 
-这就是 MCP 的魔力：它把微信数据包装成 AI 能调用的**工具函数**，让自然语言成为查询接口。
+每次查询都要重复"开锁-翻阅-关锁"的完整流程，效率极低。而且如果你几分钟后又想查另一条记录，刚才那个箱子已经锁上了，你得重新开一遍。
+
+**mcp_server 解决的就是这个问题。** 它把你的微信数据库变成了一位随时待命的私人助理——你只需要用自然语言提问，比如"帮我看看上周三张三说了什么"，系统就会自动定位、解密、提取、格式化，把答案呈现在你面前。
+
+这背后的核心是两样东西：**DBCache 智能缓存**（让解密结果可以被复用）和 **FastMCP 工具接口**（让 AI 能听懂人话并执行操作）。
 
 ---
 
-## DBCache：智能缓存，告别重复劳动
+## 5.2 DBCache：会看"生产日期"的智能冰箱
 
-在让 AI 干活之前，我们先解决一个工程难题：**解密太慢了**。
+### 5.2.1 为什么需要缓存？
 
-想象你每次查字典都要先把整本字典从保险箱里取出来、解锁、翻开——哪怕你只是想知道"apple"怎么拼。第一次还能忍，第二次、第三次呢？
+微信的数据库文件通常有几百 MB 甚至几 GB。每次查询都完整解密一次，就像为了喝一杯牛奶而宰杀一头牛——荒谬且浪费。
 
-微信数据库正是如此：一个群聊数据库可能几百 MB，AES-256-CBC 逐页解密需要数秒。如果 AI 对话中连续查询三次同一群聊，难道要解密三次？
-
-`DBCache` 就是来解决这个问题的。你可以把它想象成**厨房里的备菜台**：
+更麻烦的是，微信使用 SQLite 的 **WAL（Write-Ahead Logging）机制**。你可以把 WAL 想象成超市的"临时补货区"：主货架（数据库文件）是固定的，新到的商品先放在补货区， periodically 再合并到主货架。这意味着**只看主数据库会得到过期数据**，必须同时处理 WAL 文件才能获得最新状态。
 
 ```mermaid
 classDiagram
-    class 原始食材["加密数据库<br/>(冰箱里的生肉)"] {
-        +需要处理才能用
-        +占用空间大
+    class 加密数据库 {
+        +主数据库文件 .db
+        +WAL 文件 .db-wal
+        +需要密钥解密
     }
     
-    class 备菜台["DBCache 缓存层"] {
-        +mtime 检测新鲜度
-        +临时文件存储
-        +自动清理过期
-        +get(rel_key) 获取
-        +cleanup() 清理
+    class DBCache {
+        -_cache: Dict
+        +get(rel_key) 获取解密路径
+        -_decrypt_if_needed() 按需解密
+        -cleanup() 清理临时文件
     }
     
-    class 成品菜["解密后数据库<br/>(切好的肉丝)"] {
-        +立即可用
-        +SQLite 直接读取
+    class 临时解密文件 {
+        +明文 SQLite 文件
+        +关联的 mtime 记录
+        +自动生命周期管理
     }
     
-    class 厨师["AI 查询工具"] {
-        +get_chat_history()
-        +search_messages()
-        +get_contacts()
-    }
-    
-    原始食材 --> 备菜台 : 首次使用时解密
-    备菜台 --> 成品菜 : 缓存命中直接取
-    成品菜 --> 厨师 : 快速查询
-    厨师 --> 备菜台 : 请求数据
+    DBCache --> 加密数据库 : 监控 mtime
+    DBCache --> 临时解密文件 : 创建/复用
 ```
 
-### mtime：判断"食材"是否新鲜的秘诀
+### 5.2.2 mtime 检测：比闹钟更可靠的"新鲜度判断"
 
-DBCache 的核心机制是**文件修改时间检测**（mtime）。这就像检查牛奶盒上的生产日期：
+DBCache 的核心逻辑非常简单：**比较文件的"最后修改时间"（mtime）**。
 
-```python
-# DBCache 的内部逻辑（简化版）
-def get(self, rel_key):
-    db_mtime = os.path.getmtime(加密数据库)
-    wal_mtime = os.path.getmtime(WAL文件)
-    
-    if rel_key in self._cache:
-        cached_db_mtime, cached_wal_mtime, tmp_path = self._cache[rel_key]
-        
-        # 两道工序的新鲜度检查
-        if (db_mtime == cached_db_mtime and 
-            wal_mtime == cached_wal_mtime and
-            os.path.exists(tmp_path)):
-            return tmp_path  # 缓存有效，直接上菜！
-    
-    # 缓存失效，重新"备菜"
-    return self._decrypt_and_cache(rel_key, db_mtime, wal_mtime)
-```
-
-为什么连 WAL 文件也要检查？回忆第三章的内容：WAL（Write-Ahead Log）是 SQLite 的"草稿纸"，最新消息先写在这里。如果只检查主数据库，你会错过刚收到的几条消息——就像只看了正式菜单，没看今日特供黑板。
+想象你家里的冰箱贴了一张便利贴，记录着每样食材的放入日期。当你想拿牛奶时，先看便利贴上的日期是否和牛奶盒上的生产日期一致。如果一致，直接喝；如果不一致（说明有人换过一盒新的），就扔掉旧的、打开新的。
 
 ```mermaid
 sequenceDiagram
-    participant AI as Claude AI
-    participant Tool as 查询工具
+    participant Query as 查询请求
     participant Cache as DBCache
     participant FS as 文件系统
     participant Decrypt as 解密引擎
     
-    AI->>Tool: "查一下XX群的记录"
-    Tool->>Cache: get("message_8.db")
+    Query->>Cache: get("msg/xxx.db")
     
-    Cache->>FS: stat("message_8.db")
-    Cache->>FS: stat("message_8.db-wal")
-    FS-->>Cache: 返回两个 mtime
+    Cache->>FS: stat("xxx.db") 获取 mtime
+    Cache->>FS: stat("xxx.db-wal") 获取 mtime
     
-    alt 缓存命中且未过期
-        Cache-->>Tool: 返回临时文件路径
-        Note over Cache: 就像从备菜台直接端盘
-    else 缓存未命中或已过期
-        Cache->>Cache: 删除旧临时文件
+    alt 缓存命中且 mtime 未变
+        Cache-->>Query: 返回缓存的临时文件路径
+        Note over Cache,Query: 就像从冰箱直接拿出现成的菜
+    else 缓存未命中或文件已更新
         Cache->>Decrypt: full_decrypt(主数据库)
-        Decrypt-->>Cache: 解密后文件
-        Cache->>Decrypt: decrypt_wal(WAL文件)
-        Decrypt-->>Cache: 合并最新数据
-        Cache->>Cache: 更新缓存条目
-        Cache-->>Tool: 返回新临时文件路径
-        Note over Cache: 现做现卖，但下次不用重做
+        Decrypt-->>Cache: 临时文件路径 A
+        
+        Cache->>Decrypt: decrypt_wal(WAL 文件)
+        Decrypt-->>Cache: 合并后的临时文件路径 B
+        
+        Cache->>Cache: 更新 _cache[rel_key] = (db_mtime, wal_mtime, tmp_path)
+        Cache-->>Query: 返回新的临时文件路径
     end
-    
-    Tool->>FS: SQLite 查询
-    FS-->>Tool: 消息数据
-    Tool-->>AI: 格式化结果
 ```
 
-### 临时文件的"自清洁"设计
-
-备菜台用久了会堆满残渣，DBCache 也面临同样问题：临时文件可能堆积。解决方案是 Python 的 `atexit` 钩子——就像给厨房装了个**下班自动清扫机器人**：
+代码层面的实现非常精炼：
 
 ```python
-import atexit
-
-def cleanup(self):
-    """程序退出时自动清理所有临时文件"""
-    for _, _, tmp_path in self._cache.values():
-        try:
-            os.remove(tmp_path)
-        except OSError:
-            pass  # 已经被删了就忽略
-
-atexit.register(_cache.cleanup)  # 注册"下班清扫"
+class DBCache:
+    def __init__(self):
+        self._cache = {}  # rel_key -> (db_mtime, wal_mtime, tmp_path)
+    
+    def get(self, rel_key):
+        # 1. 获取当前文件的 mtime
+        db_mtime = os.path.getmtime(db_path)
+        wal_mtime = os.path.getmtime(wal_path) if exists else 0
+        
+        # 2. 检查缓存是否有效
+        cached = self._cache.get(rel_key)
+        if cached and cached[0] == db_mtime and cached[1] == wal_mtime:
+            return cached[2]  # 缓存命中！
+        
+        # 3. 缓存失效，执行解密
+        # ... 解密流程 ...
+        self._cache[rel_key] = (db_mtime, wal_mtime, new_tmp_path)
+        return new_tmp_path
 ```
 
-这样即使程序异常退出，操作系统通常也会回收临时文件；正常退出则保证干干净净。
+### 5.2.3 临时文件的生命周期管理
 
----
+解密后的文件存在哪里？会不会堆积如山撑爆硬盘？
 
-## FastMCP：把微信变成 AI 的工具箱
-
-现在缓存准备好了，如何让 AI 调用它？这就需要 **FastMCP**——一个把 Python 函数暴露给 AI 的轻量级框架。
-
-Think of it as **USB 转接头**：你的微信数据是各种形状的插头（不同的查询需求），Claude 是标准 USB 接口，FastMCP 就是把它们连起来的转换器。
-
-```mermaid
-graph TD
-    subgraph FastMCP服务器["FastMCP 服务器"]
-        A1[get_recent_sessions<br/>最近会话]
-        A2[get_chat_history<br/>聊天记录]
-        A3[search_messages<br/>消息搜索]
-        A4[get_contacts<br/>联系人查询]
-        A5[get_new_messages<br/>新消息提醒]
-    end
-    
-    subgraph 辅助逻辑层["辅助逻辑层"]
-        B1[resolve_username<br/>用户名解析]
-        B2[_find_msg_table_for_user<br/>定位消息表]
-        B3[_parse_message_content<br/>内容解析]
-    end
-    
-    subgraph 数据层["数据层"]
-        C1[DBCache<br/>缓存管理]
-        C2[解密函数<br/>AES-256-CBC]
-        C3[SQLite<br/>查询引擎]
-    end
-    
-    A1 & A2 & A3 & A4 & A5 --> B1 & B2 & B3
-    B1 & B2 & B3 --> C1
-    C1 --> C2 --> C3
-    
-    D[Claude AI<br/>自然语言理解] -.->|MCP协议| A1 & A2 & A3 & A4 & A5
-    
-    style FastMCP服务器 fill:#e1f5ff
-    style D fill:#fff4e1
-```
-
-### 工具一：get_recent_sessions —— 你的"未读消息概览"
-
-这是打开微信时第一眼看到的东西：聊天列表，按时间倒序排列，带最后一条消息预览。
-
-```python
-@mcp.tool()
-def get_recent_sessions(limit: int = 20) -> str:
-    """
-    获取微信最近会话列表，包含最新消息摘要、未读数、时间等。
-    用于了解最近有哪些人/群在聊天。
-    """
-```
-
-想象一下，你对 Claude 说："看看微信最近谁找我了"。Claude 会：
-
-1. **理解意图** → 需要调用 `get_recent_sessions`
-2. **执行工具** → 遍历多个 message_N.db 的 Session 表
-3. **整合结果** → 按时间排序，提取未读数、消息预览
-4. **自然语言回答** → "有 5 个未读会话：工作群有 23 条消息，妈妈在问你周末回不回家..."
-
-```mermaid
-flowchart TD
-    A[用户提问<br/>"最近谁找我了"] --> B[Claude 解析意图]
-    B --> C{匹配工具}
-    C -->|get_recent_sessions| D[执行查询]
-    
-    D --> E[连接 MicroMsg.db<br/>获取联系人映射]
-    D --> F[遍历 message_*.db<br/>读取 Session 表]
-    
-    E --> G[整合数据]
-    F --> G
-    
-    G --> H[格式化输出]
-    H --> I[自然语言回复<br/>"工作群 23 条未读..."]
-    
-    style A fill:#fff4e1
-    style I fill:#e1f5ff
-```
-
-### 工具二：get_chat_history —— 深入特定对话
-
-知道哪个群活跃后，你想细看具体内容。这时需要**用户名解析**的魔法：
-
-```
-用户说："看看'AI交流群'在聊啥"
-
-↓ Claude 内部处理
-
-resolve_username("AI交流群") 
-  → 模糊匹配 → 找到 "wxid_xxxx@chatroom"
-  → 确认是群聊
-  
-_find_msg_table_for_user("wxid_xxxx@chatroom")
-  → 遍历 message_0.db 到 message_15.db
-  → 检查每个库的 Chat_xxxx 表是否存在
-  → 返回 ("message_8.db", "Chat_12345678")
-  
-DBCache.get("message_8.db")
-  → 确保解密缓存可用
-  
-SQLite 查询 Chat_12345678 表
-  → 按时间倒序取 50 条
-  
-格式化返回给 Claude
-```
-
-这个过程就像**先查电话簿找号码，再拨号通话**：`resolve_username` 是查号台，`_find_msg_table_for_user` 是确定对方在哪个线路，最后才建立连接。
-
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant C as Claude
-    participant T as get_chat_history
-    participant R as resolve_username
-    participant F as _find_msg_table
-    participant D as DBCache
-    
-    U->>C: "看看AI交流群在聊啥"
-    C->>T: 调用工具(chat_name="AI交流群")
-    
-    T->>R: resolve_username("AI交流群")
-    R->>R: 加载联系人缓存
-    R->>R: 模糊匹配昵称/备注/wxid
-    R-->>T: 返回 wxid_xxxxx@chatroom
-    
-    T->>F: _find_msg_table_for_user(wxid)
-    loop 遍历所有 message_N.db
-        F->>D: get(db_path) 确保解密
-        D-->>F: 返回临时文件路径
-        F->>F: 查询 sqlite_master 表
-        F->>F: 检查 Chat_xxxxx 表存在？
-    end
-    F-->>T: 返回 (db_path, table_name)
-    
-    T->>D: 执行 SELECT * FROM Chat_xxxxx
-    D-->>T: 消息列表
-    
-    T->>T: _parse_message_content 解析每条消息
-    T-->>C: 格式化文本
-    C->>C: 分析话题、总结要点
-    C-->>U: "AI交流群今天主要讨论三件事：1. Claude 的新功能..."
-```
-
-### 工具三：search_messages —— 全文检索的威力
-
-这是最强大的工具之一：**跨所有聊天记录的关键词搜索**。
-
-想象你要找三个月前某人说过的某个链接，但忘了在哪个群。传统方式是逐个群翻历史——噩梦。而 `search_messages` 会：
-
-1. 遍历所有 `message_N.db` 文件
-2. 在每个数据库的 `MSG` 表中搜索 `content LIKE '%keyword%'`
-3. 关联联系人信息，显示群名/私聊对象
-4. 按时间排序返回
-
-```mermaid
-graph TD
-    A[search_messages<br/>keyword="claude"] --> B[遍历所有 message_N.db]
-    
-    B --> C1[message_0.db]
-    B --> C2[message_1.db]
-    B --> Cn[message_15.db]
-    
-    C1 --> D1[MSG 表全文搜索]
-    C2 --> D2[MSG 表全文搜索]
-    Cn --> Dn[MSG 表全文搜索]
-    
-    D1 --> E[合并结果]
-    D2 --> E
-    Dn --> E
-    
-    E --> F[关联联系人信息]
-    F --> G[格式化输出]
-    
-    style A fill:#e1f5ff
-    style G fill:#fff4e1
-```
-
-⚠️ **性能提示**：这是计算密集型操作。如果搜"的"这种常见字，可能扫描数百万条记录。实际使用中建议配合合理的 `limit` 参数，就像告诉寻回犬"找最近的 20 个就行，别翻遍整座山"。
-
----
-
-## 真实对话示例：AI 如何串联多个工具
-
-单看工具说明不够直观。让我们追踪一次**真实的 AI 对话流程**，看 Claude 如何像经验丰富的秘书一样，自主组合工具完成任务。
-
-```
-用户：帮我分析一下"技术交流群"这周的情况
-
-Claude 思考：
-→ 需要获取该群的历史消息
-→ 可能需要先看最近会话确认群名准确性
-→ 获取足够样本后进行分析统计
-
-步骤 1：确认群存在并获取记录
-─────────────────────────────
-调用 get_chat_history(chat_name="技术交流群", limit=200)
-
-返回：200 条消息，时间跨度 7 天
-
-步骤 2：（自动）分析数据
-─────────────────────────────
-Claude 内部处理：
-- 按日期分组统计每日消息量
-- 提取高频关键词（AI、Python、报错、求助）
-- 识别活跃用户（发言次数排名）
-- 归纳话题类别
-
-步骤 3：生成结构化报告
-─────────────────────────────
-无需额外工具调用，直接输出：
-
-## 技术交流群本周分析
-
-### 📊 活跃度趋势
-周一 ████████ 45 条
-周二 ██████████████ 82 条  ← 峰值（某开源工具发布）
-周三 ██████ 38 条
-周四 ██████████ 56 条
-周五 ███████ 42 条
-
-### 🔥 热门话题
-| 话题 | 提及次数 | 关键讨论点 |
-|:---|:---|:---|
-| MCP 协议 | 23 | 如何给本地服务添加 AI 接口 |
-| Python 异步 | 18 | asyncio 踩坑与最佳实践 |
-| 微信机器人 | 15 | 封号风险与替代方案 |
-
-### 👥 本周 KOL
-1. @老张（28 条）- 主要分享技术文章
-2. @小李（19 条）- 解答问题较多
-3. @Alice（15 条）- 提出有价值的问题
-
-### 💡 值得关注
-- 周二关于 MCP 的讨论产生了 3 个可运行的代码示例
-- 有人分享了尚未公开的 API 文档（建议备份）
-```
+DBCache 使用 Python 的 `tempfile.mkstemp()` 创建临时文件，这就像酒店客房的"一次性房卡"——系统知道每个文件是谁创建的、什么时候该清理。更妙的是，通过 `atexit.register(_cache.cleanup)`，程序退出时会自动"退房"，删除所有临时文件。
 
 ```mermaid
 flowchart LR
-    subgraph 用户层["用户层"]
-        A[自然语言请求<br/>"分析技术交流群"]
+    subgraph 程序运行时
+        A[首次查询 msg/A.db] --> B[创建 /tmp/tmp_a1b2c3]
+        C[再次查询 msg/A.db] --> D[复用 /tmp/tmp_a1b2c3]
+        E[查询 msg/B.db] --> F[创建 /tmp/tmp_x9y8z7]
     end
     
-    subgraph AI决策层["Claude 决策层"]
-        B[意图识别<br/>需要历史数据+分析]
-        C[工具选择<br/>get_chat_history]
-        D[结果整合<br/>统计分析+可视化]
+    subgraph 程序退出时
+        G[atexit 触发 cleanup] --> H[删除 /tmp/tmp_a1b2c3]
+        H --> I[删除 /tmp/tmp_x9y8z7]
     end
-    
-    subgraph 工具执行层["MCP 工具层"]
-        E[get_chat_history]
-        F[DBCache 缓存]
-        G[SQLite 查询]
-    end
-    
-    subgraph 数据层["微信数据层"]
-        H[加密数据库]
-    end
-    
-    A --> B
-    B --> C
-    C --> E
-    E --> F
-    F -->|需要时解密| H
-    F --> G
-    G --> E
-    E --> D
-    D -->|自然语言报告| A
-    
-    style AI决策层 fill:#e1f5ff
-    style 用户层 fill:#fff4e1
 ```
 
-注意整个过程中**用户只发了一句话**，其余都是 Claude 自主规划、调用工具、整合结果。这就是 MCP 的价值：**把复杂的数据操作封装成简单的意图表达**。
+这种设计有个小陷阱：如果程序被强制终止（比如 `kill -9`），就像客人没办手续直接跑路，临时文件会留在原地。长期运行的生产环境需要注意磁盘监控。
 
 ---
 
-## 配置与启动：让 Claude 接上你的微信
+## 5.3 FastMCP：让 AI 拥有"工具箱"
 
-理论讲完，来看实际操作。你需要做三件事：
+### 5.3.1 什么是 MCP？
 
-### 第一步：准备密钥配置文件
+**MCP（Model Context Protocol）** 是 Anthropic 推出的开放协议，你可以把它理解为 AI 世界的"USB 接口标准"。就像你的键盘、鼠标、U盘都能插到同一个 USB 口上，任何支持 MCP 的 AI 助手都能调用遵循 MCP 规范的工具。
 
-确保 `find_all_keys.py` 已经运行过，生成了 `all_keys.json`。这是整个系统的"钥匙串"。
-
-### 第二步：创建 config.json
-
-```json
-{
-  "db_dir": "D:\\WeChat Files\\wxid_xxxxxx",
-  "keys_file": "all_keys.json",
-  "decrypted_dir": "./decrypted"
-}
-```
-
-- `db_dir`：你的微信数据目录（通常在 `WeChat Files` 下）
-- `keys_file`：密钥文件路径
-- `decrypted_dir`：可选，预解密目录（如果不常用实时功能）
-
-### 第三步：注册到 Claude Code
-
-```bash
-# 安装依赖
-pip install mcp pycryptodome
-
-# 注册 MCP 服务器
-claude mcp add wechat -- python C:\path\to\mcp_server.py
-
-# 验证连接
-claude
-> 测试一下微信连接
-```
-
-```mermaid
-flowchart TD
-    A[准备阶段] --> B[运行 find_all_keys.py<br/>生成 all_keys.json]
-    B --> C[创建 config.json<br/>配置路径]
-    C --> D[注册 MCP 服务器<br/>claude mcp add]
-    
-    D --> E[使用阶段]
-    E --> F[启动 Claude Code]
-    F --> G[自然语言对话<br/>"看看微信最近消息"]
-    G --> H[MCP 协议通信]
-    H --> I[mcp_server.py 执行]
-    I --> J[返回结果给 Claude]
-    J --> K[Claude 生成回答]
-    
-    style A fill:#ffe1e1
-    style E fill:#e1f5ff
-    style K fill:#fff4e1
-```
-
----
-
-## 设计权衡：为什么选择这些方案？
-
-`mcp_server` 的几个关键设计决策值得深思：
-
-| 决策 | 选择 | 放弃的方案 | 理由 |
-|:---|:---|:---|:---|
-| **缓存粒度** | 整个数据库文件 | 单表缓存或行级缓存 | 微信查询通常涉及全表扫描，文件级最均衡 |
-| **缓存键** | 相对路径 + mtime | 内容哈希或固定 TTL | mtime 简单可靠，毫秒级检测成本 |
-| **临时文件 vs 内存数据库** | 磁盘临时文件 | `:memory:` SQLite | 复用 SQLite 文件缓存，多次查询更快 |
-| **联系人缓存** | 全局变量，永久有效 | 随数据库缓存过期 | 联系人变化极少，简化实现 |
-| **并发模型** | 单线程（默认） | 多线程锁或异步 | Python GIL 限制，当前场景足够 |
-
-特别是**临时文件 vs 内存数据库**的选择：虽然内存看起来更快，但 SQLite 的 `:memory:` 模式每次连接都是独立的。如果你查询"技术交流群"的历史，然后想再看"家庭群"，又要重新解密加载。而临时文件让 SQLite 自己的页缓存发挥作用，第二次查询同一数据库几乎是瞬时的——就像备好的菜放在台面上，随时可取。
-
----
-
-## 回顾与展望
-
-至此，五章内容完整覆盖了 `wechat-decrypt` 的全貌：
+**FastMCP** 则是这个协议的 Python 实现，类似于 Flask 之于 HTTP——让你用几行代码就能搭建一个 MCP 服务。
 
 ```mermaid
 graph TD
-    A[第一章：项目概览] --> B[第二章：密钥提取]
-    B --> C[第三章：数据流动]
-    C --> D[第四章：实时监控]
-    C --> E[第五章：AI 查询]
+    A[Claude AI] -->|MCP 协议| B[FastMCP 服务器]
+    B --> C[get_chat_history]
+    B --> D[search_messages]
+    B --> E[get_contacts]
+    B --> F[get_recent_sessions]
     
-    B -.->|all_keys.json| D
-    B -.->|all_keys.json| E
+    C --> G[DBCache]
+    D --> G
+    E --> G
+    F --> G
+    
+    G --> H[加密微信数据库]
     
     style A fill:#e1f5ff
     style B fill:#fff4e1
-    style C fill:#ffe1e1
-    style D fill:#f0ffe1
-    style E fill:#e1f5ff
+    style H fill:#ffe1e1
 ```
 
-| 章节 | 核心能力 | 类比 |
+### 5.3.2 工具的定义与注册
+
+在 mcp_server 中，定义一个 MCP 工具就像写一个普通的 Python 函数，只是加上 `@mcp.tool()` 装饰器：
+
+```python
+from fastmcp import FastMCP
+
+mcp = FastMCP("wechat")
+
+@mcp.tool()
+def get_chat_history(chat_name: str, limit: int = 50) -> str:
+    """
+    获取指定聊天的消息历史
+    
+    Args:
+        chat_name: 聊天名称、备注名或群名
+        limit: 返回的最大消息数量
+    """
+    # 1. 将"张三"解析为 wxid_xxxxxxxx
+    username = resolve_username(chat_name)
+    
+    # 2. 找到对应的数据库文件
+    db_rel_key = _find_msg_table_for_user(username)
+    
+    # 3. 通过 DBCache 获取解密后的数据库路径
+    decrypted_path = _cache.get(db_rel_key)
+    
+    # 4. 执行 SQL 查询
+    messages = query_messages(decrypted_path, username, limit)
+    
+    # 5. 格式化为人类可读的文本
+    return format_messages(messages)
+```
+
+注意 docstring 的重要性——**这就是 AI 理解这个工具的"说明书"**。当用户说"帮我看看和张三的聊天记录"时，Claude 会阅读这些描述，判断应该调用 `get_chat_history`，并传入 `chat_name="张三"`。
+
+### 5.3.3 四大核心工具
+
+| 工具名 | 作用 | 使用场景 |
 |:---|:---|:---|
-| 第一章 | 理解问题与架构 | 地图与指南针 |
-| 第二章 | 内存扫描取密钥 | 开锁匠的技巧 |
-| 第三章 | 解密与数据流转 | 物流运输系统 |
-| 第四章 | 实时监控推送 | 电视台直播 |
-| **第五章** | **AI 自然语言查询** | **私人智能助理** |
+| `get_recent_sessions` | 列出最近的聊天会话 | "最近谁找我了？" |
+| `get_chat_history` | 获取特定聊天的完整记录 | "我和张三上周聊了什么？" |
+| `search_messages` | 全文搜索所有聊天记录 | "搜一下谁提到过'项目延期'" |
+| `get_contacts` | 查询联系人信息 | "找一下姓李的同事" |
 
-`mcp_server` 的独特价值在于：**它把前三章构建的基础设施，转化为普通人都能使用的自然语言接口**。你不需要懂 SQL、不需要知道数据库在哪、甚至不需要记得准确的群名——就像跟真人助理说话一样，描述你的需求，剩下的交给 AI。
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Claude as Claude AI
+    participant MCP as mcp_server
+    participant Cache as DBCache
+    participant DB as 微信数据库
+    
+    User->>Claude: "帮我看看工作群最近在聊什么"
+    
+    Claude->>Claude: 分析意图 → 需要获取群聊历史
+    
+    Claude->>MCP: 调用 get_chat_history(chat_name="工作群")
+    
+    MCP->>MCP: resolve_username("工作群") → "xxxx@chatroom"
+    
+    MCP->>Cache: get("msg/message_xxx.db")
+    alt 缓存命中
+        Cache-->>MCP: 返回临时文件路径
+    else 需要解密
+        Cache->>DB: 读取加密文件
+        Cache->>Cache: full_decrypt + decrypt_wal
+        Cache-->>MCP: 返回新临时文件路径
+    end
+    
+    MCP->>MCP: 执行 SQL 查询消息表
+    
+    MCP-->>Claude: 返回格式化消息列表
+    
+    Claude->>Claude: 分析消息内容，生成摘要
+    
+    Claude-->>User: "工作群最近主要讨论三件事：1. Q4规划... 2. 团建安排... 3. ..."
+```
 
-未来可以探索的方向：
-- **语义搜索**：不只是关键词匹配，而是理解消息含义（需要向量数据库）
-- **跨会话关联**："找出所有提到'合同'的上下文，无论哪个群"
-- **主动提醒**：结合 monitor_web 的实时能力，让 AI 在特定条件触发时主动汇报
+---
 
-但现在，你已经拥有了一套完整的、从加密数据到 AI 助手的个人微信数据分析系统。去试试吧，对你的 Claude 说：**"帮我看看微信"**——魔法就此开始。
+## 5.4 实战：一次完整的对话流程
+
+让我们跟踪一个真实的交互场景，看看各组件如何协作：
+
+### 场景：用户想了解某个技术群的讨论
+
+**用户输入**：`> 帮我看看AI交流群昨天有没有聊Claude`
+
+**Step 1: 意图识别**
+Claude 分析这句话，确定需要：
+- 找到名为"AI交流群"的聊天
+- 获取其消息历史
+- 筛选包含"Claude"的内容
+
+**Step 2: 工具选择与调用**
+Claude 选择 `get_chat_history`，参数：`chat_name="AI交流群"`
+
+**Step 3: 用户名解析**
+```python
+resolve_username("AI交流群") 
+# 内部逻辑：遍历联系人缓存，匹配昵称/备注
+# 返回： "1234567890@chatroom"
+```
+
+**Step 4: 数据库定位**
+```python
+_find_msg_table_for_user("1234567890@chatroom")
+# 返回： "msg/MultiMessage_1234.db"
+```
+
+**Step 5: 缓存检查与解密**
+```python
+_cache.get("msg/MultiMessage_1234.db")
+# 检查：该文件的 mtime 是否与缓存记录一致？
+# 假设：昨晚有新消息，WAL 文件已更新 → 缓存失效
+# 执行：full_decrypt() + decrypt_wal() → 新的临时文件
+```
+
+**Step 6: 数据查询**
+```sql
+SELECT * FROM MSG 
+WHERE StrTalker = '1234567890@chatroom' 
+AND CreateTime > datetime('now', '-1 day')
+ORDER BY CreateTime DESC
+```
+
+**Step 7: 结果过滤与格式化**
+在 Python 层扫描消息内容，找出包含"Claude"或相关讨论的条目，格式化为：
+
+```
+[昨天 14:32] 张三: Claude 3.5 Sonnet 的代码能力真的强
+[昨天 15:10] 李四: 但是上下文长度还是不如 GPT-4
+[昨天 16:45] 王五: 我测试了 Claude 的新功能...
+```
+
+**Step 8: 智能总结**
+Claude 基于原始消息，生成最终回答：
+
+> AI交流群昨天确实讨论了 Claude，主要集中在三个方面：
+> 1. **代码能力**：张三分享了用 Claude 写 Python 脚本的经历
+> 2. **上下文长度**：李四对比了 Claude 与 GPT-4 的长文本处理能力
+> 3. **新功能测试**：王五提到了某个刚发布的 beta 特性
+>
+> 整体氛围比较技术向，没有涉及具体的使用价格或订阅问题。
+
+---
+
+## 5.5 设计权衡：为什么选择这条路？
+
+### 5.5.1 临时文件 vs 内存数据库
+
+| 方案 | 优点 | 缺点 |
+|:---|:---|:---|
+| **临时文件（选中）** | 复用 SQLite 的文件缓存；多次查询同一数据库无需重复解密；内存占用低 | 磁盘 I/O 开销；需要管理文件生命周期 |
+| 内存数据库 | 速度极快；无残留文件风险 | 每次查询都需重新解密；大数据库会撑爆内存 |
+
+**决策理由**：微信数据库可能很大（数 GB），但查询模式通常是"一段时间内反复查同一个库"。临时文件让 SQLite 自己管理页面缓存，反而更高效。
+
+### 5.5.2 mtime 检测 vs 固定过期时间
+
+| 方案 | 优点 | 缺点 |
+|:---|:---|:---|
+| **mtime 检测（选中）** | 精确反映文件变化；无不必要的重新解密 | 依赖系统时间准确性；touch 操作会导致误刷新 |
+| 固定 TTL（如5分钟） | 实现简单 | 可能使用过期的 WAL 数据；或过早重新解密 |
+
+**决策理由**：微信的数据库更新频率不确定，可能几分钟一条消息，也可能几小时没动静。mtime 是文件系统提供的"免费信号"，精准且零开销。
+
+### 5.5.3 全局联系人缓存 vs 随数据库刷新
+
+联系人数据（`contact.db`）被设计为**永久缓存**，只在服务启动时加载一次。
+
+```python
+_CONTACTS_CACHE = None  # 全局变量
+
+def _load_contacts():
+    global _CONTACTS_CACHE
+    if _CONTACTS_CACHE is not None:
+        return _CONTACTS_CACHE  # 直接返回，不再查询
+    
+    # 首次加载，解密 contact.db 并缓存
+    _CONTACTS_CACHE = {...}
+    return _CONTACTS_CACHE
+```
+
+**权衡**：联系人变动不频繁，但每次查询都需要将"张三"映射为"wxid_xxx"。永久缓存避免了重复的联系人数据库解密，代价是新增联系人需要重启服务才能识别。
+
+---
+
+## 5.6 性能调优建议
+
+### 5.6.1 首次查询慢？这是正常的
+
+第一次访问某个数据库时，必须完成完整的解密流程：
+
+```mermaid
+flowchart LR
+    A[加密文件<br/>500MB] -->|AES-256-CBC<br/>逐页解密| B[临时文件<br/>500MB]
+    C[WAL 文件<br/>50MB] -->|合并补丁| B
+    B --> D[SQLite 连接<br/>建立索引缓存]
+    
+    style A fill:#ffe1e1
+    style B fill:#fff4e1
+    style D fill:#e1f5ff
+```
+
+这个过程可能需要几秒到几十秒，取决于数据库大小和磁盘速度。但后续查询同一数据库几乎是瞬时的——这就是缓存的价值。
+
+### 5.6.2 搜索全部消息的代价
+
+`search_messages` 工具会**遍历所有消息数据库文件**：
+
+```python
+for db_file in all_message_dbs:
+    decrypted = _cache.get(db_file)  # 可能触发解密
+    results.extend(query_keyword(decrypted, keyword))
+```
+
+如果用户有几十个聊天数据库，且都是首次访问，这个操作会非常慢。建议：
+- 使用合理的 `limit` 参数
+- 优先尝试 `get_chat_history` 定位到特定聊天后再搜索
+
+### 5.6.3 并发注意事项
+
+当前实现**没有考虑线程安全**。如果多个请求同时到达，可能：
+- 重复解密同一个数据库（浪费资源）
+- 临时文件竞争（极端情况下）
+
+在生产环境部署时，建议：
+- 使用单线程模式，或
+- 在 DBCache 层添加简单的互斥锁
+
+---
+
+## 5.7 本章小结
+
+```mermaid
+mindmap
+  root((mcp_server<br/>自然语言查询))
+    DBCache 智能缓存
+      mtime 双重检测
+      临时文件生命周期
+      WAL 自动合并
+    FastMCP 工具层
+      声明式工具定义
+      docstring 即文档
+      四大利器：会话/历史/搜索/联系人
+    性能与体验平衡
+      首次解密 vs 后续复用
+      精确新鲜度 vs 低开销
+      功能完整 vs 实现简洁
+```
+
+**mcp_server 模块的本质，是在"安全地访问加密数据"和"高效地响应查询"之间架起一座桥。** 
+
+DBCache 像一位精明的管家，记住每样东西的位置和新鲜程度，避免重复劳动；FastMCP 像一位翻译官，把人类的自然语言转化为精确的数据库操作。两者结合，让你的微信数据终于能被 AI 理解和运用——不是通过破解或绕过安全机制，而是通过巧妙地利用系统已有的设计（内存中的派生密钥、SQLite 的 WAL 机制、文件系统的 mtime），在尊重边界的前提下实现目标。
+
+这正是 wechat-decrypt 项目的工程哲学：**理解系统的运作方式，找到优雅的杠杆点，用最小的侵入性获得最大的效用。**
+
+---
+
+## 下一步
+
+至此，你已经完整了解了 wechat-decrypt 的三个核心模块：
+
+| 章节 | 模块 | 核心技能 |
+|:---|:---|:---|
+| 第二章 | find_all_keys | 内存扫描与密钥提取 |
+| 第四章 | monitor_web | 实时数据流与 SSE 推送 |
+| 第五章 | mcp_server | 智能缓存与 AI 工具接口 |
+
+建议你现在：
+1. **动手实践**：配置 config.json，启动 mcp_server，用 Claude Code 实际查询自己的微信数据
+2. **深入源码**：阅读 `mcp_server.py` 中的 `_parse_message_content` 等辅助函数，了解消息格式的解析细节
+3. **扩展功能**：尝试添加新的 MCP 工具，比如按时间范围筛选消息、统计聊天活跃度等
+
+感谢阅读这份指南。愿你的数据探索之旅顺利！🔓

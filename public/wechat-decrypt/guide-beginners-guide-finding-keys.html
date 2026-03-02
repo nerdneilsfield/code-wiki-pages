@@ -3,12 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>第二章：How to Steal the Keys from Memory</title>
+<title>第二章：如何从内存中&quot;偷&quot;取密钥</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
 <script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
 <style>
@@ -101,7 +104,7 @@ article img{max-width:100%;border-radius:var(--r);}
   <nav class="sb" id="sb">
   <div class="nav-meta">
     <b>Model:</b> CP-qwen-kimi-k2.5<br>
-    <b>Generated:</b> 2026-03-02T19:25<br>
+    <b>Generated:</b> 2026-03-02T23:55<br>
     <b>Components:</b> 50<br>
     <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
   </div>
@@ -176,384 +179,223 @@ article img{max-width:100%;border-radius:var(--r);}
   <main class="main">
     <div class="cw">
       <article id="mc">
-<h1>第二章：How to Steal the Keys from Memory</h1>
-<h2>2.1 为什么我们需要&quot;偷&quot;密钥？</h2>
-<p>想象你有一个保险箱，里面存着珍贵的聊天记录。微信就是这个保险箱的制造商——他们用了最坚固的锁（AES-256加密），而且钥匙的打造过程极其繁琐：需要把原始密码在火上锻造25万6千次（PBKDF2算法），才能出一把能开锁的钥匙。</p>
-<p>传统的破解思路是：&quot;我慢慢打造一把钥匙&quot;。但这太慢了——打造一把钥匙可能要几分钟，而你有几十个数据库需要解锁。</p>
-<p><code>find_all_keys</code>模块的思路完全不同：<strong>既然微信自己已经打造了钥匙，而且正拿在手里（存在内存里），我们为什么不直接&quot;借&quot;过来用呢？</strong></p>
-<p>这就像你想进一个房间，与其自己配钥匙，不如趁主人开门的时候，瞥一眼他手里的钥匙长什么样。</p>
+<h1>第二章：如何从内存中&quot;偷&quot;取密钥</h1>
+<p>想象一下，你面前有一个保险箱，里面装着微信的所有聊天记录。这个保险箱用的是军用级别的加密——AES-256，而且钥匙是通过一种叫 PBKDF2 的算法生成的，需要迭代 256,000 次才能算出来。如果你用普通电脑暴力破解这把钥匙，可能需要几百年。</p>
+<p>但如果我们换个思路呢？如果保险箱的主人——也就是正在运行的微信程序——已经把钥匙放在桌上（内存里）了呢？</p>
+<p>这就是 <code>find_all_keys</code> 模块的核心思想：<strong>与其硬撬保险箱，不如直接拿走主人随手放在桌上的钥匙</strong>。</p>
+<h2>为什么传统方法行不通？</h2>
+<p>在深入技术细节之前，让我们先理解微信的数据库加密有多&quot;变态&quot;。</p>
 <div class="mermaid">flowchart LR
-    subgraph "传统方法<br/>暴力破解"
-        A[用户密码] -->|PBKDF2<br/>256,000次迭代| B[派生密钥]
-        B --> C[解密数据库]
-        style A fill:#ffe1e1
-        style B fill:#ffe1e1
-    end
-    
-    subgraph "我们的方法<br/>内存提取"
-        D[微信进程内存] -->|扫描 x'...' 模式| E[提取缓存密钥]
-        E --> F[直接解密]
-        style D fill:#e1f5ff
-        style E fill:#e1f5ff
-    end
-    
-    C --> G[结果相同]
-    F --> G
-</div>
-<p><strong>流程说明</strong>：左边是&quot;笨办法&quot;——从密码硬算密钥，耗时耗力；右边是我们的&quot;聪明办法&quot;——直接从微信内存里找到已经算好的密钥，一步到位。</p>
-<hr />
-<h2>2.2 微信的密钥藏在哪里？</h2>
-<p>要理解怎么找密钥，先得知道微信怎么存密钥。</p>
-<p>微信用了一个叫<strong>WCDB</strong>的数据库引擎（你可以把它想象成SQLCipher的&quot;微信定制版&quot;）。WCDB有个特点：<strong>它很懒，或者说很聪明</strong>——每次打开数据库时，它会花大力气算出密钥，然后把密钥存在内存里，下次直接用，不再重复计算。</p>
-<p>这些缓存在内存里的密钥，格式非常规律：<code>x'后面跟着64到192个十六进制字符'</code>。就像这样：</p>
-<pre><code>x'a3f7b2d8e9c1...（共64或96位十六进制）'
-</code></pre>
-<p>这个<code>x'...'</code>格式是WCDB特有的标记，就像每个员工工牌上都有公司logo一样。我们的任务就是：<strong>在微信进程的内存海洋里，找到所有带这个&quot;logo&quot;的字符串</strong>。</p>
-<div class="mermaid">graph TD
-    A[微信进程内存] --> B[枚举可读内存区域]
-    B --> C[读取内存内容]
-    C --> D[正则匹配 x'[hex]{64,192}']
-    D --> E{是否匹配?}
-    E -->|是| F[提取候选密钥]
-    E -->|否| G[继续扫描]
-    F --> H[验证密钥有效性]
-    H --> I{验证通过?}
-    I -->|是| J[保存到 keys.json]
-    I -->|否| G
-    G --> B
+    A[你的微信密码] -->|PBKDF2<br/>256,000次迭代| B[派生密钥]
+    B -->|+ salt| C[最终加密密钥]
+    C -->|AES-256-CBC| D[加密数据库]
     
     style A fill:#e1f5ff
-    style J fill:#d4edda
+    style D fill:#ffe1e1
 </div>
-<p><strong>流程说明</strong>：这是一个循环挖掘的过程——先划定搜索范围（可读内存），然后一块块翻找（读取内存），看到像钥匙的就拿出来比对（正则匹配），最后试开一下保险箱确认真假（验证有效性）。</p>
-<hr />
-<h2>2.3 内存扫描的技术细节</h2>
-<h3>2.3.1 如何&quot;进入&quot;微信的内存空间？</h3>
-<p>Windows系统有一套API专门用来操作进程内存，就像物业有万能钥匙可以进任何房间一样。我们用三个核心函数：</p>
+<p>想象你有一把万能钥匙胚子（密码），但要让它能打开特定的门，你需要把它放进一台机器里磨 256,000 次——每次打磨都会改变钥匙的形状。最后，你还要往钥匙上撒一把特殊的盐（salt），才能得到真正能开锁的钥匙。</p>
+<p>这个过程设计得如此复杂，就是为了防止有人偷走你的数据库文件后能快速破解。即使是最快的显卡，每秒也只能尝试几千次派生，想要试完所有可能性几乎是不可能的。</p>
+<h2>微信的&quot;疏忽&quot;：WCDB 的密钥缓存</h2>
+<p>但微信团队自己也需要快速访问这些数据。他们不可能每次查询聊天记录都重新计算 256,000 次 PBKDF2——那会让微信卡成 PPT。</p>
+<p>于是他们做了一个合理的工程妥协：<strong>在内存中缓存已经派生好的密钥</strong>。</p>
+<p>微信使用的数据库引擎叫 WCDB（WeChat DataBase），它是 SQLCipher 的一个封装。当微信第一次打开某个数据库时，WCDB 会完成完整的密钥派生过程，然后把结果以特定格式缓存在内存中：</p>
+<pre><code>x'1234567890abcdef...'  ← 96位十六进制字符串
+</code></pre>
+<p>这串字符就像一张贴在显示器边缘的便利贴，上面写着：&quot;数据库 X 的钥匙是……&quot;</p>
+<p>我们的任务，就是找到这张便利贴。</p>
+<h2>内存扫描：在数十亿字节中寻找线索</h2>
+<p>现在想象一下：微信进程的内存空间就像一个巨大的图书馆，有几十亿本书（字节）。我们要找的便利贴就夹在某本书的某页里，但我们不知道具体位置。</p>
+<div class="mermaid">sequenceDiagram
+    participant User as 用户
+    participant Finder as find_all_keys
+    participant WinAPI as Windows API
+    participant WeChat as 微信进程
+    
+    User->>Finder: 运行脚本
+    Finder->>WinAPI: tasklist 找微信PID
+    WinAPI-->>Finder: 返回进程ID
+    Finder->>WinAPI: OpenProcess(读取权限)
+    WinAPI-->>Finder: 进程句柄
+    
+    loop 遍历整个地址空间
+        Finder->>WinAPI: VirtualQueryEx(当前地址)
+        WinAPI-->>Finder: 内存区域信息
+        alt 区域可读且已提交
+            Finder->>WinAPI: ReadProcessMemory
+            WinAPI->>WeChat: 读取内存页
+            WeChat-->>WinAPI: 返回数据
+            WinAPI-->>Finder: 内存内容
+            Finder->>Finder: 正则匹配 x'...' 模式
+        end
+    end
+    
+    Finder->>User: 输出 all_keys.json
+</div>
+<h3>第一步：定位目标</h3>
+<p>首先，我们需要找到微信的主进程。电脑上可能同时运行着多个 <code>Weixin.exe</code>（比如小程序、视频号等子进程），我们选择<strong>内存占用最大的那个</strong>——这通常是主进程，就像在一群人中找块头最大的那个一样简单直接。</p>
+<h3>第二步：绘制地图</h3>
+<p>拿到进程 ID 后，我们需要了解这个&quot;图书馆&quot;的布局。Windows 提供一个叫 <code>VirtualQueryEx</code> 的 API，可以告诉我们：</p>
+<ul>
+<li>这块内存从哪个地址开始（书架编号）</li>
+<li>有多大（多少本书）</li>
+<li>能不能读（是否对外开放）</li>
+<li>是什么状态（是否真的存放了东西）</li>
+</ul>
+<div class="mermaid">graph TD
+    subgraph "微信进程虚拟地址空间"
+        A[0x00000000<br/>不可访问] 
+        B[0x00400000<br/>代码段<br/>只读]
+        C[0x10000000<br/>堆内存<br/>✓ 重点扫描]
+        D[0x7FFE0000<br/>系统保留<br/>跳过]
+        E[0x7FFFFFFFFFFF<br/>64位上限]
+    end
+    
+    style C fill:#90EE90
+    style A fill:#FFB6C1
+    style D fill:#FFB6C1
+</div>
+<p>我们只关心那些<strong>已提交（MEM_COMMIT）<strong>且</strong>可读</strong>的区域——这些地方才真正存放着数据。空书架和禁入区域我们直接跳过。</p>
+<h3>第三步：逐页翻阅</h3>
+<p>对于每个可读区域，我们使用 <code>ReadProcessMemory</code> 把内容读出来，然后用一个精心设计的正则表达式搜索：</p>
+<pre><code class="language-python">pattern = rb&quot;x'([0-9a-fA-F]{64,192})'&quot;
+</code></pre>
+<p>这个模式是什么意思呢？</p>
+<ul>
+<li><code>x'</code> 是 WCDB 存储十六进制数据的独特前缀，就像便利贴上的公司 Logo</li>
+<li><code>[0-9a-fA-F]</code> 表示十六进制字符（0-9, a-f, A-F）</li>
+<li><code>{64,192}</code> 限定长度在 64 到 192 个字符之间</li>
+</ul>
+<p>为什么是 64 到 192？因为我们实际发现了三种不同的存储格式：</p>
 <table>
 <thead>
 <tr>
-<th style="text-align:left">函数</th>
-<th style="text-align:left">作用</th>
-<th style="text-align:left">日常类比</th>
+<th style="text-align:left">格式</th>
+<th style="text-align:left">长度</th>
+<th style="text-align:left">含义</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align:left"><code>OpenProcess</code></td>
-<td style="text-align:left">获取进入某个进程的&quot;许可证&quot;</td>
-<td style="text-align:left">向物业申请进某户人家的许可</td>
+<td style="text-align:left">标准格式</td>
+<td style="text-align:left">96</td>
+<td style="text-align:left">32字节 enc_key + 16字节 salt</td>
 </tr>
 <tr>
-<td style="text-align:left"><code>VirtualQueryEx</code></td>
-<td style="text-align:left">查看内存区域的&quot;房产证信息&quot;</td>
-<td style="text-align:left">查这户人家的房间布局和用途</td>
+<td style="text-align:left">仅密钥</td>
+<td style="text-align:left">64</td>
+<td style="text-align:left">只有 32字节 enc_key</td>
 </tr>
 <tr>
-<td style="text-align:left"><code>ReadProcessMemory</code></td>
-<td style="text-align:left">实际读取内存内容</td>
-<td style="text-align:left">进门翻箱倒柜找东西</td>
+<td style="text-align:left">超长格式</td>
+<td style="text-align:left">&gt;96</td>
+<td style="text-align:left">包含额外元数据</td>
 </tr>
 </tbody>
 </table>
-<p>这里有个关键概念叫<strong>MBI（Memory Basic Information，内存基本信息）</strong>。你可以把它想象成每个内存区域的&quot;身份证&quot;，上面记录着：</p>
-<ul>
-<li><strong>BaseAddress</strong>：这块内存从哪开始（门牌号）</li>
-<li><strong>RegionSize</strong>：有多大（房间面积）</li>
-<li><strong>Protect</strong>：保护属性（能不能进、能不能看）</li>
-<li><strong>State</strong>：状态（是不是正在使用）</li>
-</ul>
-<div class="mermaid">classDiagram
-    class MBI {
-        +uint64 BaseAddress
-        +uint64 AllocationBase
-        +DWORD AllocationProtect
-        +uint64 RegionSize
-        +DWORD State
-        +DWORD Protect
-        +DWORD Type
-    }
-    
-    class "内存区域筛选条件" {
-        +State == MEM_COMMIT ✓
-        +Protect 属于 READABLE ✓
-        +0 < Size < 500MB ✓
-    }
-    
-    MBI --> "内存区域筛选条件" : 被检查
-</div>
-<p><strong>类图说明</strong>：MBI是Windows系统返回的内存信息结构，我们通过检查它的State（是否已提交）、Protect（是否可读）、RegionSize（大小是否合理）来决定要不要扫描这块区域。</p>
-<h3>2.3.2 遍历内存：从0到&quot;天涯海角&quot;</h3>
-<p>64位Windows系统的理论寻址空间非常大，上限是<code>0x7FFFFFFFFFFF</code>（约128TB）。但我们不会真的全部扫一遍——很多区域是空的或者不可读的。</p>
-<p><code>enum_regions</code>函数的工作方式很像<strong>扫地机器人</strong>：</p>
-<ol>
-<li>从地址0开始</li>
-<li>用<code>VirtualQueryEx</code>查询当前位置是什么区域</li>
-<li>记录区域信息，跳到下一个区域</li>
-<li>重复直到走遍整个地址空间</li>
-</ol>
-<div class="mermaid">sequenceDiagram
-    participant Main as 主程序
-    participant WinAPI as Windows API
-    participant Mem as 微信内存
-    
-    Main->>WinAPI: VirtualQueryEx(地址=0)
-    WinAPI-->>Mem: 查询内存信息
-    Mem-->>WinAPI: 返回MBI结构
-    WinAPI->>Main: 区域A的信息
-    
-    Main->>WinAPI: VirtualQueryEx(地址=区域A结束)
-    WinAPI-->>Mem: 查询下一区域
-    Mem-->>WinAPI: 返回MBI结构
-    WinAPI->>Main: 区域B的信息
-    
-    Note over Main,Mem: 循环直到到达地址空间上限
-</div>
-<p><strong>时序图说明</strong>：这是一个典型的&quot;探路&quot;过程——问系统&quot;这里是什么&quot;，系统回答后，再问&quot;下一个是什么&quot;，直到走完所有地方。</p>
-<h3>2.3.3 大海捞针：正则匹配</h3>
-<p>找到可读内存区域后，我们要读取其中的内容，然后用正则表达式搜索密钥模式。</p>
-<p>正则表达式<code>b&quot;x'([0-9a-fA-F]{64,192})'&quot;</code>的含义：</p>
-<ul>
-<li><code>b&quot;...&quot;</code>：二进制字符串（内存里是字节）</li>
-<li><code>x'</code>：WCDB密钥的固定前缀，就像文件头的魔数</li>
-<li><code>[0-9a-fA-F]{64,192}</code>：64到192个十六进制字符</li>
-<li><code>'</code>：闭合单引号</li>
-</ul>
-<p>这个长度范围很有讲究：</p>
-<ul>
-<li><strong>64位</strong>：只有加密密钥（32字节的enc_key）</li>
-<li><strong>96位</strong>：密钥+盐值（32字节enc_key + 16字节salt）</li>
-<li><strong>更长</strong>：可能是多个密钥连在一起，我们取前64位和后32位分别作为密钥和盐值</li>
-</ul>
+<p>这就像便利贴有时写得详细，有时写得简略，但都有那个标志性的 Logo。</p>
+<h2>验证：如何确定找到的真的是钥匙？</h2>
+<p>假设你在图书馆里找到了一张写着 <code>x'1234...'</code> 的纸条，你怎么知道这是数据库的钥匙，而不是某个用户的聊天内容恰好匹配了这个模式？</p>
+<p>这就是 <code>verify_key_for_db</code> 函数的工作——它是一把<strong>试金石</strong>。</p>
 <div class="mermaid">flowchart TD
-    A[匹配的十六进制字符串] --> B{长度判断}
+    A[候选密钥] --> B{格式判断}
+    B -->|96位| C[提取 enc_key + salt]
+    B -->|64位| D[逐个数据库尝试]
+    B -->|超长| E[截取前64位和后32位]
     
-    B -->|96位| C[标准格式<br/>前64位=enc_key<br/>后32位=salt]
-    B -->|64位| D[仅密钥<br/>需逐个数据库尝试]
-    B -->|>96位| E[超长格式<br/>前64位=enc_key<br/>后32位=salt]
-    
-    C --> F[直接验证]
-    D --> G[遍历所有数据库<br/>寻找匹配的salt]
+    C --> F[HMAC-SHA512 验证]
+    D --> F
     E --> F
     
-    F --> H{HMAC验证通过?}
-    G --> H
+    F -->|验证通过| G[确认有效密钥]
+    F -->|验证失败| H[丢弃]
     
-    H -->|是| I[确认有效密钥]
-    H -->|否| J[丢弃或尝试其他组合]
-    
-    style C fill:#d4edda
-    style I fill:#d4edda
+    style G fill:#90EE90
+    style H fill:#FFB6C1
 </div>
-<p><strong>流程说明</strong>：找到候选密钥后，根据长度分三种情况处理。最省心的是96位标准格式，密钥和盐值一目了然；64位的比较麻烦，得像试钥匙一样挨个试；超长的就按固定规则截取。</p>
-<hr />
-<h2>2.4 验证：防止拿到假钥匙</h2>
-<p>找到看起来像密钥的字符串还不够——万一是个巧合呢？我们需要<strong>验证</strong>。</p>
-<h3>2.4.1 为什么不用完整解密来验证？</h3>
-<p>想象一下验证钥匙真假：你可以把保险箱里的东西全拿出来看一遍（完整解密），也可以只看看锁芯转没转动（HMAC验证）。显然后者快得多。</p>
-<p>微信用的SQLCipher 4有个特性：每页数据都带有一个<strong>HMAC-SHA512校验码</strong>，就像快递包裹上的防伪标签。我们可以用这个标签快速验证密钥是否正确，而不用解密整页数据。</p>
-<h3>2.4.2 HMAC验证的具体步骤</h3>
+<h3>密码学的巧妙验证</h3>
+<p>SQLCipher 4 的设计给了我们一个捷径。每个加密数据库的第一页都包含：</p>
+<ul>
+<li><strong>Salt</strong>：16字节的随机数，用于派生密钥</li>
+<li><strong>IV</strong>：初始化向量，用于 AES 加密</li>
+<li><strong>加密数据</strong>：实际的密文</li>
+<li><strong>HMAC</strong>：消息认证码，用于完整性校验</li>
+</ul>
+<p>正常情况下，要验证一个密钥是否正确，你需要：</p>
+<ol>
+<li>用 salt 和密钥通过 PBKDF2 派生 MAC 密钥（256,000 次迭代！）</li>
+<li>计算 HMAC-SHA512</li>
+<li>与存储的值比较</li>
+</ol>
+<p>但我们发现，SQLCipher 的 HMAC 验证只需要 <strong>2 次迭代</strong>就能派生出足够的密钥材料！这是因为 HMAC 密钥不需要像加密密钥那样强的熵。</p>
+<p>于是我们的验证流程变成了：</p>
 <div class="mermaid">sequenceDiagram
     participant V as verify_key_for_db
-    participant DB as 数据库第1页
-    participant Crypto as 加密库
+    participant DB as 数据库第一页
     
-    V->>DB: 读取salt、IV、密文、存储的HMAC
-    Note right of V: 从页头提取元数据
+    V->>DB: 读取 page 1
+    DB-->>V: salt, IV, ciphertext, stored_hmac
     
     V->>V: salt XOR 0x3a = mac_salt
-    Note right of V: 生成MAC专用的盐值
+    Note over V: 只有2次迭代的PBKDF2！
+    V->>V: PBKDF2(enc_key, mac_salt, 2) = mac_key
+    V->>V: HMAC-SHA512(ciphertext, mac_key) = computed_hmac
+    V->>V: compare(computed_hmac, stored_hmac)
     
-    V->>Crypto: PBKDF2(enc_key, mac_salt, 2轮)
-    Note right of V: 只迭代2次，不是256000次！
-    Crypto-->>V: mac_key
-    
-    V->>Crypto: HMAC-SHA512(mac_key, IV+密文)
-    Crypto-->>V: 计算的HMAC
-    
-    V->>V: 比较两个HMAC
-    Note right of V: 相同则密钥正确
+    alt 匹配
+        V->>V: 密钥有效！
+    else 不匹配
+        V->>V: 密钥无效
+    end
 </div>
-<p><strong>时序图说明</strong>：验证过程就像核对快递单号——先从包裹上读取单号（提取存储的HMAC），然后用同样的算法算一遍（重新计算HMAC），对比两者是否一致。关键是这里的PBKDF2只用2轮迭代，比正常的256000轮快了十万倍。</p>
-<hr />
-<h2>2.5 完整工作流程</h2>
-<p>把所有步骤串起来，<code>find_all_keys</code>的执行流程是这样的：</p>
-<div class="mermaid">flowchart TB
-    subgraph "准备阶段"
-        A[启动] --> B[读取config.json]
-        B --> C[收集所有.db文件]
-        C --> D[读取每库第1页<br/>提取salt建立映射]
-    end
-    
-    subgraph "入侵阶段"
-        D --> E[tasklist找Weixin.exe PID]
-        E --> F[OpenProcess打开进程]
-        F --> G[enum_regions枚举内存]
-        G --> H[read_mem读取各区域]
-        H --> I[正则匹配找候选密钥]
-    end
-    
-    subgraph "验证阶段"
-        I --> J[按格式分类处理密钥]
-        J --> K[verify_key_for_db验证]
-        K --> L{验证通过?}
-        L -->|否| M[尝试交叉验证]
-        L -->|是| N[记录密钥-salt对应关系]
-        M --> O{交叉验证通过?}
-        O -->|是| N
-        O -->|否| P[丢弃该候选]
-    end
-    
-    subgraph "收尾阶段"
-        N --> Q[输出all_keys.json]
-        P --> R[继续扫描其他区域]
-        R --> H
-    end
-    
-    style A fill:#e1f5ff
-    style Q fill:#d4edda
-</div>
-<p><strong>流程说明</strong>：整个过程分为四幕戏——先摸清目标家底（哪些数据库、各自的salt是什么），然后潜入现场（打开微信进程、扫描内存），接着鉴别真伪（验证找到的密钥），最后收工交卷（输出JSON文件）。</p>
-<hr />
-<h2>2.6 输出：keys.json 里有什么？</h2>
-<p>成功运行后，你会得到一个<code>all_keys.json</code>文件，内容大概长这样：</p>
+<p>整个过程在微秒级完成，既快速又可靠——这是密码学级别的安全性保证，不是简单的猜测。</p>
+<h2>处理特殊情况：交叉验证的艺术</h2>
+<p>有时候，我们会遇到一些&quot;顽固&quot;的数据库——它们的 salt 没有直接出现在找到的密钥字符串里。这时候就需要一点推理能力了。</p>
+<p>WCDB 有一个特性：<strong>如果多个数据库使用相同的密码，它们会派生出相同的 enc_key</strong>。这在微信中很常见，因为所有数据库通常都用同一个主密码保护。</p>
+<p>所以当我们遇到未匹配的 salt 时，会尝试用已找到的其他密钥去验证它。这就像你有一串钥匙，虽然不知道哪把对应哪个锁，但可以一把一把试——而我们的&quot;试&quot;是微秒级的密码学验证，不是真的去开锁。</p>
+<h2>最终产出：all_keys.json</h2>
+<p>经过完整的扫描和验证流程，我们得到一个整洁的 JSON 文件：</p>
 <pre><code class="language-json">{
-  &quot;contact\\contact.db&quot;: {
-    &quot;enc_key&quot;: &quot;a3f7b2d8e9c1...&quot;,
-    &quot;salt&quot;: &quot;4d8e9f2a...&quot;
+  &quot;contact.db&quot;: {
+    &quot;enc_key&quot;: &quot;a1b2c3d4...&quot;,
+    &quot;salt&quot;: &quot;e5f6g7h8...&quot;
   },
-  &quot;message_0\\message_0.db&quot;: {
-    &quot;enc_key&quot;: &quot;b8c5d1e7f3a9...&quot;,
-    &quot;salt&quot;: &quot;7e2b4c8d...&quot;
+  &quot;message_0.db&quot;: {
+    &quot;enc_key&quot;: &quot;i9j0k1l2...&quot;,
+    &quot;salt&quot;: &quot;m3n4o5p6...&quot;
   }
 }
 </code></pre>
-<p>这个文件是整个工具链的<strong>通行证</strong>：</p>
+<p>这个文件是整个 <code>wechat-decrypt</code> 工具链的基石。后续的实时监控、AI 查询等功能，都依赖这些从内存中提取的密钥。</p>
+<h2>安全与伦理的边界</h2>
+<p>读到这里，你可能会有一个担忧：这种技术会不会被滥用？</p>
+<p>重要的是理解几个关键点：</p>
+<ol>
+<li><strong>需要管理员权限</strong>：读取其他进程的内存需要系统最高权限，这不是普通病毒能做到的</li>
+<li><strong>需要微信正在运行</strong>：钥匙只在微信运行时存在于内存中，关机或退出后就消失了</li>
+<li><strong>只能解密自己的数据</strong>：你只能读取自己电脑上、自己账号的微信数据</li>
+</ol>
+<p>这就像你能打开自己家的保险箱，但不能因此说开锁技术是邪恶的。技术的价值在于使用者如何运用它。</p>
+<h2>动手实践</h2>
+<p>如果你想亲自体验这个过程，确保满足以下条件：</p>
 <ul>
-<li><code>wechat-decrypt</code>用它解密数据库</li>
-<li><code>monitor_web</code>用它实时监控消息</li>
-<li><code>mcp_server</code>用它响应AI查询</li>
+<li>Windows 系统（目前只支持 Windows 版微信）</li>
+<li>Python 3.10+</li>
+<li><strong>以管理员身份运行</strong> PowerShell 或 CMD</li>
+<li>微信 4.0 正在运行</li>
 </ul>
-<p>没有它，后续所有模块都无法工作。所以第一章说过：<code>find_all_keys</code>是整个项目的<strong>基石模块</strong>。</p>
-<hr />
-<h2>2.7 动手实践</h2>
-<h3>前置条件检查清单</h3>
-<table>
-<thead>
-<tr>
-<th style="text-align:left">项目</th>
-<th style="text-align:left">要求</th>
-<th style="text-align:left">如果不满足会怎样</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left">操作系统</td>
-<td style="text-align:left">Windows</td>
-<td style="text-align:left">代码用了Windows API，其他系统不兼容</td>
-</tr>
-<tr>
-<td style="text-align:left">Python版本</td>
-<td style="text-align:left">3.10+</td>
-<td style="text-align:left">类型注解语法可能不支持</td>
-</tr>
-<tr>
-<td style="text-align:left">微信状态</td>
-<td style="text-align:left">必须正在运行</td>
-<td style="text-align:left">内存里没有缓存的密钥</td>
-</tr>
-<tr>
-<td style="text-align:left">运行权限</td>
-<td style="text-align:left">管理员</td>
-<td style="text-align:left">无法读取其他进程内存</td>
-</tr>
-<tr>
-<td style="text-align:left">微信版本</td>
-<td style="text-align:left">4.0</td>
-<td style="text-align:left">其他版本的内存格式可能不同</td>
-</tr>
-</tbody>
-</table>
-<h3>运行命令</h3>
-<pre><code class="language-bash"># 确保config.json配置正确
-python -m find_all_keys
+<p>然后执行：</p>
+<pre><code class="language-bash">python -m wechat_decrypt.find_all_keys
 </code></pre>
-<p>如果一切顺利，你会看到类似这样的输出：</p>
-<pre><code>[+] Found WeChat PID: 12345
-[+] Scanning memory regions...
-[+] Found 42 candidate keys
-[+] Verified: contact\contact.db -&gt; enc_key: a3f7...
-[+] Verified: message_0\message_0.db -&gt; enc_key: b8c5...
-[+] Saved 15 keys to all_keys.json
-</code></pre>
-<h3>常见问题排查</h3>
-<p><strong>问题：Permission denied</strong></p>
+<p>你会看到扫描进度和找到的密钥数量。最终生成的 <code>all_keys.json</code> 就可以用于后续的数据解密了。</p>
+<h2>小结</h2>
+<p>在这一章中，我们学习了：</p>
 <ul>
-<li>原因：没有用管理员权限运行</li>
-<li>解决：右键 → &quot;以管理员身份运行&quot;</li>
+<li><strong>PBKDF2 的高成本</strong>：为什么暴力破解不可行</li>
+<li><strong>WCDB 的密钥缓存</strong>：微信为了性能而在内存中留下的&quot;破绽&quot;</li>
+<li><strong>内存扫描技术</strong>：如何在数十亿字节中找到特定的模式</li>
+<li><strong>密码学验证</strong>：用 HMAC 快速确认密钥的正确性</li>
 </ul>
-<p><strong>问题：No WeChat process found</strong></p>
-<ul>
-<li>原因：微信没开，或者进程名不对</li>
-<li>解决：确认微信已启动，检查任务管理器里的进程名是否是<code>Weixin.exe</code></li>
-</ul>
-<p><strong>问题：Found 0 keys</strong></p>
-<ul>
-<li>原因1：微信刚启动，还没打开过数据库</li>
-<li>解决：等一会儿，或者手动点开几个聊天窗口</li>
-<li>原因2：微信版本不兼容</li>
-<li>解决：确认是微信4.0版本</li>
-</ul>
-<hr />
-<h2>2.8 设计哲学：为什么这样做？</h2>
-<p>回顾<code>find_all_keys</code>的设计，有几个值得学习的思路：</p>
-<table>
-<thead>
-<tr>
-<th style="text-align:left">设计决策</th>
-<th style="text-align:left">替代方案</th>
-<th style="text-align:left">我们的选择</th>
-<th style="text-align:left">理由</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td style="text-align:left">从内存提取</td>
-<td style="text-align:left">暴力破解PBKDF2</td>
-<td style="text-align:left">内存提取</td>
-<td style="text-align:left">快几个数量级，用户体验好</td>
-</tr>
-<tr>
-<td style="text-align:left">正则匹配</td>
-<td style="text-align:left">解析WCDB数据结构</td>
-<td style="text-align:left">简单正则</td>
-<td style="text-align:left">鲁棒性强，不依赖具体版本</td>
-</tr>
-<tr>
-<td style="text-align:left">HMAC验证</td>
-<td style="text-align:left">完整解密验证</td>
-<td style="text-align:left">HMAC验证</td>
-<td style="text-align:left">微秒级 vs 秒级，差距巨大</td>
-</tr>
-<tr>
-<td style="text-align:left">多种格式处理</td>
-<td style="text-align:left">只支持标准格式</td>
-<td style="text-align:left">三种格式都支持</td>
-<td style="text-align:left">宁可多试，不可漏掉</td>
-</tr>
-</tbody>
-</table>
-<p>这就像解谜游戏里的<strong>捷径设计</strong>——与其按照出题人的思路硬解，不如观察系统行为，找到更优雅的通关方式。</p>
-<hr />
-<h2>2.9 小结</h2>
-<p>本章我们学习了：</p>
-<ul>
-<li><strong>为什么</strong>要从内存提取密钥（绕过25万次迭代的PBKDF2）</li>
-<li><strong>怎么找</strong>到密钥（扫描<code>x'...'</code>模式的内存区域）</li>
-<li><strong>怎么确认</strong>是真密钥（HMAC快速验证）</li>
-<li><strong>怎么用</strong>这个结果（生成<code>all_keys.json</code>供后续模块使用）</li>
-</ul>
-<p>下一章，我们将跟随这些密钥的旅程，看看解密后的数据如何在系统中流动，最终到达你的浏览器和AI助手。</p>
+<p>下一章，我们将看看这些密钥如何被用来构建实时监控系统——让新消息像直播一样推送到你的浏览器。</p>
 
       </article>
       <div class="toc" id="toc">
@@ -635,6 +477,19 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// KaTeX — render $...$ and $...$ math in article content
+document.addEventListener('DOMContentLoaded',function(){
+  if(typeof renderMathInElement==='undefined')return;
+  renderMathInElement(document.getElementById('mc')||document.body,{
+    delimiters:[
+      {left:'$',right:'$',display:true},
+      {left:'$',right:'$',display:false},
+      {left:'\(',right:'\)',display:false},
+      {left:'\[',right:'\]',display:true}
+    ],
+    throwOnError:false
+  });
+});
 </script>
 </body>
 </html>

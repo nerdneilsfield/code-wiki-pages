@@ -2,60 +2,47 @@
 
 ## 简介
 
-`wechat-decrypt` 的计算核心建立在一套精密协作的逆向工程算法之上，旨在突破微信客户端的加密防护，实现对其本地数据库的安全、高效访问。与传统的暴力破解或密钥猜测方法不同，本项目采用了一种混合策略：通过内存扫描直接获取运行时派生的加密密钥，绕过计算成本极高的 PBKDF2 密钥派生过程；随后利用这些密钥对 SQLCipher 加密的数据库页面进行解密，并处理 Write-Ahead Logging（WAL）机制带来的数据一致性挑战。
+`wechat-decrypt` 的计算核心建立在密码学工程与系统逆向的深度结合之上。本项目并非简单的"解密工具"，而是一套针对微信加密数据库生态的完整分析框架——它需要在不依赖官方密钥派生流程的前提下，从运行中的进程提取密钥、验证其有效性、处理多种存储格式的加密数据，并在性能与准确性之间取得平衡。
 
-整个算法体系的设计遵循"一次解密、持续可用"的原则。在初始化解密环境后，系统会维护热内存中的解密数据库副本，并通过增量监控机制追踪文件变化，避免重复的全量解密操作。这种架构不仅显著降低了查询延迟，也为上层应用提供了接近原生 SQLite 的访问体验。与此同时，针对微信特有的数据模型——包括分片的消息表结构、protobuf 编码的消息内容，以及多样化的用户标识系统——我们开发了一系列专用解析与匹配算法，确保从原始二进制数据到结构化信息的准确转换。
+整个算法体系围绕三个关键挑战展开：**密钥获取**、**数据解密**与**一致性维护**。首先，我们通过内存扫描直接定位 32 字节的 AES 密钥，绕过 PBKDF2 迭代计算；随后利用 SQLCipher 兼容的分页解密机制恢复 SQLite 数据库内容，同时处理 WAL（Write-Ahead Log）文件的复杂状态；最后，通过文件时间戳缓存和模糊联系人匹配，确保解密结果的高效复用与准确关联。
 
-以下图表展示了各核心算法之间的数据流向与依赖关系，帮助理解它们如何协同工作以构成完整的解密与分析管道。
-
-## 算法架构图
+以下图表展示了各算法之间的数据流向与依赖关系：
 
 ```mermaid
 graph TD
-    A[Memory Scanning Key Extraction<br/>内存扫描密钥提取] -->|加密密钥| B[SQLCipher Page Decryption<br/>SQLCipher 页面解密]
-    B -->|解密页面| C[WAL Frame Reconciliation<br/>WAL 帧协调合并]
-    C -->|完整数据库| D[Incremental DB Monitoring<br/>增量数据库监控]
-    D -->|热内存副本| E[Fuzzy Contact Resolution<br/>模糊联系人解析]
-    D -->|热内存副本| F[Protobuf Message Parsing<br/>Protobuf 消息解析]
-    E -->|用户标识映射| F
-    F -->|结构化消息| G[下游应用/分析工具]
-    
-    style A fill:#e1f5fe
-    style D fill:#e8f5e9
+    A[进程内存区域枚举<br/>Process Memory Region Enumeration] -->|提取候选密钥| B[试解密密钥验证<br/>Trial Decryption-Based Key Validation]
+    B -->|确认有效密钥| C[SQLCipher 分页解密<br/>SQLCipher Page Decryption]
+    C --> D[WAL 帧有效性过滤<br/>WAL Frame Validity Filtering]
+    D --> E[文件时间戳缓存一致性<br/>Filesystem Timestamp Cache]
+    C --> F[多字段模糊联系人匹配<br/>Multi-Field Fuzzy Contact Matching]
+    E --> C
+    F --> G[应用层查询接口]
 ```
+
+---
 
 ## 算法详解
 
-### [内存扫描密钥提取](guide-core-algorithms-memory-scanning-key-extraction.md)
+### SQLCipher 分页解密与 HMAC 验证
 
-该算法通过枚举 WeChat 进程的内存区域，结合密码学验证手段定位预派生的加密密钥，从而完全绕过 PBKDF2 密钥派生的计算瓶颈。其核心在于识别包含有效 AES-256 密钥材料的内存页，并通过试解密数据库页面头部来确认密钥的正确性，实现从"计算密集型"到"内存访问型"的根本转变。
+SQLCipher 采用 4096 字节的分页加密方案，每页独立使用 AES-256-CBC 模式加密，并通过 HMAC-SHA512 保障完整性。本算法负责解析页头提取随机盐值，执行 CBC 解密，并验证消息认证码——任何校验失败都将触发页面级错误处理，防止损坏数据进入下游分析流程。[阅读详细文档 →](guide-core-algorithms-sqlcipher-page-decryption.md)
 
----
+### WAL 帧有效性过滤与数据库修补
 
-### [SQLCipher 页面解密](guide-core-algorithms-sqlcipher-page-decryption.md)
+微信的 WAL 文件采用预分配策略，导致文件中可能混杂多个检查点周期的残留帧。本算法通过比对帧头盐值与当前 WAL 头部盐值，精确识别属于最新事务的有效帧，跳过过期数据，并将有效变更正确重放到主数据库映像中，确保读取视图的一致性。[阅读详细文档 →](guide-core-algorithms-wal-frame-reconstruction.md)
 
-实现对 SQLCipher 4 标准加密格式的完整兼容，针对 4096 字节的 SQLite 页面执行 AES-256-CBC 解密。算法逐页提取随机盐值、验证 HMAC-SHA512 消息认证码、移除 PKCS7 填充，确保每个页面的完整性与正确性，为后续的数据重组奠定可靠基础。
+### 进程内存区域枚举与密钥发现
 
----
+为避免对 PBKDF2-HMAC-SHA512 进行数百万次迭代的暴力破解，本算法直接枚举 WeChat 进程的只读内存区域，利用密钥的熵特征（高随机性 32 字节序列）进行启发式扫描。该方法将密钥获取时间从理论上的数小时缩短至毫秒级，是整个解密流程的性能基石。[阅读详细文档 →](guide-core-algorithms-memory-scanning-key-extraction.md)
 
-### [WAL 帧协调合并与基于盐值的过滤](guide-core-algorithms-wal-frame-reconciliation.md)
+### 试解密密钥验证
 
-处理微信数据库的 Write-Ahead Logging 机制，解密 WAL 文件中的事务帧并将其补丁式合并至主数据库副本。关键创新在于利用 WAL 头部盐值区分当前有效帧与环形缓冲区中的陈旧残留数据，解决固定 4MB WAL 文件大小限制下的数据时效性问题。
+内存扫描返回的候选密钥需要快速验证。本算法尝试用候选密钥解密数据库第 1 页（SQLite 主文件头所在页），并检查解密结果是否以标准 SQLite 魔数 `SQLite format 3\0` 开头。这一轻量级验证机制能够在不暴露敏感信息的前提下，可靠区分真实密钥与误报的随机数据。[阅读详细文档 →](guide-core-algorithms-key-validity-verification.md)
 
----
+### 文件时间戳缓存一致性
 
-### [增量数据库监控与变更检测](guide-core-algorithms-incremental-db-monitoring.md)
+重复解密大型数据库会造成显著的性能损耗。本算法维护一个基于 `mtime` 的解密缓存层：在访问数据库前检查原始文件的修改时间，仅当文件发生变更时才触发重新解密。该机制使连续查询的响应时间降低两个数量级，同时保证数据新鲜度。[阅读详细文档 →](guide-core-algorithms-mtime-based-db-cache-invalidation.md)
 
-维护热内存中的解密数据库副本，通过文件 mtime 变更检测与 WAL 尾部实时监控实现低延迟的数据同步。该机制避免了任何全量重新解密操作，使上层查询能够以毫秒级响应获取最新数据，是支撑实时分析场景的核心基础设施。
+### 多字段模糊联系人匹配
 
----
-
-### [模糊联系人解析](guide-core-algorithms-fuzzy-contact-resolution.md)
-
-解决微信多标识系统的歧义性问题，将昵称、备注名或 wxid 等多种输入形式解析为标准化的用户名。算法自动发现分片的 message_N.db 表结构，并在跨表范围内执行模糊匹配，为消息内容的归属定位提供可靠的标识映射服务。
-
----
-
-### [Protobuf 消息内容解析](guide-core-algorithms-message-content-parsing.md)
-
-深入解析微信内部 protobuf 编码的二进制消息结构，从加密数据库字段中提取发送者 ID、消息文本及类型元数据。该算法揭示了微信消息存储的底层协议细节，是将原始字节流转化为可理解、可分析的业务数据的关键解码层。
+微信的消息数据分散在多个按用户哈希分片的数据库中，而用户输入的查询可能是昵称、备注名或 wxid 等任意形式。本算法构建跨库的倒排索引，支持拼音前缀、子串匹配及编辑距离容错，将模糊的输入标识解析为规范化的用户名，实现跨分片消息的准确聚合。[阅读详细文档 →](guide-core-algorithms-fuzzy-contact-resolution.md)

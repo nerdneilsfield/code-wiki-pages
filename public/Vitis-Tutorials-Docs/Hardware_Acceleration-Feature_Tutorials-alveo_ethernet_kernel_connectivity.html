@@ -1,0 +1,2126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alveo Ethernet Kernel Connectivity 模块深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-ark-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-03T23:29<br>
+    <b>Components:</b> 8056<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis-Tutorials" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis-Tutorials" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-01-understanding-data-flow-ps-pl-aie.html" class="nv">1. Understanding Data Flow Ps Pl Aie</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-02-scaling-up-packet-switching.html" class="nv">2. Scaling Up Packet Switching</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-03-runtime-parameter-reconfiguration.html" class="nv">3. Runtime Parameter Reconfiguration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-04-performance-analysis-stream-fifos.html" class="nv">4. Performance Analysis Stream Fifos</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-05-algorithms-in-action-fft-transforms.html" class="nv">5. Algorithms In Action Fft Transforms</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-06-machine-learning-on-aie-mnist.html" class="nv">6. Machine Learning On Aie Mnist</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-01-prime-factor-algorithm-fft.html" class="nv">1. Prime Factor Algorithm Fft</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-02-music-direction-of-arrival.html" class="nv">2. Music Direction Of Arrival</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-03-farrow-fractional-delay-filter.html" class="nv">3. Farrow Fractional Delay Filter</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-04-number-theoretic-transform.html" class="nv">4. Number Theoretic Transform</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-05-n-body-simulation.html" class="nv">5. N Body Simulation</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-06-bitonic-sorting-network.html" class="nv">6. Bitonic Sorting Network</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="AIE_ML_Design_Graphs.html" class="nv">Aie Ml Design Graphs</a>
+      <button class="nvcaret" data-nav="AIE_ML_Design_Graphs-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="AIE_ML_Design_Graphs-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="prime_factor_fft_pipeline_graphs.html" class="nv">Prime Factor Fft Pipeline Graphs</a>
+        <button class="nvcaret" data-nav="prime_factor_fft_pipeline_graphs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="prime_factor_fft_pipeline_graphs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Design_Graphs-prime_factor_fft_pipeline_graphs-co_prime_small_dft_stages.html" class="nv">Co Prime Small Dft Stages</a>
+          <button class="nvcaret" data-nav="co_prime_small_dft_stages-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="co_prime_small_dft_stages-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_Design_Graphs-prime_factor_fft_pipeline_graphs-co_prime_small_dft_stages-dft7.html" class="nv">Dft7</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_Design_Graphs-prime_factor_fft_pipeline_graphs-co_prime_small_dft_stages-dft9.html" class="nv">Dft9</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="radix16_dft_stage.html" class="nv">Radix16 Dft Stage</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_reordering_and_transpose_stages.html" class="nv">Data Reordering And Transpose Stages</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="lenet_ml_system_dma_integration.html" class="nv">Lenet Ml System Dma Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="api_based_fft_multi_instance_graph.html" class="nv">Api Based Fft Multi Instance Graph</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE-ML-Design-Tutorials-06-farrow-filter-farrow-filter-design-variants.html" class="nv">Farrow Filter Design Variants</a>
+        <button class="nvcaret" data-nav="farrow_filter_design_variants-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="farrow_filter_design_variants-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Design_Graphs-farrow_filter_design_variants-initial_ported_graph_baseline.html" class="nv">Initial Ported Graph Baseline</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Design_Graphs-farrow_filter_design_variants-intermediate_optimization_variants.html" class="nv">Intermediate Optimization Variants</a>
+          <button class="nvcaret" data-nav="intermediate_optimization_variants-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="intermediate_optimization_variants-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AI_Engine_Development-AIE-ML-Design_Tutorials-06-farrow_filter-designs-farrow_opt_1.html" class="nv">Farrow Opt 1</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_Design_Graphs-farrow_filter_design_variants-intermediate_optimization_variants-farrow_opt_2.html" class="nv">Farrow Opt 2</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="farrow_filter_design_variants-final_aie_graph_implementation.html" class="nv">Final Aie Graph Implementation</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="channelizer_ifft_and_tdm_fir_graphs.html" class="nv">Channelizer Ifft And Tdm Fir Graphs</a>
+        <button class="nvcaret" data-nav="channelizer_ifft_and_tdm_fir_graphs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="channelizer_ifft_and_tdm_fir_graphs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="channelizer_graph_application.html" class="nv">Channelizer Graph Application</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ifft4096_2d_graphs_and_characterization.html" class="nv">Ifft4096 2D Graphs And Characterization</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Design_Graphs-channelizer_ifft_and_tdm_fir_graphs-tdm_fir_filter_bank_graphs_and_characterization.html" class="nv">Tdm Fir Filter Bank Graphs And Characterization</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mnist_convnet_layer_and_full_network_graphs.html" class="nv">Mnist Convnet Layer And Full Network Graphs</a>
+        <button class="nvcaret" data-nav="mnist_convnet_layer_and_full_network_graphs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="mnist_convnet_layer_and_full_network_graphs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="mnist_convnet_layer_and_full_network_graphs-convolution_layer_graph_variants.html" class="nv">Convolution Layer Graph Variants</a>
+          <button class="nvcaret" data-nav="convolution_layer_graph_variants-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="convolution_layer_graph_variants-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="mnist_convnet_layer_and_full_network_graphs-convolution_layer_graph_variants-conv2d_w1.html" class="nv">Conv2D W1</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_Design_Graphs-mnist_convnet_layer_and_full_network_graphs-convolution_layer_graph_variants-conv2d_w3.html" class="nv">Conv2D W3</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="mnist_convnet_layer_and_full_network_graphs-convolution_layer_graph_variants-conv2d_w5.html" class="nv">Conv2D W5</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="mnist_convnet_layer_and_full_network_graphs-max_pooling_layer_graph_variants.html" class="nv">Max Pooling Layer Graph Variants</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="mnist_convnet_layer_and_full_network_graphs-dense_classification_layer_graph.html" class="nv">Dense Classification Layer Graph</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="full_mnist_convnet_graph.html" class="nv">Full Mnist Convnet Graph</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="AIE_ML_PL_HLS_Integration.html" class="nv">Aie Ml Pl Hls Integration</a>
+      <button class="nvcaret" data-nav="AIE_ML_PL_HLS_Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="AIE_ML_PL_HLS_Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_ML_PL_HLS_Integration-prime_factor_fft_hls_kernels.html" class="nv">Prime Factor Fft Hls Kernels</a>
+        <button class="nvcaret" data-nav="prime_factor_fft_hls_kernels-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="prime_factor_fft_hls_kernels-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="fft_dma_data_movers.html" class="nv">Fft Dma Data Movers</a>
+          <button class="nvcaret" data-nav="fft_dma_data_movers-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="fft_dma_data_movers-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_PL_HLS_Integration-prime_factor_fft_hls_kernels-fft_dma_data_movers-dma_source_kernel.html" class="nv">Dma Source Kernel</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_PL_HLS_Integration-prime_factor_fft_hls_kernels-fft_dma_data_movers-dma_sink_kernel.html" class="nv">Dma Sink Kernel</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="fft_input_permutation_kernel.html" class="nv">Fft Input Permutation Kernel</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="fft_output_permutation_kernel.html" class="nv">Fft Output Permutation Kernel</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_ML_PL_HLS_Integration-prime_factor_fft_vitis_system_integration.html" class="nv">Prime Factor Fft Vitis System Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_ML_PL_HLS_Integration-channelizer_hls_stream_and_dma_kernels.html" class="nv">Channelizer Hls Stream And Dma Kernels</a>
+        <button class="nvcaret" data-nav="channelizer_hls_stream_and_dma_kernels-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="channelizer_hls_stream_and_dma_kernels-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_PL_HLS_Integration-channelizer_hls_stream_and_dma_kernels-dma_endpoint_kernels.html" class="nv">Dma Endpoint Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_PL_HLS_Integration-channelizer_hls_stream_and_dma_kernels-stream_merge_kernels.html" class="nv">Stream Merge Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_PL_HLS_Integration-channelizer_hls_stream_and_dma_kernels-stream_split_kernel.html" class="nv">Stream Split Kernel</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_ML_PL_HLS_Integration-channelizer_vitis_system_kernels.html" class="nv">Channelizer Vitis System Kernels</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_ML_PL_HLS_Integration-channelizer_vss_graph_composition.html" class="nv">Channelizer Vss Graph Composition</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="AIE_ML_Feature_Tutorials.html" class="nv">Aie Ml Feature Tutorials</a>
+      <button class="nvcaret" data-nav="AIE_ML_Feature_Tutorials-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="AIE_ML_Feature_Tutorials-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_ML_Feature_Tutorials-versal_integration_data_movers.html" class="nv">Versal Integration Data Movers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AI_Engine_Development-AIE-ML-Feature_Tutorials-13-aie-ml-performance-analysis-normalization_v1_performance_flow.html" class="nv">Normalization V1 Performance Flow</a>
+        <button class="nvcaret" data-nav="normalization_v1_performance_flow-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="normalization_v1_performance_flow-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-aie_kernels.html" class="nv">Aie Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Feature_Tutorials-normalization_v1_performance_flow-pl_kernels.html" class="nv">Pl Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Feature_Tutorials-normalization_v1_performance_flow-host_control.html" class="nv">Host Control</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AI_Engine_Development-AIE-ML-Feature_Tutorials-13-aie-ml-performance-analysis-normalization_v2_performance_flow.html" class="nv">Normalization V2 Performance Flow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="normalization_v3_performance_flow.html" class="nv">Normalization V3 Performance Flow</a>
+        <button class="nvcaret" data-nav="normalization_v3_performance_flow-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="normalization_v3_performance_flow-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-aie_kernels.html" class="nv">Aie Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AI_Engine_Development-AIE-Feature_Tutorials-11-ai-engine-emulation-waveform-analysis-pl_kernels.html" class="nv">Pl Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-host_control.html" class="nv">Host Control</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE-ML-Feature_Tutorials-13-aie-ml-performance-analysis-normalization_v4_multistream_scaling_flow.html" class="nv">Normalization V4 Multistream Scaling Flow</a>
+        <button class="nvcaret" data-nav="normalization_v4_multistream_scaling_flow-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="normalization_v4_multistream_scaling_flow-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AI_Engine_Development-AIE-Feature_Tutorials-11-ai-engine-emulation-waveform-analysis-pl_kernels.html" class="nv">Pl Kernels</a>
+          <button class="nvcaret" data-nav="pl_kernels-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="pl_kernels-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE-ML_Feature_Tutorials-normalization_v4_multistream_scaling_flow-pl_kernels-normalization_v1_pl_kernels.html" class="nv">Normalization V1 Pl Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_ML_Feature_Tutorials-normalization_v4_multistream_scaling_flow-pl_kernels-normalization_v4_pl_kernels.html" class="nv">Normalization V4 Pl Kernels</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-aie_kernels.html" class="nv">Aie Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_ML_Feature_Tutorials-normalization_v4_multistream_scaling_flow-system_config.html" class="nv">System Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="AIE_Design_Graphs_and_Algorithms.html" class="nv">Aie Design Graphs And Algorithms</a>
+      <button class="nvcaret" data-nav="AIE_Design_Graphs_and_Algorithms-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="AIE_Design_Graphs_and_Algorithms-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="frequency_domain_transforms_and_spectral_graphs.html" class="nv">Frequency Domain Transforms And Spectral Graphs</a>
+        <button class="nvcaret" data-nav="frequency_domain_transforms_and_spectral_graphs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="frequency_domain_transforms_and_spectral_graphs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-channelizer_and_streaming_spectral_frontends.html" class="nv">Channelizer And Streaming Spectral Frontends</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="prime_factor_fft_decomposition_graphs.html" class="nv">Prime Factor Fft Decomposition Graphs</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="fft_reference_and_host_orchestrated_transforms.html" class="nv">Fft Reference And Host Orchestrated Transforms</a>
+          <button class="nvcaret" data-nav="fft_reference_and_host_orchestrated_transforms-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="fft_reference_and_host_orchestrated_transforms-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="fft2d_aie_vs_hls.html" class="nv">Fft2D Aie Vs Hls</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="fft32_r2_reference.html" class="nv">Fft32 R2 Reference</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-large_scale_ifft2d_pipeline_and_support_blocks.html" class="nv">Large Scale Ifft2D Pipeline And Support Blocks</a>
+          <button class="nvcaret" data-nav="large_scale_ifft2d_pipeline_and_support_blocks-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="large_scale_ifft2d_pipeline_and_support_blocks-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-large_scale_ifft2d_pipeline_and_support_blocks-ifft64k_2d_top_level_graph.html" class="nv">Ifft64K 2D Top Level Graph</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-large_scale_ifft2d_pipeline_and_support_blocks-ifft256_stage_and_rotation_subgraphs.html" class="nv">Ifft256 Stage And Rotation Subgraphs</a>
+            <button class="nvcaret" data-nav="ifft256_stage_and_rotation_subgraphs-d3" aria-label="Toggle">›</button>
+          </div>
+          <div class="nvsub" data-nav-sub="ifft256_stage_and_rotation_subgraphs-d3">
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-large_scale_ifft2d_pipeline_and_support_blocks-ifft256_stage_and_rotation_subgraphs-ifft256p4.html" class="nv">Ifft256P4</a>
+            </div>
+          </div>
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-large_scale_ifft2d_pipeline_and_support_blocks-ifft256_stage_and_rotation_subgraphs-ifft256p4_rot.html" class="nv">Ifft256P4 Rot</a>
+            </div>
+          </div>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-frequency_domain_transforms_and_spectral_graphs-large_scale_ifft2d_pipeline_and_support_blocks-sincos_generation_and_support_validation_graph.html" class="nv">Sincos Generation And Support Validation Graph</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filtering_multirate_and_farrow_designs.html" class="nv">Filtering Multirate And Farrow Designs</a>
+        <button class="nvcaret" data-nav="filtering_multirate_and_farrow_designs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="filtering_multirate_and_farrow_designs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="farrow_filter_design_evolution.html" class="nv">Farrow Filter Design Evolution</a>
+          <button class="nvcaret" data-nav="farrow_filter_design_evolution-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="farrow_filter_design_evolution-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-farrow_filter_design_evolution-farrow_baseline_graph.html" class="nv">Farrow Baseline Graph</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-farrow_filter_design_evolution-farrow_optimization_stage_1_graph.html" class="nv">Farrow Optimization Stage 1 Graph</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="farrow_optimization_stage_2_graph.html" class="nv">Farrow Optimization Stage 2 Graph</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="farrow_final_implementation_graph.html" class="nv">Farrow Final Implementation Graph</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-fir_aie_vs_hls_chain_and_kernel_contracts.html" class="nv">Fir Aie Vs Hls Chain And Kernel Contracts</a>
+          <button class="nvcaret" data-nav="fir_aie_vs_hls_chain_and_kernel_contracts-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="fir_aie_vs_hls_chain_and_kernel_contracts-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-fir_aie_vs_hls_chain_and_kernel_contracts-aie_host_app.html" class="nv">Aie Host App</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-fir_aie_vs_hls_chain_and_kernel_contracts-hls_host_app.html" class="nv">Hls Host App</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-fir_aie_vs_hls_chain_and_kernel_contracts-hls_pl_kernel.html" class="nv">Hls Pl Kernel</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-multirate_channelizer_and_ddc_primitives.html" class="nv">Multirate Channelizer And Ddc Primitives</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-ssr_two_tone_filter_graph.html" class="nv">Ssr Two Tone Filter Graph</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-music_direction_of_arrival_pipeline.html" class="nv">Music Direction Of Arrival Pipeline</a>
+        <button class="nvcaret" data-nav="music_direction_of_arrival_pipeline-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="music_direction_of_arrival_pipeline-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-music_direction_of_arrival_pipeline-pipeline_orchestration.html" class="nv">Pipeline Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="io_and_stream_adaptation.html" class="nv">Io And Stream Adaptation</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-filtering_multirate_and_farrow_designs-music_direction_of_arrival_pipeline-subspace_decomposition_kernels.html" class="nv">Subspace Decomposition Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="spatial_spectrum_search_and_peak_finding.html" class="nv">Spatial Spectrum Search And Peak Finding</a>
+          <button class="nvcaret" data-nav="spatial_spectrum_search_and_peak_finding-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="spatial_spectrum_search_and_peak_finding-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-music_direction_of_arrival_pipeline-spatial_spectrum_search_and_peak_finding-scanner.html" class="nv">Scanner</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_Graphs_and_Algorithms-music_direction_of_arrival_pipeline-spatial_spectrum_search_and_peak_finding-finder.html" class="nv">Finder</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_Graphs_and_Algorithms-music_direction_of_arrival_pipeline-doa_estimation_output_stage.html" class="nv">Doa Estimation Output Stage</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_Graphs_and_Algorithms-matrix_and_detection_algorithms.html" class="nv">Matrix And Detection Algorithms</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_Graphs_and_Algorithms-compiler_features_and_simulation_support.html" class="nv">Compiler Features And Simulation Support</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="AIE_Design_System_Integration.html" class="nv">Aie Design System Integration</a>
+      <button class="nvcaret" data-nav="AIE_Design_System_Integration-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="AIE_Design_System_Integration-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_System_Integration-baseline_aie_pl_integration_examples.html" class="nv">Baseline Aie Pl Integration Examples</a>
+        <button class="nvcaret" data-nav="baseline_aie_pl_integration_examples-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="baseline_aie_pl_integration_examples-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-baseline_aie_pl_integration_examples-lenet_system_dma_kernel_instance.html" class="nv">Lenet System Dma Kernel Instance</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-baseline_aie_pl_integration_examples-fir_filter_aie_vs_hls_datamover_kernels.html" class="nv">Fir Filter Aie Vs Hls Datamover Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-baseline_aie_pl_integration_examples-gemm_aie_vs_dsp_plio_and_memory_kernels.html" class="nv">Gemm Aie Vs Dsp Plio And Memory Kernels</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="polyphase_channelizer_system_integration.html" class="nv">Polyphase Channelizer System Integration</a>
+        <button class="nvcaret" data-nav="polyphase_channelizer_system_integration-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="polyphase_channelizer_system_integration-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-polyphase_channelizer_system_integration-dma_stream_endpoints_hls_kernels.html" class="nv">Dma Stream Endpoints Hls Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-polyphase_channelizer_system_integration-ssr8_reordering_and_cyclic_shift_hls_kernels.html" class="nv">Ssr8 Reordering And Cyclic Shift Hls Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-polyphase_channelizer_system_integration-vitis_final_system_kernel_instances.html" class="nv">Vitis Final System Kernel Instances</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_System_integration-prime_factor_fft_system_integration.html" class="nv">Prime Factor Fft System Integration</a>
+        <button class="nvcaret" data-nav="prime_factor_fft_system_integration-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="prime_factor_fft_system_integration-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-prime_factor_fft_system_integration-pl_dma_source_and_sink_endpoints.html" class="nv">Pl Dma Source And Sink Endpoints</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-prime_factor_fft_system_integration-input_side_reordering_pipeline.html" class="nv">Input Side Reordering Pipeline</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-prime_factor_fft_system_integration-output_side_reordering_pipeline.html" class="nv">Output Side Reordering Pipeline</a>
+          <button class="nvcaret" data-nav="output_side_reordering_pipeline-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="output_side_reordering_pipeline-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_System_Integration-prime_factor_fft_system_integration-output_side_reordering_pipeline-pfa1008_transpose2_kernel.html" class="nv">Pfa1008 Transpose2 Kernel</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_System_Integration-prime_factor_fft_system_integration-output_side_reordering_pipeline-pfa1008_permute_o_kernel.html" class="nv">Pfa1008 Permute O Kernel</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_System_Integration-fft2d_aie_vs_hls_scaling_and_system_configs.html" class="nv">Fft2D Aie Vs Hls Scaling And System Configs</a>
+        <button class="nvcaret" data-nav="fft2d_aie_vs_hls_scaling_and_system_configs-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="fft2d_aie_vs_hls_scaling_and_system_configs-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-fft2d_aie_vs_hls_scaling_and_system_configs-aie_dma_scaling_system_configs.html" class="nv">Aie Dma Scaling System Configs</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-fft2d_aie_vs_hls_scaling_and_system_configs-hls_fft2d_configuration_types.html" class="nv">Hls Fft2D Configuration Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-fft2d_aie_vs_hls_scaling_and_system_configs-hls_x1_single_instance_system_config.html" class="nv">Hls X1 Single Instance System Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="hls_x5_multi_instance_system_config.html" class="nv">Hls X5 Multi Instance System Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="hls_x10_multi_instance_system_config.html" class="nv">Hls X10 Multi Instance System Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_System_Integration-n_body_packetized_pl_aie_connectivity.html" class="nv">N Body Packetized Pl Aie Connectivity</a>
+        <button class="nvcaret" data-nav="n_body_packetized_pl_aie_connectivity-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="n_body_packetized_pl_aie_connectivity-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-baseline_pl_packet_kernels.html" class="nv">Baseline Pl Packet Kernels</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-n_body_packetized_pl_aie_connectivity-baseline_full_system_packet_connectivity.html" class="nv">Baseline Full System Packet Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-n_body_packetized_pl_aie_connectivity-x1_design_packetized_pl_aie_integration.html" class="nv">X1 Design Packetized Pl Aie Integration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="x10_design_packetized_pl_aie_integration.html" class="nv">X10 Design Packetized Pl Aie Integration</a>
+          <button class="nvcaret" data-nav="x10_design_packetized_pl_aie_integration-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="x10_design_packetized_pl_aie_integration-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_System_Integration-n_body_packetized_pl_aie_connectivity-x10_design-pl_kernels_packet_sender.html" class="nv">Pl Kernels Packet Sender</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Design_System_Integration-n_body_packetized_pl_aie_connectivity-x10_design-pl_kernels_packet_receiver.html" class="nv">Pl Kernels Packet Receiver</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="aie_graph_system.html" class="nv">Aie Graph System</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_System_Integration-ifft64k_2d_dataflow_integration.html" class="nv">Ifft64K 2D Dataflow Integration</a>
+        <button class="nvcaret" data-nav="ifft64k_2d_dataflow_integration-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ifft64k_2d_dataflow_integration-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-ifft64k_2d_dataflow_integration-dma_source_ingress_pipeline.html" class="nv">Dma Source Ingress Pipeline</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-ifft64k_2d_dataflow_integration-transpose_compute_stage.html" class="nv">Transpose Compute Stage</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Design_System_Integration-ifft64k_2d_dataflow_integration-dma_sink_egress_pipeline.html" class="nv">Dma Sink Egress Pipeline</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="farrow_filter_streaming_io_integration.html" class="nv">Farrow Filter Streaming Io Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Design_System_Integration-music_algorithm_mm2s_s2mm_system_integration.html" class="nv">Music Algorithm Mm2S S2Mm System Integration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="AIE_Feature_Tutorials_Runtime_and_Platform.html" class="nv">Aie Feature Tutorials Runtime And Platform</a>
+      <button class="nvcaret" data-nav="AIE_Feature_Tutorials_Runtime_and_Platform-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="AIE_Feature_Tutorials_Runtime_and_Platform-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows.html" class="nv">Rtp Reconfiguration Flows</a>
+        <button class="nvcaret" data-nav="rtp_reconfiguration_flows-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="rtp_reconfiguration_flows-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_rtp_reconfiguration_flow.html" class="nv">Async Rtp Reconfiguration Flow</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-sync_rtp_reconfiguration_flow.html" class="nv">Sync Rtp Reconfiguration Flow</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow.html" class="nv">Async Array Rtp Reconfiguration Flow</a>
+          <button class="nvcaret" data-nav="async_array_rtp_reconfiguration_flow-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="async_array_rtp_reconfiguration_flow-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-aie_kernels.html" class="nv">Aie Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-pl_kernels.html" class="nv">Pl Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-host_control.html" class="nv">Host Control</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-system_config.html" class="nv">System Config</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_readback_flow.html" class="nv">Async Array Rtp Readback Flow</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Feature_Tutorials_Runtime_and_Platform-packet_switching_and_streaming.html" class="nv">Packet Switching And Streaming</a>
+        <button class="nvcaret" data-nav="packet_switching_and_streaming-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="packet_switching_and_streaming-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-packet_switching_and_streaming-buffer_aie_packet_switching_pipeline.html" class="nv">Buffer Aie Packet Switching Pipeline</a>
+          <button class="nvcaret" data-nav="buffer_aie_packet_switching_pipeline-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="buffer_aie_packet_switching_pipeline-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-packet_switching_and_streaming-buffer_aie_packet_switching_pipeline-pl_kernels_packet_processing.html" class="nv">Pl Kernels Packet Processing</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-packet_switching_and_streaming-buffer_aie_mixed_datatype_packet_pipeline.html" class="nv">Buffer Aie Mixed Datatype Packet Pipeline</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-packet_switching_and_streaming-pktstream_aie_packet_streaming_pipeline.html" class="nv">Pktstream Aie Packet Streaming Pipeline</a>
+          <button class="nvcaret" data-nav="pktstream_aie_packet_streaming_pipeline-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="pktstream_aie_packet_streaming_pipeline-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-aie_kernels.html" class="nv">Aie Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AI_Engine_Development-AIE-Feature_Tutorials-11-ai-engine-emulation-waveform-analysis-pl_kernels.html" class="nv">Pl Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtp_reconfiguration_flows-async_array_rtp_reconfiguration_flow-host_control.html" class="nv">Host Control</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="versal_integration_clocking_and_rtl_ip.html" class="nv">Versal Integration Clocking And Rtl Ip</a>
+        <button class="nvcaret" data-nav="versal_integration_clocking_and_rtl_ip-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="versal_integration_clocking_and_rtl_ip-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="versal_integration_baseline_data_movers.html" class="nv">Versal Integration Baseline Data Movers</a>
+          <button class="nvcaret" data-nav="versal_integration_baseline_data_movers-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="versal_integration_baseline_data_movers-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-versal_integration_clocking_and_rtl_ip-pl_kernels_mm2s_s2mm.html" class="nv">Pl Kernels Mm2S S2Mm</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="aie_graph_and_kernels.html" class="nv">Aie Graph And Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_05-AI-engine-versal-integration-host_application.html" class="nv">Host Application</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="versal_clocking_tutorial_pipeline.html" class="nv">Versal Clocking Tutorial Pipeline</a>
+          <button class="nvcaret" data-nav="versal_clocking_tutorial_pipeline-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="versal_clocking_tutorial_pipeline-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-versal_integration_clocking_and_rtl_ip-versal_clocking_tutorial_pipeline-pl_data_mover_kernels.html" class="nv">Pl Data Mover Kernels</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-versal_integration_clocking_and_rtl_ip-versal_clocking_tutorial_pipeline-pl_polar_clip_processing_kernel.html" class="nv">Pl Polar Clip Processing Kernel</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-versal_integration_clocking_and_rtl_ip-versal_clocking_tutorial_pipeline-system_level_kernel_instances_and_linkage.html" class="nv">System Level Kernel Instances And Linkage</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-rtl_ip_with_aie_system_instances.html" class="nv">Rtl Ip With Aie System Instances</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AI_Engine_Development-AIE-Feature_Tutorials-debug_emulation_and_performance_analysis.html" class="nv">Debug Emulation And Performance Analysis</a>
+        <button class="nvcaret" data-nav="debug_emulation_and_performance_analysis-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="debug_emulation_and_performance_analysis-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-debug_walkthrough_pl_data_movers.html" class="nv">Debug Walkthrough Pl Data Movers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-debug_walkthrough_system_connectivity.html" class="nv">Debug Walkthrough System Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-debug_emulation_and_performance_analysis-emulation_waveform_analysis_pipeline.html" class="nv">Emulation Waveform Analysis Pipeline</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-debug_emulation_and_performance_analysis-performance_analysis_dmafifo_optimized_case.html" class="nv">Performance Analysis Dmafifo Optimized Case</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-debug_emulation_and_performance_analysis-performance_analysis_nofifo_hang_case.html" class="nv">Performance Analysis Nofifo Hang Case</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="performance_analysis_ssfifo_case.html" class="nv">Performance Analysis Ssfifo Case</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="post_link_recompile_and_external_traffic_generator.html" class="nv">Post Link Recompile And External Traffic Generator</a>
+        <button class="nvcaret" data-nav="post_link_recompile_and_external_traffic_generator-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="post_link_recompile_and_external_traffic_generator-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-post_link_recompile_reference_design.html" class="nv">Post Link Recompile Reference Design</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-external_traffic_generator_pl_kernel_configs.html" class="nv">External Traffic Generator Pl Kernel Configs</a>
+          <button class="nvcaret" data-nav="external_traffic_generator_pl_kernel_configs-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="external_traffic_generator_pl_kernel_configs-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-external_traffic_generator_pl_kernel_configs-ingress_dma_traffic_source_kernel.html" class="nv">Ingress Dma Traffic Source Kernel</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-external_traffic_generator_pl_kernel_configs-polar_clip_processing_kernel_and_types.html" class="nv">Polar Clip Processing Kernel And Types</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-external_traffic_generator_pl_kernel_configs-egress_dma_traffic_sink_kernel.html" class="nv">Egress Dma Traffic Sink Kernel</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-external_traffic_generator_standard_system_connectivity.html" class="nv">External Traffic Generator Standard System Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-post_link_recompile_and_external_traffic_generator-external_traffic_generator_etg_routing.html" class="nv">External Traffic Generator Etg Routing</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="AIE_Feature_Tutorials_Runtime_and_Platform-independent_graphs_composition.html" class="nv">Independent Graphs Composition</a>
+        <button class="nvcaret" data-nav="independent_graphs_composition-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="independent_graphs_composition-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-independent_graphs_composition-pr0_gmio_partition.html" class="nv">Pr0 Gmio Partition</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="AIE_Feature_Tutorials_Runtime_and_Platform-independent_graphs_composition-pl_kernels_datagen.html" class="nv">Pl Kernels Datagen</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Getting_Started_and_Basic_Vitis.html" class="nv">Getting Started And Basic Vitis</a>
+      <button class="nvcaret" data-nav="Getting_Started_and_Basic_Vitis-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Getting_Started_and_Basic_Vitis-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Getting_Started-Vitis-vitis_data_mover_kernels_and_system_connectivity.html" class="nv">Vitis Data Mover Kernels And System Connectivity</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Getting_Started-vitis_hls_dct_reference_flow.html" class="nv">Vitis Hls Dct Reference Flow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Getting_Started-Vitis_Libraries-vitis_libraries_fft_project_flow.html" class="nv">Vitis Libraries Fft Project Flow</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Hardware_Acceleration_Design_Tutorials.html" class="nv">Hardware Acceleration Design Tutorials</a>
+      <button class="nvcaret" data-nav="Hardware_Acceleration_Design_Tutorials-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Hardware_Acceleration_Design_Tutorials-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="convolution_tutorial_filter2d_pipeline.html" class="nv">Convolution Tutorial Filter2D Pipeline</a>
+        <button class="nvcaret" data-nav="convolution_tutorial_filter2d_pipeline-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="convolution_tutorial_filter2d_pipeline-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Design_Tutorials-01-convolution-tutorial-kernel_build_orchestration.html" class="nv">Kernel Build Orchestration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Design_Tutorials-01-convolution-tutorial-filter2d_hardware_window_core.html" class="nv">Filter2D Hardware Window Core</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Design_Tutorials-01-convolution-tutorial-host_dispatch_variants.html" class="nv">Host Dispatch Variants</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Design_Tutorials-04-traveling-salesperson-traveling_salesperson_hls_and_reference_flow.html" class="nv">Traveling Salesperson Hls And Reference Flow</a>
+        <button class="nvcaret" data-nav="traveling_salesperson_hls_and_reference_flow-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="traveling_salesperson_hls_and_reference_flow-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Design_Tutorials-04-traveling-salesperson-CPU_POC-cpu_reference_baseline_types.html" class="nv">Cpu Reference Baseline Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Design_Tutorials-04-traveling-salesperson-tsp_kernel_interface_data_types.html" class="nv">Tsp Kernel Interface Data Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Design_Tutorials-04-traveling-salesperson-build-hls_synthesis_and_optimized_build_flows.html" class="nv">Hls Synthesis And Optimized Build Flows</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="alveo_aurora_kernel_stream_config.html" class="nv">Alveo Aurora Kernel Stream Config</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Hardware_Acceleration_Feature_Tutorials.html" class="nv">Hardware Acceleration Feature Tutorials</a>
+      <button class="nvcaret" data-nav="Hardware_Acceleration_Feature_Tutorials-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Hardware_Acceleration_Feature_Tutorials-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <span class="nv-missing" title="Documentation not yet generated">Mixing C And Rtl Kernels Integration</span>
+        <button class="nvcaret" data-nav="mixing_c_and_rtl_kernels_integration-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="mixing_c_and_rtl_kernels_integration-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-02-mixing-c-rtl-kernels-hls_vadd_kernel_configuration.html" class="nv">Hls Vadd Kernel Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-02-mixing-c-rtl-kernels-run1_single_kernel_link_configuration.html" class="nv">Run1 Single Kernel Link Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-02-mixing-c-rtl-kernels-run2_mixed_c_rtl_kernel_integration_configuration.html" class="nv">Run2 Mixed C Rtl Kernel Integration Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-02-mixing-c-rtl-kernels-host_aligned_allocator_utility_across_steps.html" class="nv">Host Aligned Allocator Utility Across Steps</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Feature_Tutorials-dataflow_debug_and_deadlock_analysis.html" class="nv">Dataflow Debug And Deadlock Analysis</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Feature_Tutorials-multi_compute_unit_dispatch_and_host_control.html" class="nv">Multi Compute Unit Dispatch And Host Control</a>
+        <button class="nvcaret" data-nav="multi_compute_unit_dispatch_and_host_control-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="multi_compute_unit_dispatch_and_host_control-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-multi_compute_unit_dispatch_and_host_control-multi_cu_dispatch_core_and_optimized_host_flow.html" class="nv">Multi Cu Dispatch Core And Optimized Host Flow</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-05-using-multiple-cu-opencv_integrated_dispatch_variant.html" class="nv">Opencv Integrated Dispatch Variant</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-05-using-multiple-cu-host_timing_and_logging_support.html" class="nv">Host Timing And Logging Support</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Feature_Tutorials-vivado_implementation_control_and_host_memory_setup.html" class="nv">Vivado Implementation Control And Host Memory Setup</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Feature_Tutorials-hbm_kernel_data_type_definitions.html" class="nv">Hbm Kernel Data Type Definitions</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Feature_Tutorials-host_memory_connectivity_scaling.html" class="nv">Host Memory Connectivity Scaling</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Hardware_Acceleration-Feature_Tutorials-alveo_ethernet_kernel_connectivity.html" class="nv on">Alveo Ethernet Kernel Connectivity</a>
+        <button class="nvcaret" data-nav="alveo_ethernet_kernel_connectivity-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="alveo_ethernet_kernel_connectivity-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-09-using-ethernet-on-alveo-connectivity_x1.html" class="nv">Connectivity X1</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Hardware_Acceleration-Feature_Tutorials-09-using-ethernet-on-alveo-connectivity_x4.html" class="nv">Connectivity X4</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Vitis_HLS_Tutorials.html" class="nv">Vitis Hls Tutorials</a>
+      <button class="nvcaret" data-nav="Vitis_HLS_Tutorials-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Vitis_HLS_Tutorials-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_HLS_Tutorials-polynomial_vectorization_ntt_versions.html" class="nv">Polynomial Vectorization Ntt Versions</a>
+        <button class="nvcaret" data-nav="polynomial_vectorization_ntt_versions-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="polynomial_vectorization_ntt_versions-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="baseline_ntt_hls_configuration.html" class="nv">Baseline Ntt Hls Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Vitis_HLS-Design_Tutorials-01-Polynomial_Vectorization-initial_vectorized_ntt_hls_configuration.html" class="nv">Initial Vectorized Ntt Hls Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Vitis_HLS-Design_Tutorials-01-Polynomial_Vectorization-intermediate_optimized_ntt_hls_configuration.html" class="nv">Intermediate Optimized Ntt Hls Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Vitis_HLS-Design_Tutorials-01-Polynomial_Vectorization-workspace-Version3-final_ntt_vectorization_hls_configuration.html" class="nv">Final Ntt Vectorization Hls Configuration</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_HLS_Tutorials-beamformer_qrd_design_tutorial.html" class="nv">Beamformer Qrd Design Tutorial</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_HLS_Tutorials-code_analyzer_feature_tutorial_progression.html" class="nv">Code Analyzer Feature Tutorial Progression</a>
+        <button class="nvcaret" data-nav="code_analyzer_feature_tutorial_progression-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="code_analyzer_feature_tutorial_progression-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Vitis_HLS-Feature_Tutorials-01-using_code_analyzer-reference-files-tutorial_example.html" class="nv">Tutorial Example</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="Vitis_HLS-Feature_Tutorials-01-using_code_analyzer-reference-files-tutorial_example_final.html" class="nv">Tutorial Example Final</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Vitis_Platform_Creation_Tutorials.html" class="nv">Vitis Platform Creation Tutorials</a>
+      <button class="nvcaret" data-nav="Vitis_Platform_Creation_Tutorials-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="Vitis_Platform_Creation_Tutorials-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_Platform_Creation_Tutorials-export_to_vivado_baseline_system_connectivity.html" class="nv">Export To Vivado Baseline System Connectivity</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_Platform_Creation_Tutorials-export_to_vivado_custom_ip_and_multi_instance_connectivity.html" class="nv">Export To Vivado Custom Ip And Multi Instance Connectivity</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_Platform_Creation_Tutorials-polar_clip_kernel_data_types.html" class="nv">Polar Clip Kernel Data Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_Platform_Creation_Tutorials-platform_validation_aie_reference_data_movers.html" class="nv">Platform Validation Aie Reference Data Movers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="Vitis_Platform_Creation_Tutorials-platform_validation_pl_reference_data_movers.html" class="nv">Platform Validation Pl Reference Data Movers</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="Developer_Contributed_Examples.html" class="nv">Developer Contributed Examples</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Alveo Ethernet Kernel Connectivity 模块深度解析</h1>
+<h2>一句话概括</h2>
+<p>本模块展示了如何在 AMD Alveo 数据中心加速卡上，通过 Vitis 流程将包含 GTY 收发器的 RTL Kernel 集成到硬件设计中，实现与外部网络的 10G 以太网数据通路连接。它就像是一座&quot;数字桥梁&quot;——将 FPGA 内部的计算逻辑与物理世界的网络线缆连接起来。</p>
+<hr />
+<h2>问题空间：为什么需要这个模块？</h2>
+<h3>背景挑战</h3>
+<p>AMD Alveo 加速卡（如 U200、U250、U280、U50）配备了 QSFP28 网络接口，支持 10GbE/25GbE/40GbE/100GbE 等多种以太网配置。然而，在 Vitis 统一开发流程中使用这些高速收发器面临几个核心挑战：</p>
+<ol>
+<li><strong>物理层复杂性</strong>：GTY 收发器涉及差分时钟、参考时钟、高速串行信号等复杂的模拟电路接口</li>
+<li><strong>平台依赖性</strong>：不同 Alveo 卡片的 GT 位置、时钟频率、引脚分配各不相同</li>
+<li><strong>工具链集成</strong>：需要将底层 RTL 设计与 Vitis 的高级综合流程无缝衔接</li>
+<li><strong>协议栈抽象</strong>：开发者希望专注于业务逻辑，而非以太网 MAC/PCS 的底层细节</li>
+</ol>
+<h3>设计动机</h3>
+<p>传统上，使用 Alveo 的网络功能需要直接在 Vivado 中进行底层设计，这违背了 Vitis &quot;软件定义硬件&quot;的理念。本模块的核心价值在于：</p>
+<blockquote>
+<p><strong>证明可以在 Vitis 流程中，以近乎普通 RTL Kernel 的方式使用 GTY 收发器，仅需处理少量的 GT 专用信号连接。</strong></p>
+</blockquote>
+<p>这是一个方法论教程——它本身不提供复杂的业务功能，而是展示集成模式的正确打开方式。</p>
+<hr />
+<h2>心智模型：如何理解这个系统？</h2>
+<h3>类比：邮局分拣系统</h3>
+<p>想象一个现代化的邮局分拣中心：</p>
+<ul>
+<li>
+<p><strong>ethernet_krnl</strong> = 邮局的大门和前台</p>
+<ul>
+<li>负责与外部世界（公路上的邮车）对接</li>
+<li>管理进出的信件流（以太网帧）</li>
+<li>提供控制面板（AXI-Lite 寄存器）供管理员配置</li>
+</ul>
+</li>
+<li>
+<p><strong>data_fifo_krnl</strong> = 内部传送带</p>
+<ul>
+<li>简单地将接收的信件转发出去（loopback 模式）</li>
+<li>在本示例中只是演示连通性，实际应用中会替换为真正的处理逻辑</li>
+</ul>
+</li>
+<li>
+<p><strong>QSFP28 接口</strong> = 连接外部公路的卡车码头</p>
+<ul>
+<li>GTY 收发器就是这里的装卸设备</li>
+<li>差分时钟如同码头的同步调度系统</li>
+</ul>
+</li>
+</ul>
+<h3>核心抽象层次</h3>
+<pre><code>┌─────────────────────────────────────────────────────────────┐
+│                    用户业务逻辑 (Your Logic)                  │
+│                      (替换 data_fifo_krnl)                   │
+├─────────────────────────────────────────────────────────────┤
+│              AXI4-Stream 接口 (标准流式接口)                  │
+│              tx_axis / rx_axis (64-bit 数据)                 │
+├─────────────────────────────────────────────────────────────┤
+│              ethernet_krnl (网络内核封装层)                   │
+│    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐   │
+│    │ AXI-Stream  │◄──►│   xxv_      │◄──►│    GTY      │   │
+│    │   FIFOs     │    │  ethernet   │    │ Transceivers│   │
+│    └─────────────┘    │   (MAC/PCS) │    └─────────────┘   │
+│                       └─────────────┘                        │
+│    ┌─────────────┐                                           │
+│    │ AXI-Lite    │ ← 控制寄存器访问 (复位、环回、状态)        │
+│    │  Control    │                                           │
+│    └─────────────┘                                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│              Alveo Platform (固定资源)                        │
+│         ┌─────────────┐    ┌─────────────┐                   │
+│         │  GT RefClk  │    │  QSFP28     │                   │
+│         │ (161.132MHz)│    │   Connector │                   │
+│         └─────────────┘    └─────────────┘                   │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<hr />
+<h2>架构详解</h2>
+<h3>组件拓扑图</h3>
+<div class="mermaid">graph TB
+    subgraph "Host Software"
+        HOST["XRT Runtime<br/>ap_ctrl_hs 执行模型"]
+    end
+
+    subgraph "Alveo FPGA Fabric"
+        subgraph "ethernet_krnl_axis_x1/x4"
+            CTRL["ethernet_control_s_axi<br/>AXI-Lite 控制接口"]
+            ETH_IP["xxv_ethernet IP<br/>10G MAC/PCS"]
+            TX_FIFO["TX AXI-Stream FIFO"]
+            RX_FIFO["RX AXI-Stream FIFO"]
+        end
+
+        subgraph "data_fifo_krnl(s)"
+            LOOPBACK["Loopback FIFOs<br/>rx_axis → tx_axis"]
+        end
+
+        subgraph "Platform Resources"
+            GT["GTY Transceivers<br/>4 lanes"]
+            REFCLK["GT Refclk<br/>161.1328125 MHz"]
+            FREERUN["Free Run Clock"]
+        end
+    end
+
+    subgraph "External Network"
+        QSFP["QSFP28 Port"]
+        NET["Ethernet Network"]
+    end
+
+    HOST -->|"s_axi_control<br/>配置寄存器"| CTRL
+    CTRL -->|"scalar[31:0]<br/>控制信号"| ETH_IP
+    ETH_IP <-->|"axi_str_txd/rxd<br/>64-bit stream"| TX_FIFO
+    ETH_IP <-->|"axi_str_txd/rxd<br/>64-bit stream"| RX_FIFO
+    TX_FIFO -->|"tx0_axis"| LOOPBACK
+    LOOPBACK -->|"rx0_axis"| RX_FIFO
+    ETH_IP <-->|"gt_txp/n gt_rxp/n<br/>高速差分信号"| GT
+    GT <-->|"物理连接"| QSFP
+    QSFP <-->|"光纤/铜缆"| NET
+    REFCLK -->|"gt_refclk_p/n<br/>差分时钟"| ETH_IP
+    FREERUN -->|"clk_gt_freerun<br/>自由运行时钟"| ETH_IP
+
+    style HOST fill:#e1f5ff
+    style ETH_IP fill:#fff4e1
+    style GT fill:#ffe1e1
+    style QSFP fill:#f0e1ff
+</div>
+<h3>关键组件职责</h3>
+<h4>1. <code>ethernet_krnl_axis_x1.sv</code> / <code>ethernet_krnl_axis_x4.sv</code></h4>
+<p>这是以太网内核的 RTL 顶层，有两种变体：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>x1 版本</th>
+<th>x4 版本</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>通道数</td>
+<td>1 lane</td>
+<td>4 lanes</td>
+</tr>
+<tr>
+<td>数据流接口</td>
+<td>rx0_axis, tx0_axis</td>
+<td>rx0-3_axis, tx0-3_axis</td>
+</tr>
+<tr>
+<td>控制寄存器</td>
+<td>scalar00</td>
+<td>scalar00-03</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>单通道测试</td>
+<td>多通道聚合</td>
+</tr>
+</tbody>
+</table>
+<p><strong>核心设计要点：</strong></p>
+<ul>
+<li><strong>参数化设计</strong>：通过 <code>C_NUM_LANES</code> 局部参数区分两种变体的大部分共享逻辑</li>
+<li><strong>时钟域处理</strong>：<code>rx_core_clk</code> 由 <code>tx_clk_out</code> 驱动，确保收发时钟同源</li>
+<li><strong>跨时钟域同步</strong>：使用 <code>xpm_cdc_single</code>/<code>xpm_cdc_array_single</code> 将 <code>stat_rx_block_lock</code> 从以太网时钟域同步到 <code>ap_clk</code> 域</li>
+</ul>
+<pre><code class="language-systemverilog">// 关键 CDC (Clock Domain Crossing) 实例
+xpm_cdc_array_single #(
+    .DEST_SYNC_FF(4),      // 4级同步，降低亚稳态概率
+    .WIDTH(C_NUM_LANES)
+) ap_rx_block_lock_sync_i (
+    .dest_out(ap_stat_rx_block_lock_sync),
+    .dest_clk(ap_clk),
+    .src_clk(1'b0),        // 源时钟未使用，因为是电平信号
+    .src_in(stat_rx_block_lock)
+);
+</code></pre>
+<h4>2. <code>ethernet_control_s_axi_x1.v</code> / <code>ethernet_control_s_axi_x4.v</code></h4>
+<p>AXI-Lite 从接口控制器，提供寄存器访问能力：</p>
+<p><strong>寄存器映射（x1 版本）：</strong></p>
+<table>
+<thead>
+<tr>
+<th>地址</th>
+<th>名称</th>
+<th>权限</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0x10</td>
+<td>scalar00</td>
+<td>R/W</td>
+<td>控制寄存器，位定义见下表</td>
+</tr>
+<tr>
+<td>0x14</td>
+<td>status0</td>
+<td>RO</td>
+<td>bit[0] = rx_block_lock</td>
+</tr>
+</tbody>
+</table>
+<p><strong>scalar00 位域定义：</strong></p>
+<pre><code>bit[2:0]   : gt_loopback        // GT 环回模式
+bit[4]     : gtwiz_reset_rx_datapath  // RX 数据通路复位
+bit[5]     : gtwiz_reset_tx_datapath  // TX 数据通路复位
+bit[8]     : fifo 单独复位控制
+bit[12]    : sys_reset          // 全局系统复位
+</code></pre>
+<p><strong>设计权衡：</strong></p>
+<ul>
+<li>使用简单的状态机实现 AXI-Lite 协议，而非完整的 AXI Interconnect</li>
+<li>省略了 ID、SIZE、BURST 等信号以节省逻辑资源（注释中明确说明）</li>
+<li>x4 版本扩展为 4 组独立的 scalar/status 寄存器，每通道独立控制</li>
+</ul>
+<h4>3. <code>data_fifo_krnl.sv</code></h4>
+<p>简化的数据通路内核，用于演示 loopback：</p>
+<pre><code class="language-systemverilog">// 结构：RX_FIFO → 内部连线 → TX_FIFO
+axis_data_fifo_0 rx_fifo_0 (...);  // 接收外部数据
+axis_data_fifo_0 tx_fifo_0 (...);  // 发送数据到外部
+</code></pre>
+<p><strong>关键特性：</strong></p>
+<ul>
+<li>使用 <code>ap_ctrl_none</code> 执行模型——无需主机启动，上电即运行</li>
+<li>两个 FIFO 背靠背连接形成 loopback</li>
+<li>实际应用中应替换为真正的处理逻辑</li>
+</ul>
+<h4>4. IP 生成脚本 (<code>gen_ip_x1.tcl</code>, <code>gen_ip_x4.tcl</code>)</h4>
+<p><strong>xxv_ethernet IP 配置要点：</strong></p>
+<pre><code class="language-tcl"># 通用配置
+CONFIG.LINE_RATE           10          ;# 10Gbps
+CONFIG.BASE_R_KR          BASE-R       ;# 使用 BASE-R 模式
+CONFIG.INCLUDE_AXI4_INTERFACE 0        ;# 禁用 AXI4-MM DMA 接口，仅用 Stream
+CONFIG.ENABLE_PIPELINE_REG 1           ;# 启用流水线寄存器提升时序
+
+# 板卡特定配置（以 U200 为例）
+CONFIG.GT_REF_CLK_FREQ    161.1328125  ;# 精确参考时钟频率
+CONFIG.GT_GROUP_SELECT    Quad_X1Y12   ;# GT Quad 选择
+CONFIG.LANE1_GT_LOC       X1Y48        ;# 具体 GT 位置
+</code></pre>
+<p><strong>axis_data_fifo 配置：</strong></p>
+<pre><code class="language-tcl">CONFIG.IS_ACLK_ASYNC      1            ;# 异步时钟模式
+CONFIG.TDATA_NUM_BYTES    8            ;# 64-bit 数据宽度
+CONFIG.FIFO_MODE          2            ;# 特定 FIFO 模式
+CONFIG.HAS_TKEEP          1            ;# 支持字节使能
+CONFIG.HAS_TLAST          1            ;# 支持包边界指示
+</code></pre>
+<hr />
+<h2>数据流分析</h2>
+<h3>接收路径 (Network → FPGA)</h3>
+<pre><code>QSFP28 → GTY (gt_rxp/n) → xxv_ethernet → RX_FIFO → rx_axis → data_fifo_krnl
+                                              ↓
+                                         stat_rx_block_lock → 控制寄存器
+</code></pre>
+<ol>
+<li><strong>物理层</strong>：光/电信号通过 QSFP28 进入 GTY 收发器</li>
+<li><strong>PCS/MAC 层</strong>：<code>xxv_ethernet</code> IP 完成解码、对齐、CRC 校验</li>
+<li><strong>FIFO 缓冲</strong>：<code>axis_data_fifo</code> 吸收时钟域差异和突发流量</li>
+<li><strong>流式输出</strong>：标准的 AXI4-Stream 接口提供给下游逻辑</li>
+</ol>
+<h3>发送路径 (FPGA → Network)</h3>
+<pre><code>data_fifo_krnl → tx_axis → TX_FIFO → xxv_ethernet → GTY (gt_txp/n) → QSFP28
+</code></pre>
+<ol>
+<li><strong>流式输入</strong>：上游逻辑通过 AXI4-Stream 提供数据</li>
+<li><strong>FIFO 缓冲</strong>：平滑数据流，处理反压 (backpressure)</li>
+<li><strong>PCS/MAC 层</strong>：添加前导码、FCS，编码后发送</li>
+<li><strong>物理层</strong>：GTY 将并行数据转换为高速串行信号</li>
+</ol>
+<h3>控制路径 (Host → Kernel)</h3>
+<pre><code>XRT → xclbin → s_axi_control → ethernet_control_s_axi → scalar → xxv_ethernet
+                                                        → rx_block_lock (回读)
+</code></pre>
+<hr />
+<h2>系统集成：连接配置详解</h2>
+<h3>connectivity_x1.cfg 解析</h3>
+<pre><code class="language-ini">[connectivity]
+# 内核实例化声明
+nk=ethernet_krnl_axis_x1:1:eth0    # 类型:数量:实例名
+nk=data_fifo_krnl:1:df0
+
+# AXI-Stream 连接：以太网 RX → FIFO RX
+stream_connect=eth0.rx0_axis:df0.rx_axis
+# AXI-Stream 连接：FIFO TX → 以太网 TX
+stream_connect=df0.tx_axis:eth0.tx0_axis
+
+# === GT 专用信号连接（平台相关）===
+# Free-running 时钟连接（用于 GT 初始化期间的稳定时钟源）
+connect=eth0/clk_gt_freerun:ii_level0_wire/ulp_m_aclk_freerun_ref_00
+
+# GT 参考时钟（来自板载晶振，经平台路由）
+connect=io_clk_qsfp_refclka_00:eth0/gt_refclk
+
+# GT 数据端口（连接到物理 QSFP 接口）
+connect=eth0/gt_port:io_gt_qsfp_00
+</code></pre>
+<h3>connectivity_x4.cfg 差异点</h3>
+<pre><code class="language-ini"># 4个以太网通道 + 4个 FIFO 实例
+nk=ethernet_krnl_axis_x4:1:eth0
+nk=data_fifo_krnl:4:df0.df1.df2.df3
+
+# 每通道独立的 stream 连接
+stream_connect=eth0.rx0_axis:df0.rx_axis
+stream_connect=eth0.rx1_axis:df1.rx_axis
+stream_connect=eth0.rx2_axis:df2.rx_axis
+stream_connect=eth0.rx3_axis:df3.rx_axis
+stream_connect=df0.tx_axis:eth0.tx0_axis
+stream_connect=df1.tx_axis:eth0.tx1_axis
+stream_connect=df2.tx_axis:eth0.tx2_axis
+stream_connect=df3.tx_axis:eth0.tx3_axis
+</code></pre>
+<hr />
+<h2>关键设计决策与权衡</h2>
+<h3>1. 为什么选择 RTL Kernel 而非 HLS？</h3>
+<p><strong>决策</strong>：使用 SystemVerilog/Verilog 手写 RTL 而非 C++/OpenCL HLS</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>GTY 接口是高度专用的硬件资源，需要精确的引脚控制和时序约束</li>
+<li><code>xxv_ethernet</code> IP 的集成需要精细的端口映射和参数配置</li>
+<li>RTL 提供了对 AXI-Stream 握手信号的完全控制</li>
+</ul>
+<p><strong>代价</strong>：</p>
+<ul>
+<li>开发门槛更高，需要硬件设计经验</li>
+<li>调试复杂度增加（需要理解波形和时序）</li>
+</ul>
+<h3>2. 为什么使用 <code>ap_ctrl_hs</code> 而非 <code>ap_ctrl_chain</code>？</h3>
+<p><strong>决策</strong>：以太网内核使用 <code>ap_ctrl_hs</code>（单次执行），FIFO 内核使用 <code>ap_ctrl_none</code></p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>以太网内核需要显式的启动/停止控制来进行链路初始化和复位</li>
+<li>控制寄存器需要运行时动态修改（如设置环回模式）</li>
+<li>FIFO 是纯数据通路，无需状态机控制</li>
+</ul>
+<h3>3. 为什么采用双 FIFO 结构？</h3>
+<p><strong>决策</strong>：<code>data_fifo_krnl</code> 中包含两个独立的 <code>axis_data_fifo</code> 实例</p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>物理隔离收发路径，避免 head-of-line blocking</li>
+<li>允许独立的时钟门控和复位控制</li>
+<li>符合 AXI-Stream 的单向流语义</li>
+</ul>
+<h3>4. 平台可移植性策略</h3>
+<p><strong>决策</strong>：通过 Tcl 脚本中的条件分支支持多板卡</p>
+<pre><code class="language-tcl">if {[string compare -nocase $board &quot;u200&quot;] == 0} {
+    # U200 特定配置
+} elseif {[string compare -nocase $board &quot;u250&quot;] == 0} {
+    # U250 特定配置
+}
+</code></pre>
+<p><strong>权衡</strong>：</p>
+<ul>
+<li><strong>优点</strong>：一份源码适配多款 Alveo 卡</li>
+<li><strong>代价</strong>：新增板卡需要修改脚本并验证时序</li>
+</ul>
+<h3>5. 省略 AXI4 内存映射接口</h3>
+<p><strong>决策</strong>：<code>CONFIG.INCLUDE_AXI4_INTERFACE {0}</code></p>
+<p><strong>理由</strong>：</p>
+<ul>
+<li>本设计专注于纯流式处理（类似 SmartNIC 的数据面）</li>
+<li>避免了复杂的 DMA 描述符管理</li>
+<li>数据直接流经 FIFO，不经过 DDR</li>
+</ul>
+<p><strong>替代方案</strong>：若需要大包缓冲或复杂调度，可启用 AXI4-MM 接口连接 DDR</p>
+<hr />
+<h2>新贡献者必读：陷阱与注意事项</h2>
+<h3>🔴 关键前提条件</h3>
+<ol>
+<li><strong>许可证要求</strong>：需要 <code>xxv_eth_mac_pcs</code> 和 <code>x_eth_mac</code> 两个 IP 许可证</li>
+<li><strong>物理连接</strong>：需要实际的光模块和光纤/网线进行测试</li>
+<li><strong>平台版本</strong>：确保 platform 版本与 <code>connect=</code> 语句中的信号名匹配</li>
+</ol>
+<h3>⚠️ 常见错误</h3>
+<h4>1. GT 时钟连接错误</h4>
+<pre><code class="language-cfg"># 错误：使用了错误的时钟名
+connect=eth0/clk_gt_freerun:wrong_clock_name
+
+# 正确：使用 platforminfo 命令查询正确的信号名
+# platforminfo -p xilinx_u200_gen3x16_xdma_1_202110_1 -v
+</code></pre>
+<h4>2. 参考时钟频率不匹配</h4>
+<p>不同板卡的 GT 参考时钟频率可能不同：</p>
+<ul>
+<li>U200/U250/U50: 161.1328125 MHz</li>
+<li>U280: 156.25 MHz</li>
+</ul>
+<p>使用错误的频率会导致链路无法锁定。</p>
+<h4>3. GT 位置冲突</h4>
+<p>每个 GT Quad 有固定的物理位置，两个设计不能分配到重叠的 GT。检查 <code>LANE1_GT_LOC</code> 等参数。</p>
+<h4>4. 复位顺序敏感</h4>
+<pre><code class="language-systemverilog">// 注意复位信号的依赖关系
+areset &lt;= ~ap_rst_n || sys_reset;           // 组合复位
+fifo_resetn[ii] &lt;= !(areset || scalar[ii][8]); // FIFO 单独复位
+</code></pre>
+<p>必须先释放 <code>areset</code>，再释放 <code>fifo_resetn</code>，否则可能导致 FIFO 处于不确定状态。</p>
+<h3>🛠️ 调试技巧</h3>
+<ol>
+<li><strong>检查 <code>rx_block_lock</code></strong>：读取控制寄存器 0x14，bit0 应该为 1 表示链路已锁定</li>
+<li><strong>使用 GT 环回模式</strong>：设置 <code>scalar00[2:0]</code> 为 3'b010 (近端 PCS 环回) 进行自测</li>
+<li><strong>Vivado  ILA</strong>：在 <code>_x/link/vivado/vpl/prj/prj.xpr</code> 中添加 Integrated Logic Analyzer</li>
+<li><strong>查看实现结果</strong>：检查 <code>xxv_ethernet</code> 的 placement 是否符合预期</li>
+</ol>
+<h3>📋 扩展指南</h3>
+<p>若要基于此设计开发真实应用：</p>
+<ol>
+<li><strong>替换 <code>data_fifo_krnl</code></strong>：插入你的处理逻辑（如协议解析、加密、压缩等）</li>
+<li><strong>增加 DDR 访问</strong>：如需大包缓冲，添加 <code>m_axi</code> 接口和 DDR 控制器</li>
+<li><strong>多队列支持</strong>：参考 x4 设计，扩展更多独立的数据通路</li>
+<li><strong>中断支持</strong>：当前设计使用轮询，可添加 <code>interrupt</code> 接口实现事件驱动</li>
+</ol>
+<hr />
+<h2>文件清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rtl/ethernet_krnl_axis_x1.sv</code></td>
+<td>单通道以太网内核 RTL</td>
+</tr>
+<tr>
+<td><code>rtl/ethernet_krnl_axis_x4.sv</code></td>
+<td>四通道以太网内核 RTL</td>
+</tr>
+<tr>
+<td><code>rtl/ethernet_control_s_axi_x1.v</code></td>
+<td>单通道 AXI-Lite 控制器</td>
+</tr>
+<tr>
+<td><code>rtl/ethernet_control_s_axi_x4.v</code></td>
+<td>四通道 AXI-Lite 控制器</td>
+</tr>
+<tr>
+<td><code>rtl/data_fifo_krnl.sv</code></td>
+<td>Loopback FIFO 内核 RTL</td>
+</tr>
+<tr>
+<td><code>gen_ip_x1.tcl</code> / <code>gen_ip_x4.tcl</code></td>
+<td>IP 生成脚本</td>
+</tr>
+<tr>
+<td><code>pack_eth_x1_kernel.tcl</code> / <code>pack_eth_x4_kernel.tcl</code></td>
+<td>内核打包脚本</td>
+</tr>
+<tr>
+<td><code>pack_data_fifo_kernel.tcl</code></td>
+<td>FIFO 内核打包脚本</td>
+</tr>
+<tr>
+<td><code>connectivity_x1.cfg</code> / <code>connectivity_x4.cfg</code></td>
+<td>Vitis 链接配置</td>
+</tr>
+<tr>
+<td><code>Makefile</code></td>
+<td>构建流程控制</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>子模块文档</h2>
+<p>本模块包含以下子模块，每个都有详细的独立文档：</p>
+<table>
+<thead>
+<tr>
+<th>子模块</th>
+<th>文档链接</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>connectivity_x1</td>
+<td><a href="Hardware_Acceleration-Feature_Tutorials-alveo_ethernet_kernel_connectivity-connectivity_x1.html">connectivity_x1 配置详解</a></td>
+<td>单通道以太网连接配置</td>
+</tr>
+<tr>
+<td>connectivity_x4</td>
+<td><a href="Hardware_Acceleration-Feature_Tutorials-alveo_ethernet_kernel_connectivity-connectivity_x4.html">connectivity_x4 配置详解</a></td>
+<td>四通道以太网连接配置</td>
+</tr>
+</tbody>
+</table>
+<h2>相关模块</h2>
+<ul>
+<li><a href="Hardware_Acceleration-Design_Tutorials-alveo_aurora_kernel_stream_config.html">alveo_aurora_kernel_stream_config</a> - Aurora 协议的类似实现</li>
+<li><a href="Hardware_Acceleration-Feature_Tutorials-mixing_c_and_rtl_kernels_integration.html">mixing_c_and_rtl_kernels_integration</a> - RTL 与 HLS 内核混合集成方法</li>
+<li><a href="Getting_Started_and_Basic_Vitis-vitis_data_mover_kernels_and_system_connectivity.html">vitis_data_mover_kernels_and_system_connectivity</a> - 数据搬运内核基础</li>
+</ul>
+<hr />
+<h2>总结</h2>
+<p><code>alveo_ethernet_kernel_connectivity</code> 模块是一个<strong>方法论示范</strong>，它证明了：</p>
+<blockquote>
+<p>在 Vitis 流程中集成 GTY 收发器并非黑魔法——只要正确处理 <code>gt_port</code>、<code>gt_refclk</code> 和 <code>clk_gt_freerun</code> 三个关键接口，其余部分与普通 RTL Kernel 无异。</p>
+</blockquote>
+<p>这个设计的优雅之处在于其<strong>分层抽象</strong>：</p>
+<ul>
+<li>底层：<code>xxv_ethernet</code> IP 隐藏了 PCS/MAC 的复杂性</li>
+<li>中层：RTL wrapper 提供标准化的 AXI-Stream 接口</li>
+<li>上层：Vitis 工具链处理平台连接和比特流生成</li>
+</ul>
+<p>对于新加入团队的工程师，建议按以下顺序学习：</p>
+<ol>
+<li>通读本文档理解架构</li>
+<li>阅读 <code>README.md</code> 了解构建流程</li>
+<li>研究 <code>connectivity_x1.cfg</code> 理解信号连接</li>
+<li>在 Vivado 中打开实现后的设计查看实际布线</li>
+<li>尝试修改 <code>data_fifo_krnl</code> 加入简单逻辑（如计数器、包头解析）</li>
+</ol>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

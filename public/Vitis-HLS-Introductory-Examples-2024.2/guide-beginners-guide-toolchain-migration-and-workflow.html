@@ -1,0 +1,1025 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第六章：在工具链变迁中生存——HLS 流程迁移指南</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-claude-sonnet-4-6<br>
+    <b>Generated:</b> 2026-03-03T15:04<br>
+    <b>Components:</b> 666<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-advanced-coding-patterns-for-synthesis.html" class="nv">Advanced Coding Patterns For Synthesis</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-coding-patterns-that-synthesize-well.html" class="nv">Coding Patterns That Synthesize Well</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv">Data Flow At The Kernel Boundary</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-inside-the-kernel.html" class="nv">Data Flow Inside The Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-extracting-parallelism-and-performance.html" class="nv">Extracting Parallelism And Performance</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-from-cpp-to-fpga-what-this-project-is.html" class="nv">From Cpp To Fpga What This Project Is</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-data-moves-through-an-hls-kernel.html" class="nv">How Data Moves Through An Hls Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-collection-is-structured.html" class="nv">How The Example Collection Is Structured</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-library-is-organized.html" class="nv">How The Example Library Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-interface-design-bridging-software-and-hardware.html" class="nv">Interface Design Bridging Software And Hardware</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-maintaining-build-flows.html" class="nv">Migrating And Maintaining Build Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-running-across-hls-flows.html" class="nv">Migrating And Running Across Hls Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-parallelism-and-optimization.html" class="nv">Parallelism And Optimization</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv">Project Structure And Mental Model</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-software-to-hardware-coding-patterns.html" class="nv">Software To Hardware Coding Patterns</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-toolchain-migration-and-workflow.html" class="nv on">Toolchain Migration And Workflow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-is-vitis-hls.html" class="nv">What Is Vitis Hls</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-this-project-is-and-why-it-exists.html" class="nv">What This Project Is And Why It Exists</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-digital-up-conversion-pipeline.html" class="nv">Digital Up Conversion Pipeline</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-matrix-multiplication-with-array-partitioning.html" class="nv">Matrix Multiplication With Array Partitioning</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-stencil-2d-convolution-filter.html" class="nv">Stencil 2D Convolution Filter</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-systolic-architecture.html" class="nv">Streaming Fir Systolic Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-transposed-architecture.html" class="nv">Streaming Fir Transposed Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-task-channel-merge-split-scheduling.html" class="nv">Task Channel Merge Split Scheduling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism.html" class="nv">Optimization Parallelism</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism-interface_design.html" class="nv">Interface Design</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="coding_modeling.html" class="nv">Coding Modeling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="libraries_migration.html" class="nv">Libraries Migration</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第六章：在工具链变迁中生存——HLS 流程迁移指南</h1>
+<blockquote>
+<p><strong>本章学习目标</strong>：理解同一个 HLS 设计如何用 TCL 脚本、INI 配置文件或 Python 驱动流程来表达，以及如何在不重写所有代码的前提下，把现有项目迁移到 Vitis Unified 平台。</p>
+</blockquote>
+<hr />
+<h2>6.1 为什么迁移是个大问题？</h2>
+<p>想象你是一位厨师，花了五年时间用一套老式燃气灶做菜，积累了几百份食谱。突然，餐厅换成了最新的电磁炉——火力调节方式变了，锅具要求变了，但菜单上的菜还是那些菜。</p>
+<p>你面临的选择是：把所有食谱从头重写？还是找到一种方法，让老食谱在新灶台上也能用？</p>
+<p>HLS 工具链的迁移就是这个处境。Xilinx（现在的 AMD）推出 Vitis Unified 平台后，原来的 Vivado HLS 流程（用 TCL 脚本驱动）需要迁移到新的流程（用 INI 配置文件或 Python API 驱动）。算法本身没变，但&quot;告诉工具怎么编译&quot;的语言变了。</p>
+<p><code>libraries_migration</code> 模块就是那本&quot;食谱翻译词典&quot;——它用同一个算法（<code>pointer_basic</code>），展示了三种不同的&quot;烹饪方式&quot;，让你能对照着把旧食谱翻译成新格式。</p>
+<hr />
+<h2>6.2 三条迁移路径总览</h2>
+<p>在深入细节之前，先看一张全局地图：</p>
+<div class="mermaid">graph TD
+    SRC["pointer_basic.c\n算法源码（不变）"]
+    
+    SRC --> PATH1["路径 1：TCL 脚本\nvitis-run --mode hls --tcl run_vitis_unified.tcl"]
+    SRC --> PATH2["路径 2：Unified CLI\nvitis-run --mode hls --csim --config hls_config.cfg"]
+    SRC --> PATH3["路径 3：Python 驱动\nvitis -s run.py"]
+    
+    PATH1 --> OUT1["IP Catalog\nVivado 集成"]
+    PATH2 --> OUT2["IP Catalog + XO Kernel\nVitis 平台"]
+    PATH3 --> OUT3["IP Catalog + XO Kernel\n自动化批处理"]
+    
+    style SRC fill:#d4edda,stroke:#28a745
+    style PATH1 fill:#fff3cd,stroke:#ffc107
+    style PATH2 fill:#cce5ff,stroke:#004085
+    style PATH3 fill:#f8d7da,stroke:#721c24
+</div>
+<p><strong>图解</strong>：三条路径共享同一份 C 源码（绿色），只是&quot;驱动工具编译&quot;的方式不同。TCL 路径（黄色）最接近旧流程；Unified CLI 路径（蓝色）是新的标准方式；Python 路径（红色）适合自动化场景。</p>
+<hr />
+<h2>6.3 理解&quot;方言&quot;的本质：过程式 vs 声明式</h2>
+<p>在学习具体语法之前，先理解两种根本不同的思维方式。</p>
+<p><strong>过程式（TCL 的方式）</strong>：就像给新员工写操作手册——&quot;第一步打开项目，第二步添加文件，第三步设置时钟，第四步运行仿真……&quot;每一步都明确写出来，按顺序执行。</p>
+<p><strong>声明式（INI 的方式）</strong>：就像填写一张表格——&quot;项目名称：xxx，时钟：4ns，顶层函数：pointer_basic，需要运行：仿真+综合&quot;。你描述的是&quot;这个项目是什么样的&quot;，而不是&quot;怎么一步步做&quot;。</p>
+<div class="mermaid">flowchart LR
+    subgraph TCL["过程式 TCL（怎么做）"]
+        T1["open_project -reset proj"] --> T2["add_files pointer_basic.c"]
+        T2 --> T3["set_top pointer_basic"]
+        T3 --> T4["create_clock -period 4"]
+        T4 --> T5["csim_design"]
+        T5 --> T6["csynth_design"]
+        T6 --> T7["cosim_design"]
+    end
+    
+    subgraph INI["声明式 INI（是什么）"]
+        I1["part=xcvu9p..."]
+        I2["clock=4ns"]
+        I3["syn.top=pointer_basic"]
+        I4["syn.file=pointer_basic.c"]
+        I5["tb.file=pointer_basic_test.c"]
+    end
+    
+    TCL -->|"迁移方向"| INI
+</div>
+<p><strong>图解</strong>：TCL 是一个命令序列（从上到下执行），INI 是一组属性声明（没有顺序）。迁移的核心工作就是把&quot;命令序列&quot;翻译成&quot;属性声明&quot;。</p>
+<hr />
+<h2>6.4 路径一：TCL 脚本流程（传统路径）</h2>
+<h3>6.4.1 旧版 TCL vs 新版 TCL：只差两个命令</h3>
+<p>好消息是：如果你已经有了 Vivado HLS 的 TCL 脚本，迁移到 Vitis Unified 的 TCL 流程<strong>只需要改两个命令</strong>。</p>
+<div class="mermaid">classDiagram
+    class VivadoHLS_TCL {
+        open_project -reset proj_pointer_basic
+        add_files pointer_basic.c
+        add_files -tb pointer_basic_test.c
+        open_solution solution1
+        set_part xcvu9p-flgb2104-2-i
+        create_clock -period 4
+        set_top pointer_basic
+        csim_design
+        csynth_design
+        cosim_design
+        export_design -flow impl
+    }
+    
+    class VitisUnified_TCL {
+        open_component -reset -name pointer_basic
+        add_files pointer_basic.c
+        add_files -tb pointer_basic_test.c
+        set_part xcvu9p-flgb2104-2-i
+        create_clock -period 4
+        set_top pointer_basic
+        run csim
+        run synthesis
+        run cosim
+        export_design -flow impl
+    }
+    
+    VivadoHLS_TCL --|> VitisUnified_TCL : 迁移（只改两处）
+</div>
+<p><strong>两处关键变化</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>旧命令</th>
+<th>新命令</th>
+<th>为什么要改</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>open_project</code></td>
+<td><code>open_component</code></td>
+<td>&quot;Project&quot;是 Vivado HLS 的概念；&quot;Component&quot;是 Vitis 平台的统一概念，可以复用于 HLS、AI Engine 等多种设计类型</td>
+</tr>
+<tr>
+<td><code>open_solution</code></td>
+<td>（不再需要）</td>
+<td>Vitis Unified 把 solution 的概念合并进了 component，简化了层级</td>
+</tr>
+</tbody>
+</table>
+<p>想象一下：原来你的工作单位叫&quot;项目组&quot;，现在改叫&quot;组件团队&quot;——工作内容没变，只是名称和组织方式稍微调整了。</p>
+<h3>6.4.2 <code>hls_exec</code> 变量：精细控制执行阶段</h3>
+<p>TCL 脚本里有一个聪明的设计——用一个变量控制&quot;跑到哪一步停下来&quot;：</p>
+<pre><code class="language-tcl"># 设置这个数字来控制执行深度：
+# 0 = 只跑 C 仿真
+# 1 = C 仿真 + 综合
+# 2 = C 仿真 + 综合 + 联合仿真
+# 3 = 全部（包括导出 IP）
+set hls_exec 1
+
+# ... 添加文件、设置参数 ...
+
+csim_design
+if {$hls_exec &gt;= 1} {
+    csynth_design
+}
+if {$hls_exec &gt;= 2} {
+    cosim_design
+}
+if {$hls_exec &gt;= 3} {
+    export_design -flow impl
+}
+</code></pre>
+<p>这就像汽车的档位——你可以选择只挂一档（只做仿真），或者一路挂到四档（完整流程）。调试时只需改一个数字，不用注释掉大段代码。</p>
+<hr />
+<h2>6.5 路径二：Unified CLI 流程（现代路径）</h2>
+<h3>6.5.1 <code>hls_config.cfg</code> 文件解剖</h3>
+<p>这是 Vitis Unified 平台的核心配置文件，格式是标准的 INI（就像 Windows 的 <code>.ini</code> 文件，或者 Python 的 <code>setup.cfg</code>）。</p>
+<pre><code class="language-ini"># vitis_unified_cli/hls_config.cfg
+
+[hls]
+# 目标 FPGA 器件
+part=xcvu9p-flgb2104-2-i
+
+# 时钟约束（4纳秒 = 250MHz）
+clock=4ns
+
+# 流程目标：vivado（传统 IP）或 vitis（XO 内核）
+flow_target=vivado
+
+# 顶层函数名（必须与 C 代码中的函数名完全一致）
+syn.top=pointer_basic
+
+# 综合源文件（相对路径）
+syn.file=../pointer_basic.c
+
+# 测试平台文件
+tb.file=../pointer_basic_test.c
+tb.file=../result.golden.dat
+
+# 优化指令（等价于 TCL 中的 set_directive_interface）
+syn.directive.interface=pointer_basic mode=m_axi depth=1 d
+</code></pre>
+<p>每一行都是&quot;这个项目有什么属性&quot;，没有执行顺序的概念。</p>
+<h3>6.5.2 三条命令行：分阶段执行</h3>
+<p>有了配置文件，执行各个阶段的命令变得非常规整：</p>
+<div class="mermaid">sequenceDiagram
+    participant Dev as 开发者
+    participant CLI as 命令行工具
+    participant HLS as HLS 引擎
+    participant Out as 输出产物
+    
+    Dev->>CLI: vitis-run --mode hls --csim --config hls_config.cfg
+    CLI->>HLS: 加载配置，执行 C 仿真
+    HLS-->>Dev: csim 报告（行为验证通过？）
+    
+    Dev->>CLI: v++ --compile --mode hls --config hls_config.cfg
+    CLI->>HLS: 加载配置，执行 C 综合
+    HLS-->>Out: RTL 代码（Verilog/VHDL）
+    HLS-->>Dev: 综合报告（时序、资源）
+    
+    Dev->>CLI: vitis-run --mode hls --cosim --config hls_config.cfg
+    CLI->>HLS: 加载配置，执行联合仿真
+    HLS-->>Dev: cosim 报告（RTL 行为与 C 一致？）
+</div>
+<p><strong>图解</strong>：三条命令对应三个阶段。注意综合用的是 <code>v++</code>（Vitis 编译器），而仿真用的是 <code>vitis-run</code>。这个区别很重要——<code>v++</code> 是 Vitis 平台的统一编译入口，未来还可以用它编译主机代码和链接整个系统。</p>
+<h3>6.5.3 TCL 指令到 INI 指令的对照表</h3>
+<p>这是迁移时最常用的&quot;翻译词典&quot;：</p>
+<table>
+<thead>
+<tr>
+<th>TCL 命令</th>
+<th>INI 等价写法</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>set_part {xcvu9p-flgb2104-2-i}</code></td>
+<td><code>part=xcvu9p-flgb2104-2-i</code></td>
+<td>去掉花括号</td>
+</tr>
+<tr>
+<td><code>create_clock -period 4</code></td>
+<td><code>clock=4ns</code></td>
+<td>单位变显式（ns），更清晰</td>
+</tr>
+<tr>
+<td><code>set_top pointer_basic</code></td>
+<td><code>syn.top=pointer_basic</code></td>
+<td>加了命名空间前缀 <code>syn.</code></td>
+</tr>
+<tr>
+<td><code>add_files pointer_basic.c</code></td>
+<td><code>syn.file=pointer_basic.c</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td><code>add_files -tb pointer_basic_test.c</code></td>
+<td><code>tb.file=pointer_basic_test.c</code></td>
+<td><code>-tb</code> 变成了 <code>tb.</code> 前缀</td>
+</tr>
+<tr>
+<td><code>set_directive_interface -mode m_axi pointer_basic d</code></td>
+<td><code>syn.directive.interface=pointer_basic mode=m_axi depth=1 d</code></td>
+<td>最复杂的翻译，见下文</td>
+</tr>
+</tbody>
+</table>
+<p><strong>指令翻译的细节</strong>：<code>set_directive_interface</code> 这条命令是最难翻译的，因为它有多个参数。INI 格式用空格分隔参数，约定如下：</p>
+<pre><code>syn.directive.interface=&lt;函数名&gt; mode=&lt;接口模式&gt; depth=&lt;深度&gt; &lt;端口名&gt;
+</code></pre>
+<p>这就像把一句话从&quot;请把第三个抽屉里的红色文件夹拿出来&quot;翻译成表格格式：<code>位置=第三个抽屉 颜色=红色 类型=文件夹 动作=取出</code>。</p>
+<hr />
+<h2>6.6 路径三：Python 驱动流程（自动化路径）</h2>
+<h3>6.6.1 为什么需要 Python？</h3>
+<p>INI 配置文件很简洁，但它是静态的——你没法在里面写&quot;如果仿真通过了再综合&quot;，也没法写&quot;对 10 种不同的时钟频率各跑一次综合&quot;。</p>
+<p>Python 就是那个&quot;让配置文件动起来&quot;的胶水层。想象 INI 文件是一张表格，Python 是那个会读表格、做决策、然后按需填写新表格的助手。</p>
+<h3>6.6.2 两种 Python 使用方式</h3>
+<div class="mermaid">graph TD
+    PY["Python 驱动流程"]
+    
+    PY --> WAY1["方式 A：配置内嵌在脚本里\nrun.py"]
+    PY --> WAY2["方式 B：配置在外部文件\nrun_with_external_config.py\n+ hls_config.cfg"]
+    
+    WAY1 --> PROS1["优点：一个文件搞定\n缺点：配置与逻辑耦合"]
+    WAY2 --> PROS2["优点：配置可复用\n缺点：需要管理两个文件"]
+    
+    style WAY1 fill:#fff3cd
+    style WAY2 fill:#cce5ff
+</div>
+<p><strong>方式 A：配置内嵌</strong>（适合小项目或一次性脚本）</p>
+<pre><code class="language-python"># python_scripts/run.py（简化示意）
+import vitis
+
+# 创建客户端连接
+client = vitis.create_client()
+client.set_workspace(&quot;./workspace&quot;)
+
+# 创建 HLS 组件（等价于 open_component）
+comp = client.create_component(name=&quot;pointer_basic&quot;)
+
+# 配置（等价于 hls_config.cfg 的内容）
+comp.set_part(&quot;xcvu9p-flgb2104-2-i&quot;)
+comp.set_clock(&quot;4ns&quot;)
+comp.add_files([&quot;../pointer_basic.c&quot;])
+comp.add_files([&quot;../pointer_basic_test.c&quot;], type=&quot;tb&quot;)
+comp.set_top(&quot;pointer_basic&quot;)
+
+# 执行各阶段
+comp.run(&quot;C_SIMULATION&quot;)
+comp.run(&quot;SYNTHESIS&quot;)
+comp.run(&quot;CO_SIMULATION&quot;)
+comp.run(&quot;EXPORT&quot;)
+
+vitis.dispose()
+</code></pre>
+<p><strong>方式 B：外部配置文件</strong>（适合团队协作和 CI/CD）</p>
+<pre><code class="language-python"># python_scripts/run_with_external_config.py（简化示意）
+import vitis
+
+client = vitis.create_client()
+client.set_workspace(&quot;./workspace&quot;)
+
+# 直接加载外部配置文件
+comp = client.create_component(
+    name=&quot;pointer_basic&quot;,
+    cfg_file=&quot;./hls_config.cfg&quot;  # 复用 INI 配置
+)
+
+# 执行（配置已经在文件里了）
+comp.run(&quot;C_SIMULATION&quot;)
+comp.run(&quot;SYNTHESIS&quot;)
+
+vitis.dispose()
+</code></pre>
+<h3>6.6.3 Python 的真正威力：参数扫描</h3>
+<p>Python 驱动流程最大的价值不是&quot;替代 TCL&quot;，而是<strong>让批量自动化成为可能</strong>。</p>
+<p>想象你需要找到最优的时钟频率——不太快（时序违例）也不太慢（性能不够）。用 Python，你可以这样做：</p>
+<pre><code class="language-python"># 参数扫描示例（伪代码，展示思路）
+import vitis
+
+clock_periods = [&quot;3ns&quot;, &quot;4ns&quot;, &quot;5ns&quot;, &quot;6ns&quot;]
+results = []
+
+for period in clock_periods:
+    client = vitis.create_client()
+    comp = client.create_component(name=f&quot;pointer_basic_{period}&quot;)
+    comp.set_part(&quot;xcvu9p-flgb2104-2-i&quot;)
+    comp.set_clock(period)
+    comp.add_files([&quot;../pointer_basic.c&quot;])
+    comp.set_top(&quot;pointer_basic&quot;)
+    
+    comp.run(&quot;SYNTHESIS&quot;)
+    
+    # 读取综合报告，记录资源和时序
+    report = comp.get_synthesis_report()
+    results.append({
+        &quot;clock&quot;: period,
+        &quot;lut&quot;: report.lut_count,
+        &quot;timing_met&quot;: report.timing_met
+    })
+    
+    vitis.dispose()
+
+# 找到时序满足且资源最少的配置
+best = min(
+    [r for r in results if r[&quot;timing_met&quot;]],
+    key=lambda r: r[&quot;lut&quot;]
+)
+print(f&quot;最优配置：时钟 {best['clock']}，LUT 使用 {best['lut']}&quot;)
+</code></pre>
+<p>这就像让一个助手帮你同时试做四道菜，然后告诉你哪道最好——而不是你自己一道道试。</p>
+<hr />
+<h2>6.7 三条路径的完整对比</h2>
+<div class="mermaid">flowchart TD
+    START["你有一个 HLS 设计需要编译"]
+    
+    START --> Q1{"你的团队\n熟悉哪种工具？"}
+    
+    Q1 -->|"TCL 脚本"| Q2{"需要复杂的\n条件逻辑？"}
+    Q1 -->|"命令行工具"| PATH_CLI["路径 2：Unified CLI\nhls_config.cfg + vitis-run/v++"]
+    Q1 -->|"Python"| Q3{"需要批量\n自动化？"}
+    
+    Q2 -->|"是"| PATH_TCL["路径 1：TCL 脚本\nrun_vitis_unified.tcl"]
+    Q2 -->|"否"| PATH_CLI
+    
+    Q3 -->|"是"| PATH_PY_AUTO["路径 3B：Python + 外部 cfg\n参数扫描、CI/CD 集成"]
+    Q3 -->|"否"| PATH_PY_SIMPLE["路径 3A：Python 内嵌配置\n简单自动化"]
+    
+    PATH_TCL --> OUT["生成 RTL IP / XO Kernel"]
+    PATH_CLI --> OUT
+    PATH_PY_AUTO --> OUT
+    PATH_PY_SIMPLE --> OUT
+    
+    style PATH_TCL fill:#fff3cd
+    style PATH_CLI fill:#cce5ff
+    style PATH_PY_AUTO fill:#d4edda
+    style PATH_PY_SIMPLE fill:#f8d7da
+</div>
+<p><strong>图解</strong>：选择哪条路径取决于你的团队背景和需求。没有绝对的&quot;最好&quot;，只有&quot;最适合当前场景&quot;。</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>TCL 脚本</th>
+<th>Unified CLI</th>
+<th>Python 驱动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>学习曲线</strong></td>
+<td>低（如果已会 TCL）</td>
+<td>低（命令行即可）</td>
+<td>中（需要 Python）</td>
+</tr>
+<tr>
+<td><strong>灵活性</strong></td>
+<td>高（可写任意逻辑）</td>
+<td>低（静态配置）</td>
+<td>高（可编程）</td>
+</tr>
+<tr>
+<td><strong>可读性</strong></td>
+<td>中</td>
+<td>高</td>
+<td>高</td>
+</tr>
+<tr>
+<td><strong>CI/CD 集成</strong></td>
+<td>中</td>
+<td>高</td>
+<td>最高</td>
+</tr>
+<tr>
+<td><strong>批量自动化</strong></td>
+<td>中</td>
+<td>低</td>
+<td>最高</td>
+</tr>
+<tr>
+<td><strong>版本控制友好</strong></td>
+<td>中</td>
+<td>高</td>
+<td>高</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>6.8 深入案例：<code>pointer_basic</code> 的三种写法</h2>
+<p>让我们用同一个算法，完整对比三种写法的差异。<code>pointer_basic</code> 是一个简单的指针操作函数：</p>
+<pre><code class="language-c">// pointer_basic.c（三种流程共用，一字不改）
+void pointer_basic(volatile int* d, volatile int* q) {
+    int val = *d;  // 从内存读一个值
+    *q = val;      // 写到另一个内存地址
+}
+</code></pre>
+<p>这个函数就是&quot;真理的源头&quot;——无论用哪种流程，C 代码本身完全不变。</p>
+<h3>写法对比：设置 AXI 接口指令</h3>
+<p>这是三种流程中最能体现差异的地方——如何告诉 HLS 工具&quot;把指针 <code>d</code> 和 <code>q</code> 映射到 AXI4-Full 接口&quot;：</p>
+<div class="mermaid">graph LR
+    subgraph TCL["TCL 写法"]
+        T["set_directive_interface\n-mode m_axi\n-depth 1\npointer_basic d\n\nset_directive_interface\n-mode m_axi\n-depth 1\npointer_basic q"]
+    end
+    
+    subgraph INI["INI 写法"]
+        I["syn.directive.interface=\npointer_basic mode=m_axi depth=1 d\n\nsyn.directive.interface=\npointer_basic mode=m_axi depth=1 q"]
+    end
+    
+    subgraph PY["Python 写法"]
+        P["comp.set_directive_interface(\nfunction='pointer_basic',\nport='d',\nmode='m_axi',\ndepth=1\n)"]
+    end
+    
+    TCL -->|"翻译"| INI
+    INI -->|"加载"| PY
+</div>
+<p><strong>图解</strong>：三种写法表达的是完全相同的意思——把 <code>pointer_basic</code> 函数的 <code>d</code> 端口设置为 AXI4-Full 接口，深度为 1。只是语法不同。</p>
+<hr />
+<h2>6.9 超越基础：复杂 IP 的迁移挑战</h2>
+<h3>6.9.1 FFT 库：数组接口 vs 流式接口</h3>
+<p><code>libraries_migration</code> 模块还包含了 FFT（快速傅里叶变换）的示例，展示了同一个算法的两种接口设计。这是一个很好的例子，说明迁移不只是&quot;改语法&quot;，有时还需要重新思考接口设计。</p>
+<div class="mermaid">classDiagram
+    class FFT_Array_Interface {
+        +direction: bool
+        +in: cmpxDataIn[FFT_LENGTH]
+        +out: cmpxDataOut[FFT_LENGTH]
+        +ovflo: bool ptr
+        --
+        数据模式：批量（整帧一次性交付）
+        缓冲需求：需要全帧缓冲区
+        启动延迟：高（等整帧到齐）
+        适用场景：离线批处理
+    }
+    
+    class FFT_Stream_Interface {
+        +direction: bool
+        +in: hls_stream_cmpxDataIn
+        +out: hls_stream_cmpxDataOut
+        +ovflo: bool ptr
+        --
+        数据模式：流式（逐样本到达）
+        缓冲需求：浅层 FIFO 即可
+        启动延迟：低（样本级流水线）
+        适用场景：实时信号处理
+    }
+    
+    FFT_Array_Interface --|> FFT_Stream_Interface : 接口迁移（需重新设计）
+</div>
+<p><strong>关键洞察</strong>：从数组接口迁移到流式接口，不只是改几行代码——它意味着整个数据流模型的转变。就像从&quot;一次性送一整箱货&quot;改成&quot;用传送带一件件送&quot;，效率提升了，但仓库管理方式也要跟着变。</p>
+<h3>6.9.2 DSP 内置库：高频设计的配置差异</h3>
+<p>DSP 示例（FIR 滤波器）展示了高频设计的特殊配置需求：</p>
+<pre><code class="language-ini"># DSP 示例的 hls_config.cfg（关键差异部分）
+[hls]
+# 注意：目标器件换成了 Versal Premium
+part=xcvp1702-vsva2197-2MP-e-S
+
+# 时钟更激进：800MHz（1.25纳秒）
+clock=1.25ns
+
+# 禁用代码分析器以加速编译迭代
+csim.code_analyzer=0
+</code></pre>
+<p><code>csim.code_analyzer=0</code> 这个选项值得特别解释。代码分析器就像一个&quot;安全检查员&quot;，在 C 仿真前检查潜在的数组越界、空指针等问题。对于 DSP 内核这类<strong>边界条件已经手工验证过</strong>的设计，可以关掉这个检查员来加快编译速度。这是一个典型的&quot;信任换速度&quot;的权衡。</p>
+<hr />
+<h2>6.10 两个特殊案例：硬件的边界</h2>
+<h3>6.10.1 <code>malloc_removed</code>：动态内存在硬件里为什么不行</h3>
+<p>这是一个很多软件工程师第一次接触 HLS 时会踩的坑。</p>
+<p>想象 FPGA 的内存就像一栋楼的房间——在楼建好（比特流加载）的那一刻，每个房间的大小和位置就固定了，不能在楼建好之后再加盖或拆除。</p>
+<p>而 <code>malloc</code> 就是&quot;在楼建好之后动态加盖房间&quot;——在 FPGA 上根本做不到。</p>
+<div class="mermaid">flowchart TD
+    PROB["软件代码中有 malloc/free"]
+    
+    PROB --> WHY1["原因 1：malloc 依赖操作系统\n裸机 FPGA 没有 OS"]
+    PROB --> WHY2["原因 2：FPGA 内存在比特流加载时固定\n无法动态增长"]
+    PROB --> WHY3["原因 3：HLS 无法静态分析\n动态分配的内存大小"]
+    
+    WHY1 & WHY2 & WHY3 --> SOL["解决方案：静态池分配"]
+    
+    SOL --> CODE1["声明固定大小的静态数组\nstatic int buf_pool[MAX_N]"]
+    SOL --> CODE2["用标志位模拟分配/释放\nstatic int buf_valid[MAX_N]"]
+    
+    style PROB fill:#f8d7da
+    style SOL fill:#d4edda
+</div>
+<p><strong>迁移策略</strong>：把所有 <code>malloc(N * sizeof(T))</code> 改成 <code>static T buf[MAX_N]</code>，用一个 <code>valid[]</code> 数组追踪哪些槽位被占用。这就像把&quot;按需租房&quot;改成&quot;提前买好一排房子，用标签记录哪间有人住&quot;。</p>
+<h3>6.10.2 <code>rtl_as_blackbox</code>：当 HLS 生成的代码不够好</h3>
+<p>有时候，某个关键模块已经被手工优化到极致的 Verilog/VHDL 代码，HLS 生成的 RTL 无论如何都达不到同样的性能。这时候，你需要&quot;黑盒&quot;机制。</p>
+<div class="mermaid">sequenceDiagram
+    participant CPP as C++ 代码
+    participant HLS as HLS 工具
+    participant JSON as rtl_model.json
+    participant RTL as 手工 RTL 模块
+    
+    CPP->>HLS: extern void my_rtl_module(...)
+    HLS->>JSON: 读取黑盒契约
+    JSON-->>HLS: 端口映射、时序协议、资源需求
+    HLS->>RTL: 实例化（不综合，直接引用）
+    RTL-->>HLS: 提供接口信号
+    HLS->>HLS: 调度 C++ 代码与 RTL 的交互时序
+</div>
+<p><strong>图解</strong>：黑盒机制就像在 C++ 代码里&quot;预留一个插槽&quot;，告诉 HLS 工具：&quot;这个函数的实现不在 C 代码里，去找那个 Verilog 文件。&quot; <code>rtl_model.json</code> 是连接两个世界的&quot;适配器说明书&quot;，描述了 C 函数参数如何对应到 RTL 端口信号。</p>
+<hr />
+<h2>6.11 迁移实战：避开常见陷阱</h2>
+<h3>陷阱一：函数名大小写不匹配</h3>
+<p>这是最常见的迁移错误，症状是 HLS 报告&quot;Top function not found&quot;。</p>
+<div class="mermaid">flowchart LR
+    CFG["hls_config.cfg\nsyn.top=pointer_basic"]
+    CODE["pointer_basic.c\nvoid Pointer_Basic(...)"]
+    
+    CFG -->|"名称不匹配！"| ERR["错误：Top function not found"]
+    
+    CFG2["hls_config.cfg\nsyn.top=pointer_basic"]
+    CODE2["pointer_basic.c\nvoid pointer_basic(...)"]
+    
+    CFG2 -->|"名称完全一致"| OK["编译成功"]
+    
+    style ERR fill:#f8d7da
+    style OK fill:#d4edda
+</div>
+<p><strong>修复</strong>：确保 <code>syn.top</code> 的值与 C 代码中的函数名<strong>完全一致</strong>，包括大小写。建议在 C 代码里用全小写+下划线的命名风格，避免混淆。</p>
+<h3>陷阱二：AXI 接口 <code>depth</code> 过小导致死锁</h3>
+<p><code>depth=1</code> 意味着接口同时只能处理一个未完成的事务。如果你的设计尝试在收到响应之前发出新请求，就会永远等待——就像一个只有一个窗口的银行，前一个客户没办完就不让下一个进来，但前一个客户又在等你给他开门。</p>
+<p><strong>修复</strong>：把 <code>depth</code> 增加到 16 或更大，或者重构代码确保请求和响应严格配对。</p>
+<h3>陷阱三：流式 FIFO 深度不足</h3>
+<p><code>hls::stream</code> 默认的 FIFO 深度可能只有 2，如果上游生产速度比下游消费速度快，FIFO 很快就满了，整个流水线就会停顿。</p>
+<p><strong>修复</strong>：</p>
+<pre><code class="language-cpp">// 在 C++ 代码中显式指定 FIFO 深度
+#pragma HLS stream variable=my_stream depth=16
+</code></pre>
+<p>或者在 INI 配置中：</p>
+<pre><code class="language-ini">syn.directive.stream=my_stream depth=16
+</code></pre>
+<h3>最佳实践清单</h3>
+<div class="mermaid">graph TD
+    BP["迁移最佳实践"]
+    
+    BP --> B1["始终用 extern C 包裹顶层函数\n防止 C++ 名称修饰导致链接失败"]
+    BP --> B2["测试向量放在独立 .dat 文件\n支持数据驱动的回归测试"]
+    BP --> B3["版本控制配置文件，不控制生成的 RTL\n.gitignore 排除 proj_/ solution1/"]
+    BP --> B4["使用相对路径\nsyn.file=../pointer_basic.c\n而非绝对路径"]
+    BP --> B5["先跑 csim 验证算法正确性\n再跑 csynth 生成硬件"]
+    
+    style BP fill:#cce5ff
+    style B1 fill:#d4edda
+    style B2 fill:#d4edda
+    style B3 fill:#d4edda
+    style B4 fill:#d4edda
+    style B5 fill:#d4edda
+</div>
+<hr />
+<h2>6.12 完整迁移流程：从旧项目到新平台</h2>
+<p>把所有内容串起来，这是一个完整的迁移工作流：</p>
+<div class="mermaid">flowchart TD
+    START["你有一个旧的 Vivado HLS 项目\n包含 run_hls.tcl"]
+    
+    START --> STEP1["第一步：识别关键信息\n从 TCL 中提取：器件、时钟、顶层函数、文件列表、指令"]
+    
+    STEP1 --> STEP2{"选择目标流程"}
+    
+    STEP2 -->|"快速迁移"| STEP3A["第二步A：修改 TCL\nopen_project 改为 open_component\n删除 open_solution"]
+    
+    STEP2 -->|"现代化改造"| STEP3B["第二步B：创建 hls_config.cfg\n按对照表翻译每条 TCL 命令"]
+    
+    STEP2 -->|"自动化需求"| STEP3C["第二步C：编写 run.py\n加载 hls_config.cfg\n添加参数扫描逻辑"]
+    
+    STEP3A --> STEP4["第三步：验证 C 仿真\nvitis-run --mode hls --csim ..."]
+    STEP3B --> STEP4
+    STEP3C --> STEP4
+    
+    STEP4 --> Q1{"csim 通过？"}
+    Q1 -->|"否"| FIX1["检查：函数名匹配？\n文件路径正确？\n黄金数据格式？"]
+    FIX1 --> STEP4
+    
+    Q1 -->|"是"| STEP5["第四步：运行综合\nv++ --compile --mode hls ..."]
+    
+    STEP5 --> Q2{"时序满足？资源合理？"}
+    Q2 -->|"否"| FIX2["调整：时钟约束、优化指令\n参考第五章优化技术"]
+    FIX2 --> STEP5
+    
+    Q2 -->|"是"| STEP6["第五步：联合仿真\nvitis-run --mode hls --cosim ..."]
+    
+    STEP6 --> DONE["迁移完成！\n生成 IP Catalog 或 XO Kernel"]
+    
+    style START fill:#fff3cd
+    style DONE fill:#d4edda
+    style FIX1 fill:#f8d7da
+    style FIX2 fill:#f8d7da
+</div>
+<p><strong>图解</strong>：迁移不是一次性的跳跃，而是一个有验证节点的渐进过程。每个阶段都有检查点——如果 csim 失败，先修配置再继续；如果时序不满足，先优化再导出。</p>
+<hr />
+<h2>6.13 章节总结：你现在掌握了什么</h2>
+<p>恭喜你读完了这本入门指南的最后一章！让我们回顾一下本章的核心收获：</p>
+<div class="mermaid">graph TD
+    CHAPTER["第六章核心知识"]
+    
+    CHAPTER --> K1["三条迁移路径\nTCL / Unified CLI / Python"]
+    CHAPTER --> K2["过程式 vs 声明式\n命令序列 vs 属性声明"]
+    CHAPTER --> K3["TCL 到 INI 的翻译词典\n命令名称对照表"]
+    CHAPTER --> K4["Python 的真正价值\n参数扫描和 CI/CD 集成"]
+    CHAPTER --> K5["硬件的边界\nmalloc 不可综合、黑盒机制"]
+    CHAPTER --> K6["常见陷阱与修复\n函数名、depth、FIFO 深度"]
+    
+    style CHAPTER fill:#cce5ff
+</div>
+<p><strong>最重要的一个洞察</strong>：无论工具链怎么变，<strong>算法的 C/C++ 源码是不变的</strong>。TCL、INI、Python——这些都只是&quot;告诉工具怎么编译&quot;的不同语言。掌握了这个本质，任何工具链的变化都不再令人恐惧。</p>
+<hr />
+<h2>6.14 全书回顾：你的 HLS 学习地图</h2>
+<p>走过六章，你已经建立了一套完整的 HLS 思维框架：</p>
+<div class="mermaid">graph LR
+    CH1["第一章\n什么是 HLS？\n软件思维 → 硬件逻辑"] --> CH2["第二章\n代码库地图\n如何导航示例"]
+    CH2 --> CH3["第三章\n硬件友好的 C/C++\n指针、模板、定点数"]
+    CH3 --> CH4["第四章\n接口设计\nAXI-Lite/Stream/Full"]
+    CH4 --> CH5["第五章\n并行优化\n流水线、数据流、分区"]
+    CH5 --> CH6["第六章\n工具链迁移\nTCL/INI/Python 三条路"]
+    
+    style CH1 fill:#d4edda
+    style CH2 fill:#d4edda
+    style CH3 fill:#d4edda
+    style CH4 fill:#d4edda
+    style CH5 fill:#d4edda
+    style CH6 fill:#cce5ff
+</div>
+<p>从&quot;什么是 HLS&quot;到&quot;如何迁移工具链&quot;，你已经走完了一个 HLS 开发者的完整成长路径。接下来，最好的学习方式就是：<strong>打开 <code>libraries_migration</code> 目录，选一个示例，亲手跑一遍三种流程</strong>。</p>
+<p>代码不会说谎，工具不会骗人——动手是最好的老师。</p>
+<hr />
+<p><em>本章对应代码：<code>libraries_migration/</code> 目录</em><br />
+<em>官方迁移文档：<a href="https://docs.amd.com/r/en-US/ug1399-vitis-hls/Migrating-from-Vitis-HLS-to-the-Vitis-Unified-IDE">Migrating-from-Vitis-HLS-to-the-Vitis-Unified-IDE</a></em><br />
+<em>TCL 到 INI 完整对照表：<a href="https://docs.amd.com/r/en-US/ug1399-vitis-hls/Tcl-to-Config-File-Command-Map">Tcl-to-Config-File-Command-Map</a></em></p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  root=root||document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

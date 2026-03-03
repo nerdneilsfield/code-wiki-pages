@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第四章：把你的加速器接入世界——接口设计</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-claude-sonnet-4-6<br>
+    <b>Generated:</b> 2026-03-03T15:04<br>
+    <b>Components:</b> 666<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-advanced-coding-patterns-for-synthesis.html" class="nv">Advanced Coding Patterns For Synthesis</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-coding-patterns-that-synthesize-well.html" class="nv">Coding Patterns That Synthesize Well</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv">Data Flow At The Kernel Boundary</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-inside-the-kernel.html" class="nv">Data Flow Inside The Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-extracting-parallelism-and-performance.html" class="nv">Extracting Parallelism And Performance</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-from-cpp-to-fpga-what-this-project-is.html" class="nv">From Cpp To Fpga What This Project Is</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-data-moves-through-an-hls-kernel.html" class="nv">How Data Moves Through An Hls Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-collection-is-structured.html" class="nv">How The Example Collection Is Structured</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-library-is-organized.html" class="nv">How The Example Library Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-interface-design-bridging-software-and-hardware.html" class="nv on">Interface Design Bridging Software And Hardware</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-maintaining-build-flows.html" class="nv">Migrating And Maintaining Build Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-running-across-hls-flows.html" class="nv">Migrating And Running Across Hls Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-parallelism-and-optimization.html" class="nv">Parallelism And Optimization</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv">Project Structure And Mental Model</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-software-to-hardware-coding-patterns.html" class="nv">Software To Hardware Coding Patterns</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-toolchain-migration-and-workflow.html" class="nv">Toolchain Migration And Workflow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-is-vitis-hls.html" class="nv">What Is Vitis Hls</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-this-project-is-and-why-it-exists.html" class="nv">What This Project Is And Why It Exists</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-digital-up-conversion-pipeline.html" class="nv">Digital Up Conversion Pipeline</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-matrix-multiplication-with-array-partitioning.html" class="nv">Matrix Multiplication With Array Partitioning</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-stencil-2d-convolution-filter.html" class="nv">Stencil 2D Convolution Filter</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-systolic-architecture.html" class="nv">Streaming Fir Systolic Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-transposed-architecture.html" class="nv">Streaming Fir Transposed Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-task-channel-merge-split-scheduling.html" class="nv">Task Channel Merge Split Scheduling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism.html" class="nv">Optimization Parallelism</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism-interface_design.html" class="nv">Interface Design</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="coding_modeling.html" class="nv">Coding Modeling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="libraries_migration.html" class="nv">Libraries Migration</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第四章：把你的加速器接入世界——接口设计</h1>
+<blockquote>
+<p><strong>本章学习目标</strong>：理解 HLS 如何将 C/C++ 函数参数映射到 FPGA 的物理协议（AXI4-Full、AXI4-Stream、AXI4-Lite），以及为什么选错接口会彻底毁掉性能。</p>
+</blockquote>
+<hr />
+<h2>4.1 为什么&quot;接口&quot;是 FPGA 设计中最重要的决策？</h2>
+<p>想象你开了一家餐厅，厨师的厨艺（算法）很棒，但如果上菜方式一团糟——外卖用堂食的速度、大批量的订单走单份配送——客人会饿到崩溃，厨师也会忙到瘫痪。</p>
+<p><strong>接口设计</strong>就是餐厅的&quot;服务模式&quot;。再好的 FPGA 算法，如果接口选错，数据就传不进来，结果也送不出去，整个系统会卡死在&quot;等待&quot;上。</p>
+<p>在 Vitis HLS 里，每一个 C/C++ 函数参数都必须对应到一种物理协议。HLS 有三种主要的&quot;上菜方式&quot;：</p>
+<table>
+<thead>
+<tr>
+<th>接口类型</th>
+<th>类比</th>
+<th>适合什么数据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>AXI4-Lite</strong>（<code>s_axilite</code>）</td>
+<td>餐厅的点餐单——少量文字，控制信息</td>
+<td>标量参数、控制寄存器</td>
+</tr>
+<tr>
+<td><strong>AXI4-Full</strong>（<code>m_axi</code>）</td>
+<td>冷链货车——大批量食材，需要地址导航</td>
+<td>数组、指针、大块内存</td>
+</tr>
+<tr>
+<td><strong>AXI4-Stream</strong>（<code>axis</code>）</td>
+<td>传送带——食物连续流动，不用管地址</td>
+<td>流式数据、视频帧、网络包</td>
+</tr>
+</tbody>
+</table>
+<p>本章将逐一解剖这三种协议，并通过 <code>interface_design</code> 模块中的真实示例，揭示每种选择背后的代价与收益。</p>
+<hr />
+<h2>4.2 三层映射模型：从 C++ 到硅片的旅程</h2>
+<p>在深入具体协议之前，先建立一个&quot;三层思维框架&quot;。理解这个框架，你就能看穿任何接口设计问题的本质。</p>
+<div class="mermaid">graph TD
+    L3["Layer 3: C/C++ 语义层\n函数参数 / 结构体 / 数组 / 指针\nhls::stream / ap_int / ap_fixed"]
+    L2["Layer 2: 逻辑接口层 -- HLS 的工作空间\nAXI4-Stream / AXI4-Full / AXI4-Lite\n聚合策略 / 突发长度 / 数据宽度"]
+    L1["Layer 1: 物理协议层 -- 真实的硅片\nTDATA TVALID TREADY TLAST 信号线\nAXI 地址通道 / 数据通道 / 响应通道\nDDR 内存控制器 / PCIe"]
+
+    L3 -->|"HLS 综合推断 + 用户 pragma 约束"| L2
+    L2 -->|"Vivado/Vitis 后端实现"| L1
+
+    style L3 fill:#e8f5e9,stroke:#388e3c
+    style L2 fill:#fff8e1,stroke:#f57f17
+    style L1 fill:#e3f2fd,stroke:#1565c0
+</div>
+<p><strong>逐层解读</strong>：</p>
+<p><strong>Layer 3（C++ 语义层）</strong> 是你写代码的地方。<code>int* data</code>、<code>hls::stream&lt;int&gt;&amp; stream</code>、<code>struct Packet pkt</code> ——这些都是软件概念。</p>
+<p><strong>Layer 2（逻辑接口层）</strong> 是 HLS 工具的&quot;翻译室&quot;。它读取你的 C++ 代码和 pragma 指令，决定把 <code>int* data</code> 翻译成&quot;每次读一个字的慢速访问&quot;，还是&quot;一次性搬运 512 字节的突发传输&quot;。这是最关键、最容易出错的一层。</p>
+<p><strong>Layer 1（物理协议层）</strong> 是最终落到硅片上的电线和握手信号。<code>TVALID</code>、<code>TREADY</code>、<code>AWADDR</code> 这些信号你无需手写，Vitis HLS 自动生成。</p>
+<blockquote>
+<p><strong>关键洞察</strong>：<code>interface_design</code> 模块中的每一个 <code>.cfg</code> 配置文件，本质上都是在向 HLS 描述如何执行 Layer 3 → Layer 2 的映射。理解了这个，你就理解了整个模块的灵魂。</p>
+</blockquote>
+<hr />
+<h2>4.3 接口家族总览：<code>interface_design</code> 模块的地图</h2>
+<p>在动手之前，先看一眼这个模块里有哪些&quot;地图标记&quot;：</p>
+<div class="mermaid">graph TD
+    ROOT["interface_design 模块"]
+
+    ROOT --> AGG["聚合与解聚\nAggregation / Disaggregation\n处理结构体如何打包到总线"]
+    ROOT --> MEM["内存接口\nAXI4-Full m_axi\n访问片外 DDR/HBM"]
+    ROOT --> REG["寄存器接口\nAXI4-Lite s_axilite\n传递标量和控制信号"]
+    ROOT --> STR["流式接口\nAXI4-Stream axis\n连续无地址的数据流"]
+
+    AGG --> A1["aggregation_of_struct"]
+    AGG --> A2["aggregation_of_nested_structs"]
+    AGG --> A3["aggregation_of_m_axi_ports"]
+    AGG --> A4["auto_disaggregation_of_struct"]
+    AGG --> A5["struct_ii_issue"]
+
+    MEM --> M1["using_axi_master"]
+    MEM --> M2["manual_burst_inference_success"]
+    MEM --> M3["auto_burst_inference_failure"]
+    MEM --> M4["max_widen_port_width"]
+
+    REG --> R1["using_axi_lite"]
+    REG --> R2["using_axi_lite_with_user_defined_offset"]
+
+    STR --> S1["using_axi_stream_no_side_channel"]
+    STR --> S2["using_axi_stream_with_side_channel"]
+    STR --> S3["using_axi_stream_with_struct"]
+    STR --> S4["using_array_of_streams"]
+    STR --> S5["axi_stream_to_master"]
+
+    style ROOT fill:#f3e5f5,stroke:#7b1fa2
+    style AGG fill:#fff3e0,stroke:#e65100
+    style MEM fill:#e8f5e9,stroke:#2e7d32
+    style REG fill:#e3f2fd,stroke:#1565c0
+    style STR fill:#fce4ec,stroke:#c62828
+</div>
+<p>接下来，我们按照从简到繁的顺序，逐类展开。</p>
+<hr />
+<h2>4.4 AXI4-Lite：给控制信号用的&quot;点餐单&quot;</h2>
+<h3>4.4.1 什么是 AXI4-Lite？</h3>
+<p>想象饭店里服务员递给你的那张小纸单——它不是用来运送食物的（那是货车的事），而是用来传达&quot;我要一碗面条，少辣&quot;这类<strong>控制指令</strong>的。</p>
+<p><strong>AXI4-Lite</strong>（在 HLS 里写作 <code>s_axilite</code>）就是这张点餐单。它专门用来传递：</p>
+<ul>
+<li>标量参数（<code>int threshold</code>、<code>float gain</code>）</li>
+<li>开关控制（<code>bool enable</code>）</li>
+<li>内核启停信号（HLS 自动生成的 <code>ap_start</code>、<code>ap_done</code>）</li>
+</ul>
+<p>它的特点：<strong>信息量小，但必不可少</strong>。你的 CPU 通过 AXI4-Lite 告诉 FPGA&quot;开始处理，门限值是 128&quot;，然后 FPGA 通过同一通道告诉 CPU&quot;我处理完了&quot;。</p>
+<h3>4.4.2 示例：<code>using_axi_lite</code></h3>
+<pre><code class="language-cpp">// 最简单的 AXI4-Lite 用法
+void example(int* data, int threshold, int* result) {
+    #pragma HLS interface m_axi port=data      // 数据走&quot;货车&quot;
+    #pragma HLS interface m_axi port=result    // 结果走&quot;货车&quot;
+    #pragma HLS interface s_axilite port=threshold  // 门限走&quot;点餐单&quot;
+    #pragma HLS interface s_axilite port=return     // 控制信号也走&quot;点餐单&quot;
+
+    // ... 处理逻辑 ...
+    *result = (*data &gt; threshold) ? *data : 0;
+}
+</code></pre>
+<div class="mermaid">sequenceDiagram
+    participant CPU as CPU 主机
+    participant AXIL as AXI4-Lite 控制总线
+    participant AXIM as AXI4-Full 数据总线
+    participant KERN as HLS 内核
+
+    CPU->>AXIL: 写入 threshold = 128
+    CPU->>AXIL: 写入 ap_start = 1
+    AXIL->>KERN: 配置寄存器更新
+    CPU->>AXIM: 发送数据数组地址
+    AXIM->>KERN: 突发读取数据
+    KERN->>AXIM: 突发写入结果
+    KERN->>AXIL: 置 ap_done = 1
+    CPU->>AXIL: 轮询读到 ap_done = 1
+    CPU->>CPU: 读取结果
+</div>
+<p>这张序列图说明了一个关键规律：<strong>控制路径（AXI4-Lite）和数据路径（AXI4-Full）是完全独立的两条高速公路</strong>。CPU 在查询&quot;处理完了没&quot;的同时，数据总线丝毫不受影响，仍在高速运转。这就是&quot;控制与数据分离&quot;的精髓。</p>
+<h3>4.4.3 进阶：用户自定义寄存器偏移</h3>
+<p>通常，HLS 会自动给每个参数分配一个 AXI4-Lite 地址（比如 <code>threshold</code> 放在偏移 <code>0x10</code>，某个状态寄存器放在 <code>0x18</code>）。但有时你需要<strong>精确控制</strong>这个地址——比如你在替换一个遗留 IP 核，不能改动驱动代码里写死的寄存器地址。</p>
+<p>这就是 <code>using_axi_lite_with_user_defined_offset</code> 示例的用武之地：</p>
+<pre><code class="language-cpp">void example(int threshold, int mode) {
+    #pragma HLS interface s_axilite port=threshold offset=0x20  // 我说了算
+    #pragma HLS interface s_axilite port=mode      offset=0x28
+}
+</code></pre>
+<blockquote>
+<p><strong>类比</strong>：就像你搬进新家，硬要把沙发放在和老家一模一样的位置，这样你闭着眼睛都知道遥控器在哪里。</p>
+</blockquote>
+<hr />
+<h2>4.5 AXI4-Full：给大块数据用的&quot;冷链货车&quot;</h2>
+<h3>4.5.1 什么是 AXI4-Full？</h3>
+<p>AXI4-Lite 是轻量级的点餐单，无法承载大量数据。要把几兆字节的图像、几千个浮点数的矩阵送进 FPGA，需要<strong>冷链货车</strong>——AXI4-Full，即 <code>m_axi</code>（<code>m</code> 代表 Master，FPGA 是主动方，去内存里&quot;取货&quot;或&quot;送货&quot;）。</p>
+<p><strong>AXI4-Full 的核心优势：突发传输（Burst Transfer）</strong>。</p>
+<p>想象一趟货车能一次运 256 箱苹果，而不是每次只运 1 箱。突发传输就是这个道理：发送一次地址请求，然后连续传输 256 个数据&quot;节拍（beat）&quot;。这比发送 256 次单独请求要高效得多。</p>
+<h3>4.5.2 基础用法：<code>using_axi_master</code></h3>
+<pre><code class="language-cpp">void dut(int* input, int* output, int n) {
+    #pragma HLS interface m_axi port=input  depth=1024
+    #pragma HLS interface m_axi port=output depth=1024
+    #pragma HLS interface s_axilite port=n
+    #pragma HLS interface s_axilite port=return
+
+    for (int i = 0; i &lt; n; i++) {
+        output[i] = input[i] * 2;
+    }
+}
+</code></pre>
+<p>这段代码看起来简单，但背后隐藏着一个问题：<strong>HLS 能自动推断出&quot;突发传输&quot;吗？</strong></p>
+<h3>4.5.3 突发传输：性能的生死线</h3>
+<p>这是 AXI4-Full 接口最关键，也最容易踩坑的地方。我们通过三个对比示例来说清楚。</p>
+<div class="mermaid">flowchart TD
+    START["循环访问内存\nfor i in 0 to N"] --> CHECK{"访问模式\n是连续的吗？"}
+
+    CHECK -->|"是：output i = input i"| BURST_OK["HLS 自动推断突发\n1 次地址请求 + N 次数据传输\n效率极高"]
+
+    CHECK -->|"有条件分支\nif mask i then read"| BURST_FAIL["突发推断失败\n退化为 N 次单独请求\n效率损失 50 pct 以上"]
+
+    CHECK -->|"手动控制\nmemcpy or 明确循环"| BURST_MANUAL["手动突发成功\n预先缓冲到 BRAM\n再做突发传输"]
+
+    BURST_FAIL --> FIX["解决方案\n预读取到本地 BRAM\n再用无条件循环处理"]
+
+    style BURST_OK fill:#e8f5e9,stroke:#2e7d32
+    style BURST_FAIL fill:#ffebee,stroke:#c62828
+    style BURST_MANUAL fill:#fff8e1,stroke:#f57f17
+    style FIX fill:#e3f2fd,stroke:#1565c0
+</div>
+<p><strong>场景一：<code>manual_burst_inference_success</code>（成功）</strong></p>
+<pre><code class="language-cpp">// HLS 能识别出这是连续访问，自动生成突发
+void good_burst(int* input, int* output, int n) {
+    #pragma HLS interface m_axi port=input
+    #pragma HLS interface m_axi port=output
+
+    for (int i = 0; i &lt; n; i++) {
+        #pragma HLS pipeline II=1
+        output[i] = input[i];  // 简单、连续、无条件
+    }
+}
+</code></pre>
+<p><strong>场景二：<code>auto_burst_inference_failure</code>（失败）</strong></p>
+<pre><code class="language-cpp">// 条件分支让 HLS 无法判断访问是否连续，突发失败
+void bad_burst(int* input, int* output, int* mask, int n) {
+    #pragma HLS interface m_axi port=input
+    #pragma HLS interface m_axi port=output
+
+    for (int i = 0; i &lt; n; i++) {
+        if (mask[i]) {           // 这个 if 是&quot;拦路虎&quot;
+            output[i] = input[i];
+        }
+    }
+    // 结果：每次访问都单独发地址请求，带宽暴跌
+}
+</code></pre>
+<p><strong>场景三：<code>manual_burst_with_conditionals</code>（解决方案）</strong></p>
+<pre><code class="language-cpp">// 先无条件预读取到 BRAM，再在本地处理条件
+void fixed_burst(int* input, int* output, int* mask, int n) {
+    int local_buf[1024];       // 片内 BRAM 缓冲区
+    #pragma HLS interface m_axi port=input
+    #pragma HLS interface m_axi port=output
+
+    // 第一步：无条件突发读取（HLS 能推断出来）
+    memcpy(local_buf, input, n * sizeof(int));
+
+    // 第二步：在本地处理条件逻辑（不影响外部突发）
+    for (int i = 0; i &lt; n; i++) {
+        if (mask[i]) {
+            local_buf[i] *= 2;
+        }
+    }
+
+    // 第三步：无条件突发写回
+    memcpy(output, local_buf, n * sizeof(int));
+}
+</code></pre>
+<blockquote>
+<p><strong>性能数字让你清醒</strong>：假设 N=1024，突发失败时你需要 1024 次地址请求 + 1024 次数据传输；突发成功时只需要 1 次地址请求 + 1024 次数据传输。在实际 FPGA 上，这可能意味着 10 倍的带宽差距。</p>
+</blockquote>
+<h3>4.5.4 拓宽数据位宽：<code>max_widen_port_width</code></h3>
+<p>除了突发长度，数据宽度也是影响带宽的关键旋钮。</p>
+<p>$$
+带宽 = 数据宽度 \times 时钟频率 \times 利用率
+$$</p>
+<p>把数据宽度从 64 位提升到 512 位，理论带宽可以涨 8 倍。<code>max_widen_port_width</code> 示例展示了如何通过配置文件来控制这个参数：</p>
+<pre><code class="language-ini"># hls_config.cfg 中的配置
+syn.interface.m_axi_alignment_byte_size=64
+syn.interface.m_axi_max_widen_bitwidth=256
+</code></pre>
+<ul>
+<li><code>m_axi_alignment_byte_size=64</code>：告诉 HLS &quot;我保证数据总是 64 字节对齐的&quot;，HLS 就可以生成更宽的突发指令。</li>
+<li><code>m_axi_max_widen_bitwidth=256</code>：允许 HLS 把 8 个连续的 32 位 <code>int</code> 访问合并成一个 256 位的宽总线传输。</li>
+</ul>
+<div class="mermaid">graph TD
+    NARROW["窄总线模式\n64-bit 宽度\n每次传 1 个 int\n地址开销占比高"]
+    WIDE["宽总线模式\n256-bit 宽度\n每次传 8 个 int\n地址开销占比低"]
+    WIDER["最宽总线模式\n512-bit 宽度\n每次传 16 个 int\n接近理论峰值带宽"]
+
+    NARROW -->|"连续访问 + 对齐保证"| WIDE
+    WIDE -->|"HBM 场景 + 极致优化"| WIDER
+
+    NARROW_CASE["适合随机访问\n哈希表查找\n稀疏数据"] --- NARROW
+    WIDE_CASE["适合混合模式\n矩阵块处理\n图像滤波"] --- WIDE
+    WIDER_CASE["适合顺序扫描\n流式数据\n大规模数组"] --- WIDER
+
+    style NARROW fill:#ffebee
+    style WIDE fill:#fff8e1
+    style WIDER fill:#e8f5e9
+</div>
+<p><strong>权衡提醒</strong>：宽总线不是免费的。512 位总线需要更多的 LUT 和 FF 来实现数据路由逻辑，时序收敛也更难。选 256 位而非 512 位，往往是在&quot;够用就好&quot;和&quot;极致榨干带宽&quot;之间的务实折中。</p>
+<h3>4.5.5 多指针共享接口：<code>aggregation_of_m_axi_ports</code></h3>
+<p>Alveo 加速卡通常只有 2-4 个物理 DDR 内存通道。如果每个指针参数都独占一个 <code>m_axi</code> 端口，很快就会把物理接口耗尽。</p>
+<p><strong>解决方案：使用 <code>bundle</code> 把多个指针绑到同一个 AXI4-Full 端口：</strong></p>
+<pre><code class="language-cpp">void dut(int* a, int* b, int* c) {
+    #pragma HLS interface m_axi port=a bundle=gmem0  // a 和 b 共享一个端口
+    #pragma HLS interface m_axi port=b bundle=gmem0  // 节省了一个物理通道
+    #pragma HLS interface m_axi port=c bundle=gmem1  // c 独占另一个端口
+}
+</code></pre>
+<div class="mermaid">graph TD
+    subgraph "不使用 bundle -- 浪费端口"
+        P1_A["m_axi port A"] --> DDR1_A["DDR 通道 0"]
+        P1_B["m_axi port B"] --> DDR1_B["DDR 通道 1"]
+        P1_C["m_axi port C"] --> DDR1_C["DDR 通道 2"]
+        P1_D["m_axi port D"] --> DDR1_D["DDR 通道 3 -- 耗尽"]
+    end
+
+    subgraph "使用 bundle -- 复用端口"
+        P2_AB["gmem0 共享端口\na 和 b 复用"] --> DDR2_0["DDR 通道 0"]
+        P2_CD["gmem1 共享端口\nc 和 d 复用"] --> DDR2_1["DDR 通道 1"]
+        SAVED["节省 2 个物理通道\n可用于其他 IP 核"] 
+    end
+
+    style SAVED fill:#e8f5e9,stroke:#2e7d32
+</div>
+<p><strong>注意陷阱</strong>：共享接口意味着 <code>a</code> 和 <code>b</code> 的访问会相互等待（串行化）。如果你的算法需要同时读 <code>a</code> 和 <code>b</code>（比如在 DATAFLOW 的两个并行阶段里），共享端口会直接破坏并行性，反而降低性能。<strong>在并行性和资源节省之间，你必须做出选择。</strong></p>
+<hr />
+<h2>4.6 AXI4-Stream：给连续数据用的&quot;传送带&quot;</h2>
+<h3>4.6.1 什么是 AXI4-Stream？</h3>
+<p>AXI4-Full 像货车，需要&quot;地址&quot;来导航——你得告诉它&quot;去内存 0x1000 取数据&quot;。</p>
+<p><strong>AXI4-Stream 则像工厂里的传送带</strong>——数据一个接一个地滚过来，你不需要知道下一个零件是从哪个货架取的，只管接住就好。没有地址，没有寻址开销，数据连续流动。</p>
+<p>这种模式完美适合：视频帧、音频采样、网络数据包、传感器连续读数——任何&quot;源源不断涌来&quot;的数据。</p>
+<h3>4.6.2 握手协议：三根线控制世界</h3>
+<p>AXI4-Stream 的核心是三根信号线（最简形式）：</p>
+<div class="mermaid">sequenceDiagram
+    participant PROD as 生产者 Producer
+    participant CONS as 消费者 Consumer
+
+    Note over PROD,CONS: 正常传输：TVALID=1 且 TREADY=1
+    PROD->>CONS: TVALID=1, TDATA=0xAB
+    CONS->>PROD: TREADY=1
+    Note over CONS: 数据 0xAB 被接收
+
+    Note over PROD,CONS: 消费者繁忙：TREADY=0（背压）
+    PROD->>CONS: TVALID=1, TDATA=0xCD
+    CONS->>PROD: TREADY=0
+    Note over PROD: 等待，不发新数据
+
+    Note over PROD,CONS: 消费者准备好了
+    CONS->>PROD: TREADY=1
+    Note over CONS: 数据 0xCD 被接收
+
+    Note over PROD,CONS: 包的最后一个数据：TLAST=1
+    PROD->>CONS: TVALID=1, TDATA=0xEF, TLAST=1
+    CONS->>PROD: TREADY=1
+    Note over CONS: 包结束，准备接收下一包
+</div>
+<ul>
+<li><strong>TVALID</strong>：生产者说&quot;我有数据，是真的&quot;</li>
+<li><strong>TREADY</strong>：消费者说&quot;我准备好接收了&quot;</li>
+<li><strong>TLAST</strong>：生产者说&quot;这是这个数据包的最后一个字节&quot;</li>
+</ul>
+<p>只有当 <code>TVALID</code> 和 <code>TREADY</code> 同时为高，数据才真正被传输。这种&quot;握手&quot;机制让传送带可以自动减速（背压），防止数据溢出。</p>
+<h3>4.6.3 纯数据流：<code>using_axi_stream_no_side_channel</code></h3>
+<pre><code class="language-cpp">// hls::stream 是 HLS 中流的基本类型
+void dut(hls::stream&lt;int&gt;&amp; in, hls::stream&lt;int&gt;&amp; out) {
+    #pragma HLS interface axis port=in   // 映射到 AXI4-Stream
+    #pragma HLS interface axis port=out
+    #pragma HLS pipeline II=1
+
+    while (!in.empty()) {
+        int data = in.read();   // 从传送带上取一个
+        out.write(data * 2);    // 放到输出传送带
+    }
+}
+</code></pre>
+<p>这是最干净的流式接口——只有数据，没有任何附加信息。适合你只关心&quot;数据值&quot;，不关心&quot;包边界&quot;或&quot;字节有效性&quot;的场景。</p>
+<h3>4.6.4 带边带数据：<code>using_axi_stream_with_side_channel</code></h3>
+<p>现实世界的数据往往不是光秃秃的数值流。网络数据包需要标记&quot;一帧结束了&quot;，视频流需要标记&quot;这一行的某些像素无效&quot;。</p>
+<p>AXI4-Stream 提供了**边带信号（Side-channel Signals）**来携带这些元信息：</p>
+<table>
+<thead>
+<tr>
+<th>信号</th>
+<th>作用</th>
+<th>类比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TLAST</code></td>
+<td>标记数据包的最后一拍</td>
+<td>传送带上的&quot;包裹结束&quot;标签</td>
+</tr>
+<tr>
+<td><code>TKEEP</code></td>
+<td>字节有效掩码（哪些字节是真数据）</td>
+<td>标记传送带上哪些格子有货</td>
+</tr>
+<tr>
+<td><code>TSTRB</code></td>
+<td>字节类型掩码（数据字节 vs 位置字节）</td>
+<td>区分&quot;正式货物&quot;和&quot;填充泡沫&quot;</td>
+</tr>
+<tr>
+<td><code>TUSER</code></td>
+<td>用户自定义元数据</td>
+<td>快递单上的备注栏</td>
+</tr>
+</tbody>
+</table>
+<p>在 HLS 中，使用 <code>ap_axis</code> 结构体来携带这些信号：</p>
+<pre><code class="language-cpp">#include &quot;ap_axi_sdata.h&quot;
+
+// ap_axis&lt;数据位宽, TUSER位宽, TID位宽, TDEST位宽&gt;
+typedef ap_axis&lt;32, 1, 1, 1&gt; axis_pkt;
+
+void dut(hls::stream&lt;axis_pkt&gt;&amp; in, hls::stream&lt;axis_pkt&gt;&amp; out) {
+    #pragma HLS interface axis port=in
+    #pragma HLS interface axis port=out
+
+    axis_pkt pkt;
+    do {
+        in.read(pkt);
+        pkt.data = pkt.data + 1;  // 处理数据
+        // pkt.last、pkt.keep 等边带信号自动透传
+        out.write(pkt);
+    } while (!pkt.last);  // 读到 TLAST 为止
+}
+</code></pre>
+<blockquote>
+<p><strong>危险警告</strong>：忘记处理 <code>TLAST</code> 是流式接口最常见的 bug。下游的 DMA 控制器（如 Xilinx AXI DMA IP）会一直等待 <code>TLAST</code> 来触发中断。如果你的 HLS 核忘记输出 <code>TLAST</code>，整个系统会永远挂在那里等待——没有报错，只有沉默。</p>
+</blockquote>
+<h3>4.6.5 结构体与流：<code>using_axi_stream_with_struct</code></h3>
+<p>很多时候，你的数据包不是单个 <code>int</code>，而是一个包含多个字段的自定义结构体。比如视频像素点有 RGB 三个分量，雷达数据有距离和强度两个维度。</p>
+<pre><code class="language-cpp">struct Pixel {
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
+};
+
+void dut(hls::stream&lt;Pixel&gt;&amp; in_stream, hls::stream&lt;Pixel&gt;&amp; out_stream) {
+    #pragma HLS interface axis port=in_stream
+    #pragma HLS interface axis port=out_stream
+    #pragma HLS aggregate variable=in_stream  // 把结构体打包成单个宽数据字
+
+    Pixel px = in_stream.read();
+    px.r = px.r / 2;  // 降低红色亮度
+    out_stream.write(px);
+}
+</code></pre>
+<p><code>#pragma HLS aggregate</code> 告诉 HLS：把 <code>r</code>（8位）、<code>g</code>（8位）、<code>b</code>（8位）打包成一个 24 位的数据字，一次性在 AXI4-Stream 上传输，而不是分三次传。</p>
+<h3>4.6.6 多路并行流：<code>using_array_of_streams</code></h3>
+<p>有时你需要同时处理多个并行的数据流——比如 8 路传感器、4 路视频通道。<code>hls::stream</code> 数组让这变得自然：</p>
+<pre><code class="language-cpp">void dut(hls::stream&lt;int&gt; in[4], hls::stream&lt;int&gt; out[4]) {
+    #pragma HLS interface axis port=in
+    #pragma HLS interface axis port=out
+    #pragma HLS array_partition variable=in  complete  // 每个流有独立的硬件 FIFO
+    #pragma HLS array_partition variable=out complete
+
+    for (int i = 0; i &lt; 4; i++) {
+        #pragma HLS unroll  // 4 个通道完全并行
+        int data = in[i].read();
+        out[i].write(data * 2);
+    }
+}
+</code></pre>
+<div class="mermaid">graph TD
+    subgraph "4 路并行流处理"
+        I0["in 0"] -->|"独立 FIFO"| P0["处理单元 0"]
+        I1["in 1"] -->|"独立 FIFO"| P1["处理单元 1"]
+        I2["in 2"] -->|"独立 FIFO"| P2["处理单元 2"]
+        I3["in 3"] -->|"独立 FIFO"| P3["处理单元 3"]
+
+        P0 -->|"独立 FIFO"| O0["out 0"]
+        P1 -->|"独立 FIFO"| O1["out 1"]
+        P2 -->|"独立 FIFO"| O2["out 2"]
+        P3 -->|"独立 FIFO"| O3["out 3"]
+    end
+
+    NOTE["array_partition complete\n确保 4 个通道真正并行\n而不是共享一个 FIFO"]
+
+    style NOTE fill:#fff8e1,stroke:#f57f17
+</div>
+<p><strong>关键点</strong>：<code>array_partition complete</code> 是必须的。没有它，HLS 可能把 4 个流合并成一个共享的内存结构，变成串行访问，彻底破坏并行性。</p>
+<h3>4.6.7 流转内存：<code>axi_stream_to_master</code></h3>
+<p>最后一个流式接口模式，也是最有挑战性的：<strong>把高速 AXI4-Stream 的数据存入 DDR 内存</strong>。</p>
+<p>想象高速公路（AXI4-Stream）上的车流要停进停车场（DDR 内存）。停车场有自己的节奏——找车位、倒车入库都需要时间。如果没有&quot;等候区&quot;（缓冲区），高速公路上的车就会堵死。</p>
+<div class="mermaid">flowchart LR
+    AXIS["AXI4-Stream 输入\n高速连续数据\n如 ADC 或网络接口"]
+    FIFO["片内缓冲区\nhls::stream 或 BRAM FIFO\n平滑速率差异"]
+    BURST["突发组装器\n积累 4KB 数据\n准备一次突发写"]
+    DDR["DDR 内存\n通过 AXI4-Full m_axi\n以突发方式写入"]
+
+    AXIS -->|"高速流入"| FIFO
+    FIFO -->|"批量取出"| BURST
+    BURST -->|"AXI 突发写"| DDR
+
+    BACK["背压信号\nTREADY 拉低\n告知上游暂停"]
+    DDR -.->|"内存繁忙时"| BACK
+    BACK -.->|"反向传播"| AXIS
+
+    style FIFO fill:#fff8e1,stroke:#f57f17
+    style BURST fill:#e8f5e9,stroke:#2e7d32
+    style BACK fill:#ffebee,stroke:#c62828
+</div>
+<p>这个设计中有两个关键决策：</p>
+<ol>
+<li>
+<p><strong>缓冲区深度</strong>：必须足够大，能吸收 DDR 内存响应慢的延迟（DDR 刷新、仲裁等）。通常需要至少 4KB 以上的缓冲。</p>
+</li>
+<li>
+<p><strong>突发组装阈值</strong>：积累多少数据才触发一次突发写？阈值太小（频繁小突发），地址通道开销大；阈值太大（等待时间长），延迟高，缓冲区可能溢出。</p>
+</li>
+</ol>
+<hr />
+<h2>4.7 结构体的聚合与解聚：最容易踩坑的地方</h2>
+<h3>4.7.1 聚合（Aggregation）：把结构体&quot;压扁&quot;成总线数据</h3>
+<p>当你的 C++ 函数参数是一个结构体时，HLS 需要决定如何把这个结构体的多个字段塞进 AXI 总线的一个数据字里。这个过程叫<strong>聚合（Aggregation）</strong>。</p>
+<div class="mermaid">graph TD
+    STRUCT["C++ 结构体\nstruct Pkt \n  uint8_t a    -- 8 位\n  uint16_t b  -- 16 位\n  uint32_t c  -- 32 位\n"]
+
+    BUS["AXI 总线数据字 -- 56 位\nc 31..0 高位  b 15..0 中位  a 7..0 低位"]
+
+    STRUCT -->|"#pragma HLS aggregate\ncompact=bit"| BUS
+
+    NOTE_ALIGN["注意：HLS 按照 little-endian\n从低位到高位打包字段\n消除 C++ 的对齐填充字节"]
+
+    style STRUCT fill:#e3f2fd
+    style BUS fill:#e8f5e9
+    style NOTE_ALIGN fill:#fff8e1
+</div>
+<p><strong><code>aggregation_of_struct</code> 示例</strong>展示了最基本的聚合：</p>
+<pre><code class="language-cpp">struct MyStruct {
+    uint8_t  flag;    // 8 bits
+    uint16_t value;   // 16 bits
+    uint32_t data;    // 32 bits
+    // 总共 56 bits，不是 64 bits（因为消除了填充）
+};
+
+void dut(MyStruct* input) {
+    #pragma HLS interface m_axi port=input
+    #pragma HLS aggregate variable=input compact=bit  // 紧密打包，无填充
+}
+</code></pre>
+<p><strong><code>aggregation_of_nested_structs</code> 示例</strong>则展示了嵌套结构体的递归聚合：</p>
+<pre><code class="language-cpp">struct Inner { uint8_t a; uint16_t b; };   // 24 bits
+struct Outer { Inner inner; uint32_t c; };  // 24 + 32 = 56 bits
+
+// HLS 会递归地展平 Outer，最终生成一个 56 位的扁平位向量
+</code></pre>
+<h3>4.7.2 解聚（Disaggregation）：把总线数据&quot;拆开&quot;给各字段</h3>
+<p>有时方向是反的——你收到一个宽总线数据，想把它的各个位段直接暴露为独立的硬件信号。<code>auto_disaggregation_of_struct</code> 展示了这种模式，适合结构体字段需要被下游逻辑独立访问的场景。</p>
+<h3>4.7.3 结构体导致的 II 问题：<code>struct_ii_issue</code></h3>
+<p>这是一个经典的性能陷阱。想象你想让循环每个时钟周期处理一个数据（II=1），但结构体的字段之间存在依赖关系，HLS 无法流水线化：</p>
+<pre><code class="language-cpp">// 问题代码
+struct State { int x; int y; };
+
+void dut(State* s, int n) {
+    for (int i = 0; i &lt; n; i++) {
+        #pragma HLS pipeline II=1  // 这里可能失败！
+        s-&gt;x = s-&gt;y + 1;  // 读 y，写 x
+        s-&gt;y = s-&gt;x + 2;  // 读 x（上一行刚写的！）
+    }
+}
+</code></pre>
+<p>第二行读 <code>s-&gt;x</code> 依赖于第一行写 <code>s-&gt;x</code>，这是一个&quot;读后写依赖（RAW）&quot;。HLS 无法在同一时钟周期内完成这个依赖链，II 就会被强制增大。</p>
+<p><strong>解决方案</strong>：使用局部变量打破依赖链：</p>
+<pre><code class="language-cpp">void dut(State* s, int n) {
+    int local_x = s-&gt;x;
+    int local_y = s-&gt;y;
+
+    for (int i = 0; i &lt; n; i++) {
+        #pragma HLS pipeline II=1  // 现在可以成功了
+        int new_x = local_y + 1;
+        int new_y = new_x + 2;
+        local_x = new_x;
+        local_y = new_y;
+    }
+    s-&gt;x = local_x;
+    s-&gt;y = local_y;
+}
+</code></pre>
+<hr />
+<h2>4.8 接口选择决策树</h2>
+<p>面对一个实际设计任务，如何快速选择正确的接口？</p>
+<div class="mermaid">flowchart TD
+    START["我有一个 C++ 函数参数\n我该用什么接口？"]
+
+    Q1{"数据类型是什么？"}
+    START --> Q1
+
+    Q1 -->|"标量 int float bool\n或函数返回值"| AXIL["使用 s_axilite\nAXI4-Lite\n示例：using_axi_lite"]
+
+    Q1 -->|"数组 或 指针"| Q2{"访问模式？"}
+
+    Q1 -->|"hls::stream 类型"| Q3{"需要包边界信息？"}
+
+    Q2 -->|"随机访问\n如哈希表 稀疏矩阵"| AXIM_NARROW["使用 m_axi\n默认 64-bit 宽度\n示例：using_axi_master"]
+
+    Q2 -->|"连续顺序访问\n如数组扫描"| Q4{"需要最大化带宽？"}
+
+    Q4 -->|"是"| AXIM_WIDE["使用 m_axi\n启用 max_widen_bitwidth\n示例：max_widen_port_width"]
+
+    Q4 -->|"否"| AXIM_BURST["使用 m_axi\n确保突发推断成功\n示例：manual_burst_inference"]
+
+    Q3 -->|"否：纯数据流"| AXIS_SIMPLE["使用 axis\n无边带信号\n示例：no_side_channel"]
+
+    Q3 -->|"是：帧 包 时间戳"| AXIS_SIDE["使用 axis\n带 TLAST TKEEP TUSER\n示例：with_side_channel"]
+
+    Q3 -->|"流数据 需要存入内存"| AXIS_TO_MEM["流转内存模式\n示例：axi_stream_to_master"]
+
+    style AXIL fill:#e3f2fd,stroke:#1565c0
+    style AXIM_NARROW fill:#e8f5e9,stroke:#2e7d32
+    style AXIM_WIDE fill:#e8f5e9,stroke:#2e7d32
+    style AXIM_BURST fill:#e8f5e9,stroke:#2e7d32
+    style AXIS_SIMPLE fill:#fce4ec,stroke:#c62828
+    style AXIS_SIDE fill:#fce4ec,stroke:#c62828
+    style AXIS_TO_MEM fill:#fce4ec,stroke:#c62828
+</div>
+<hr />
+<h2>4.9 Vitis 流程 vs Vivado 流程：选哪条路？</h2>
+<p><code>interface_design</code> 模块中，你会注意到不同示例的 <code>hls_config.cfg</code> 里有不同的 <code>flow_target</code> 设置：</p>
+<pre><code class="language-ini"># Vitis 流程
+flow_target=vitis
+package.output.format=xo    # 输出 .xo 内核文件
+
+# Vivado 流程
+flow_target=vivado
+package.output.format=ip_catalog  # 输出 IP 封装
+</code></pre>
+<div class="mermaid">classDiagram
+    class VitisFlow {
+        flow_target: vitis
+        output: XO 内核文件
+        用户: 软件工程师
+        集成: Vitis 链接器自动集成
+        调试: vitis_analyzer xrt_smi
+        优点: 快速开发 跨平台移植
+        缺点: 依赖 XRT 运行时
+    }
+
+    class VivadoFlow {
+        flow_target: vivado
+        output: IP Catalog 封装
+        用户: 硬件工程师
+        集成: 手动实例化到 IPI 框图
+        调试: ILA 逻辑分析仪
+        优点: 极致控制 自定义 RTL
+        缺点: 集成工作量大
+    }
+
+    class YourProject {
+        需要问自己的问题
+        用了 XRT 运行时吗？
+        需要跨板卡移植吗？
+        团队背景是软件还是硬件？
+    }
+
+    YourProject --> VitisFlow : 软件背景 OR Alveo 加速卡
+    YourProject --> VivadoFlow : 硬件背景 OR Zynq 嵌入式
+</div>
+<p><strong>简单判断法则</strong>：</p>
+<ul>
+<li>如果你的项目运行在 <strong>Alveo 加速卡</strong> 上，或者团队主要是软件背景 → 选 <strong>Vitis 流程</strong></li>
+<li>如果你的项目运行在 <strong>Zynq SoC</strong> 上，或者需要跟手工 RTL 紧密集成 → 选 <strong>Vivado 流程</strong></li>
+</ul>
+<hr />
+<h2>4.10 最容易犯的三大错误</h2>
+<h3>错误一：忘记 <code>TLAST</code>，导致 DMA 永久挂起</h3>
+<p><strong>症状</strong>：硬件测试时程序卡死，没有报错，只是没有响应。</p>
+<p><strong>根因</strong>：Xilinx 的 AXI DMA IP 核依靠 <code>TLAST</code> 信号来知道&quot;一帧数据传完了&quot;，从而触发中断通知 CPU。你的 HLS 核忘记输出 <code>TLAST</code>，DMA 会一直等待，永不完成。</p>
+<p><strong>修复</strong>：使用 <code>ap_axis</code> 结构体，确保在数据包最后一拍设置 <code>.last = 1</code>：</p>
+<pre><code class="language-cpp">axis_pkt out_pkt;
+out_pkt.data = result;
+out_pkt.last = (i == N - 1) ? 1 : 0;  // 最后一拍标记 TLAST
+out_pkt.keep = -1;                      // 所有字节有效
+out_stream.write(out_pkt);
+</code></pre>
+<h3>错误二：指针别名导致并行性丧失</h3>
+<p><strong>症状</strong>：综合报告显示 II 远大于 1，无论怎么加 pipeline pragma 都无效。</p>
+<p><strong>根因</strong>：HLS 默认假设两个指针参数可能指向同一块内存（别名）。为了安全，它不得不串行化所有内存访问。</p>
+<p><strong>修复</strong>：用 C99 的 <code>restrict</code> 关键字明确告诉 HLS&quot;这两个指针绝对不重叠&quot;：</p>
+<pre><code class="language-cpp">// 改变前：HLS 假设 a 和 b 可能重叠
+void bad(int* a, int* b, int n) { ... }
+
+// 改变后：告诉 HLS 放心并行
+void good(int* __restrict a, int* __restrict b, int n) { ... }
+</code></pre>
+<h3>错误三：非对齐访问破坏宽总线优化</h3>
+<p><strong>症状</strong>：配置了 <code>max_widen_bitwidth=256</code>，但实际硬件带宽并没有提升。</p>
+<p><strong>根因</strong>：宽总线优化要求数据在内存中按特定字节数对齐。如果主机代码使用普通 <code>malloc</code> 分配内存，可能不满足 64 字节对齐的要求，HLS 悄悄回退到窄总线模式。</p>
+<p><strong>修复</strong>：在主机代码中使用对齐的内存分配：</p>
+<pre><code class="language-cpp">// 主机代码（Host C++ 代码）
+int* buf;
+posix_memalign((void**)&amp;buf, 64, N * sizeof(int));  // 64 字节对齐
+
+// 或者在 Vitis 平台使用 XRT 的对齐分配
+auto buf = xrt::bo(device, N * sizeof(int), xrt::bo::flags::normal, kernel.group_id(0));
+</code></pre>
+<hr />
+<h2>4.11 本章小结</h2>
+<div class="mermaid">graph TD
+    LESSON1["核心教训 1\n三层映射模型\nC++ 语义 到 逻辑接口 到 物理协议\nLayer 2 是优化的战场"]
+
+    LESSON2["核心教训 2\n三种接口各司其职\ns_axilite: 控制信号\nm_axi: 大块内存\naxis: 流式数据"]
+
+    LESSON3["核心教训 3\n突发传输是 m_axi 的命门\n条件分支会破坏突发\n预读取到 BRAM 是救命药"]
+
+    LESSON4["核心教训 4\n流式接口的三大信号\nTVALID TREADY TLAST\n忘记 TLAST 会让 DMA 挂死"]
+
+    LESSON5["核心教训 5\n结构体需要 aggregate pragma\n否则 HLS 无法高效打包\n嵌套结构体会递归展平"]
+
+    LESSON1 --- LESSON2
+    LESSON2 --- LESSON3
+    LESSON3 --- LESSON4
+    LESSON4 --- LESSON5
+
+    style LESSON1 fill:#e3f2fd,stroke:#1565c0
+    style LESSON2 fill:#e8f5e9,stroke:#2e7d32
+    style LESSON3 fill:#fff8e1,stroke:#f57f17
+    style LESSON4 fill:#fce4ec,stroke:#c62828
+    style LESSON5 fill:#f3e5f5,stroke:#7b1fa2
+</div>
+<p>接口设计是 HLS 开发中最&quot;牵一发而动全身&quot;的决策。一个错误的接口选择——比如把大块数组映射到 AXI4-Lite，或者忽略突发传输——可以让一个理论上有 10 倍加速比的 FPGA 内核，实际表现比 CPU 还慢。</p>
+<p><strong>记住这三个问题</strong>，在每次设计接口时问自己：</p>
+<ol>
+<li>这个参数传的是&quot;指令&quot;还是&quot;数据&quot;？（决定 AXI4-Lite vs AXI4-Full/Stream）</li>
+<li>数据是&quot;批量到来&quot;还是&quot;连续流动&quot;？（决定 AXI4-Full vs AXI4-Stream）</li>
+<li>数据访问是&quot;顺序的&quot;还是&quot;随机的&quot;？（决定是否能利用突发传输）</li>
+</ol>
+<p>下一章，我们将进入<strong>并行性与优化</strong>的世界——当接口选对了，如何通过流水线、数据流、数组分区等技术，把 FPGA 的并行潜力榨干。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  root=root||document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

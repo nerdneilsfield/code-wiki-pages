@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Chapter 3：数据如何进出一个 Kernel（内核）</title>
+<title>第二章：项目是怎么组织的？一份代码库地图</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -127,7 +127,7 @@ article img{max-width:100%;border-radius:var(--r);}
       <a href="guide-beginners-guide-coding-patterns-that-synthesize-well.html" class="nv">Coding Patterns That Synthesize Well</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
-      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv on">Data Flow At The Kernel Boundary</a>
+      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv">Data Flow At The Kernel Boundary</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
       <a href="guide-beginners-guide-data-flow-inside-the-kernel.html" class="nv">Data Flow Inside The Kernel</a>
@@ -160,7 +160,7 @@ article img{max-width:100%;border-radius:var(--r);}
       <a href="guide-beginners-guide-parallelism-and-optimization.html" class="nv">Parallelism And Optimization</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
-      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv">Project Structure And Mental Model</a>
+      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv on">Project Structure And Mental Model</a>
     </div>
     <div class="nav-row" style="padding-left:24px">
       <a href="guide-beginners-guide-software-to-hardware-coding-patterns.html" class="nv">Software To Hardware Coding Patterns</a>
@@ -225,229 +225,218 @@ article img{max-width:100%;border-radius:var(--r);}
   <main class="main">
     <div class="cw">
       <article id="mc">
-<h1>Chapter 3：数据如何进出一个 Kernel（内核）</h1>
-<p>上一章我们学了“去哪里找例子”。<br />
-这一章我们讲“数据怎么走路”。</p>
-<p>想象你开了一家厨房：</p>
-<ul>
-<li><strong>厨师</strong> = <code>kernel</code>（内核，也就是被综合成硬件电路的顶层函数）</li>
-<li><strong>点菜单</strong> = 控制寄存器（告诉厨师“做什么、做多少”）</li>
-<li><strong>仓库搬运车</strong> = 内存映射 AXI（按地址去 DDR/HBM 搬很多原料）</li>
-<li><strong>传送带</strong> = AXI4-Stream（连续一口一口喂数据）</li>
-</ul>
-<p>接口选错，就像让外卖小哥一勺一勺搬米：能做，但慢到崩溃。</p>
-<hr />
-<h2>3.1 先建立全局地图：Kernel 边界有三条路</h2>
-<div class="mermaid">graph TD
-    H[Host 主机程序] --> C[AXI4-Lite 控制口]
-    H --> M[AXI4 Master 内存口]
-    SRC[上游流数据源] --> S_IN[AXI4-Stream 输入]
-    S_OUT[AXI4-Stream 输出] --> SNK[下游流消费者]
-    C --> K[Kernel 内核逻辑]
-    M --> K
-    S_IN --> K
-    K --> S_OUT
-    M --> DDR[DDR/HBM 外部内存]
-</div>
-<p>这张图可以这样读：<br />
-想象一个工厂车间，<strong>控制口</strong>像前台按钮，<strong>内存口</strong>像叉车通道，<strong>流接口</strong>像流水线。三条路都连到同一个车间（内核逻辑），但每条路的“交通规则”不同。</p>
-<hr />
-<h2>3.2 概念关系图：三种接口到底各管什么</h2>
+<h1>第二章：项目是怎么组织的？一份代码库地图</h1>
 <blockquote>
-<p>第一次出现术语解释：<br />
-<strong>AXI</strong>（Advanced eXtensible Interface）可以理解成 FPGA 世界里非常标准的“物流协议”。<br />
-<strong>AXI4-Lite</strong> 适合小量配置。<br />
-<strong>AXI4 Master（m_axi）</strong> 适合按地址批量搬数据。<br />
-<strong>AXI4-Stream（axis）</strong> 适合连续数据流，不带地址。</p>
+<p><strong>本章目标：</strong> 理解项目的&quot;平铺式、一例一目录&quot;结构，搞清楚每个顶层模块负责什么，学会在代码库里不迷路。</p>
 </blockquote>
-<div class="mermaid">classDiagram
-    class Kernel{
-      硬件加速函数
-    }
-    class AXI4Lite{
-      小数据
-      低带宽
-      配置与状态
-    }
-    class MAXI{
-      按地址访问
-      支持突发传输
-      连DDR/HBM
-    }
-    class AXIS{
-      连续数据
-      TVALID/TREADY握手
-      可带TLAST包尾
-    }
-    class Performance{
-      吞吐量
-      延迟
-      资源占用
-    }
-
-    Kernel --> AXI4Lite : 控制
-    Kernel --> MAXI : 批量读写
-    Kernel --> AXIS : 流式处理
-    AXI4Lite --> Performance : 影响启动/管理开销
-    MAXI --> Performance : 影响带宽上限
-    AXIS --> Performance : 影响流水稳定性
-</div>
-<p>你可以把它想成 React 项目里的三类状态来源：</p>
-<ul>
-<li><code>AXI4-Lite</code> 像 <code>props</code> 里的配置参数（小、明确）</li>
-<li><code>m_axi</code> 像去数据库批量查数据</li>
-<li><code>axis</code> 像 WebSocket 持续推流</li>
-</ul>
 <hr />
-<h2>3.3 控制寄存器（AXI4-Lite）：告诉 Kernel 什么时候干活</h2>
-<p><strong>控制寄存器</strong>就是一组“可读可写的小格子”，主机往里写数字，硬件据此行动。<br />
-想象微波炉面板：<code>时间</code>、<code>火力</code>、<code>开始键</code> 都是寄存器风格。</p>
-<h3>控制流程</h3>
-<div class="mermaid">flowchart TD
-    A[主机写参数寄存器] --> B[主机写 start=1]
-    B --> C[Kernel 读取参数]
-    C --> D[Kernel 执行]
-    D --> E[Kernel 置 done=1]
-    E --> F[主机轮询或中断读取 done]
-</div>
-<p>这就是最常见的“下单-做菜-取餐”流程。<br />
-在 <code>interface_design/using_axi_lite</code> 里，你会看到这种模式的最基础写法。</p>
-<h3>交互时序（request trace）</h3>
-<div class="mermaid">sequenceDiagram
-    participant Host as Host主机
-    participant Ctrl as AXI4-Lite控制口
-    participant K as Kernel
-
-    Host->>Ctrl: 写threshold/size等参数
-    Host->>Ctrl: 写ap_start=1
-    Ctrl->>K: 触发启动
-    K-->>Ctrl: 运行中(ap_idle=0)
-    K-->>Ctrl: 完成(ap_done=1)
-    Host->>Ctrl: 读状态寄存器
-</div>
-<p>这个时序可以理解为：主机像项目经理，先发 Jira 任务（写参数），再点“开始”，最后查状态。</p>
-<hr />
-<h2>3.4 内存映射 AXI（m_axi）：按地址搬大批数据</h2>
-<p><strong>内存映射</strong>（memory-mapped）意思是：硬件把外部内存看成“有门牌号的仓库货架”，通过地址去拿货。<br />
-<code>m_axi</code> 是“我主动去内存读写”的主设备接口，所以叫 <strong>master</strong>（主发起方）。</p>
-<h3>架构图：m_axi 在系统中的位置</h3>
+<h2>2.1 先给整个项目画一张&quot;全景地图&quot;</h2>
+<p>想象你走进一家大型宜家（IKEA）卖场。它不是按照&quot;所有木材放一区、所有螺丝放一区&quot;来组织货架的，而是按照<strong>使用场景</strong>来划分：卧室区、厨房区、书房区……每个区域都是一个完整的&quot;生活方式样板间&quot;，你能直接看到实物效果。</p>
+<p><code>Vitis-HLS-Introductory-Examples</code> 的组织方式和宜家一模一样。它不是把所有 <code>.cpp</code> 文件堆在一起，也不是按照文件类型（接口文件、算法文件、测试文件）分类，而是按照<strong>HLS 开发的关键议题</strong>分成四个顶层模块：</p>
 <div class="mermaid">graph TD
-    K[Kernel] --> MA[m_axi端口]
-    MA --> IC[AXI互连]
-    IC --> MC[内存控制器]
-    MC --> MEM[DDR/HBM]
-    H[Host] --> MEM
-</div>
-<p>想象：Kernel 不是直接碰 DDR，而是先过“高速路收费站”（AXI 互连和内存控制器）。</p>
-<h3>为什么“突发传输（burst）”很关键</h3>
-<p><strong>突发传输</strong>就是“一次报地址，连续搬多拍数据”，像快递员一次搬一整箱，而不是每次只拿一件再重新登记。</p>
-<div class="mermaid">flowchart TD
-    A[循环访问数组] --> B{地址连续吗?}
-    B -->|是| C[生成burst突发]
-    B -->|否| D[退化成单拍访问]
-    C --> E[高带宽]
-    D --> F[低带宽]
-</div>
-<p>这也是 <code>manual_burst_*</code> 示例要教你的核心：<br />
-代码里多一个不合适的 <code>if</code>，就可能让“整箱搬运”退化成“单件搬运”。</p>
-<hr />
-<h2>3.5 AXI4-Stream：像传送带一样连续喂数据</h2>
-<p><strong>流接口</strong>（streaming interface）没有地址，只有“这一拍有没有数据”。<br />
-它靠握手信号工作：</p>
-<ul>
-<li><code>TVALID</code>：发送方说“我这拍有货”</li>
-<li><code>TREADY</code>：接收方说“我这拍接得住”</li>
-<li>两者同时为 1 才真正传输</li>
-</ul>
-<h3>握手时序图</h3>
-<div class="mermaid">sequenceDiagram
-    participant P as Producer生产者
-    participant K as Kernel
-    participant C as Consumer消费者
+    ROOT["Vitis-HLS-Introductory-Examples<br/>根目录（整个宜家卖场）"]
 
-    P->>K: TVALID=1, TDATA=D0
-    K-->>P: TREADY=1
-    K->>C: TVALID=1, TDATA=F(D0)
-    C-->>K: TREADY=1
-    P->>K: TVALID=1, TDATA=D1, TLAST=1
-    K->>C: TVALID=1, TDATA=F(D1), TLAST=1
+    ROOT --> CM["coding_modeling<br/>卧室区：如何编写可综合的 C/C++ 代码"]
+    ROOT --> ID["interface_design<br/>厨房区：如何设计硬件对外的接口"]
+    ROOT --> OP["optimization_parallelism<br/>书房区：如何让硬件跑得更快"]
+    ROOT --> LM["libraries_migration<br/>服务台：如何在不同工具流程间迁移"]
+
+    CM --> CM1["Pointers/"]
+    CM --> CM2["using_fixed_point/"]
+    CM --> CM3["using_C++_templates/"]
+    CM --> CM4["variable_bound_loops/"]
+
+    LM --> LM1["tcl_scripts/"]
+    LM --> LM2["vitis_unified_cli/"]
+    LM --> LM3["python_scripts/"]
 </div>
-<p><code>TLAST</code> 可以理解成“这一包的最后一件货”，常见于视频帧、网络包结尾。<br />
-这正是 <code>using_axi_stream_with_side_channel</code> 在讲的点。</p>
-<h3>背压（back-pressure）直观图</h3>
-<p><strong>背压</strong>就是下游太慢时，反过来让上游“先别发”。</p>
-<div class="mermaid">graph TD
-    S[上游源] --> F1[FIFO缓冲]
-    F1 --> K[Kernel]
-    K --> F2[FIFO缓冲]
-    F2 --> D[下游]
-    D -.忙/变慢.-> F2
-    F2 -.满了.-> K
-    K -.暂停输出.-> F1
-    F1 -.接近满.-> S
-</div>
-<p>你可以把它想成地铁站限流：后面站台满了，前面闸机会暂时关小，避免系统崩掉。</p>
+<p>这张图告诉你：<strong>四个顶层目录，四个不同主题</strong>。每个目录内部，再进一步按具体技术点细分成子目录。</p>
 <hr />
-<h2>3.6 接口选择如何改变性能（最实用）</h2>
-<div class="mermaid">classDiagram
-    class Workload{
-      数据规模
-      连续性
-      实时性
-    }
-    class Choice{
-      s_axilite
-      m_axi
-      axis
-    }
-    class Result{
-      吞吐量(每秒处理量)
-      延迟(响应时间)
-      资源(LUT/BRAM)
-    }
-    Workload --> Choice : 决定接口
-    Choice --> Result : 决定性能形状
+<h2>2.2 每个顶层模块是&quot;什么样板间&quot;？</h2>
+<p>让我们逐一逛逛这四个&quot;样板间&quot;，了解各自的定位。</p>
+<h3>样板间一：<code>coding_modeling</code> —— 写出&quot;对硬件友好&quot;的 C++ 代码</h3>
+<p>这是整个项目的<strong>基础训练营</strong>。它回答的核心问题是：</p>
+<blockquote>
+<p>我会写 C++ 代码，但为什么同样的写法在 FPGA 上跑不起来，或者效率奇差？</p>
+</blockquote>
+<p>就像一位厨师刚开始学习西餐，他可能熟悉炒菜，但不了解烤箱的特性，同样的食材用错了方法就做不出好菜。<code>coding_modeling</code> 展示了一系列&quot;HLS 厨艺技巧&quot;：怎么用指针访问外部内存、怎么使用精确位宽的数据类型、怎么写 C++ 模板让代码自动生成不同规格的硬件……</p>
+<h3>样板间二：<code>interface_design</code> —— 让硬件与外界&quot;握手&quot;</h3>
+<p>一个 FPGA 内核（Kernel）再强大，如果没有合适的接口与外界交换数据，也是孤岛。这个模块展示的是<strong>硬件的&quot;插座和插头&quot;</strong>——AXI4、AXI4-Stream、AXI4-Lite 等工业标准协议，以及如何通过 HLS 配置让你的 C++ 函数参数自动变成这些标准接口。</p>
+<h3>样板间三：<code>optimization_parallelism</code> —— 把硬件的速度潜力榨干</h3>
+<p>这是&quot;进阶区&quot;，专门讲如何让你的 FPGA 设计又快又高效。流水线（Pipeline）、数据流（Dataflow）、循环展开（Loop Unroll）、数组分区（Array Partition）……这些都是 FPGA 独有的&quot;加速魔法&quot;，这里都有示例展示怎么用。</p>
+<h3>样板间四：<code>libraries_migration</code> —— 在不同工具版本间&quot;换语言&quot;</h3>
+<p>这个模块有点特殊——它不是讲算法本身，而是讲<strong>如何表达同一个算法</strong>。Xilinx 的 HLS 工具经历了从 Vivado HLS 到 Vitis HLS 再到 Vitis Unified 的演变，每个版本的&quot;指令语言&quot;略有不同。这里就像一本<strong>方言词典</strong>，教你把同一段意思从旧方言翻译成新方言。</p>
+<hr />
+<h2>2.3 深入理解：<code>coding_modeling</code> 的内部地图</h2>
+<p><code>coding_modeling</code> 是最基础也最重要的模块，我们来详细看看它的内部结构。</p>
+<div class="mermaid">graph TD
+    CM["coding_modeling/"]
+
+    CM --> LAYER1["基础层<br/>（先学这里）"]
+    CM --> LAYER2["数值计算层"]
+    CM --> LAYER3["高级抽象层"]
+    CM --> LAYER4["数组与访存层"]
+    CM --> LAYER5["控制流层"]
+
+    LAYER1 --> P1["Pointers/basic_arithmetic/<br/>整型指针访问外部内存"]
+    LAYER1 --> P2["Pointers/using_double/<br/>浮点指针进阶"]
+
+    LAYER2 --> N1["using_fixed_point/<br/>定点数：精确控制小数位宽"]
+    LAYER2 --> N2["using_float_and_double/<br/>浮点数：动态范围 vs 资源"]
+    LAYER2 --> N3["fixed_point_sqrt/<br/>定点开方函数"]
+
+    LAYER3 --> A1["using_C++_templates/<br/>模板：一套代码多种规格"]
+    LAYER3 --> A2["using_C++_templates_for_multiple_instances/<br/>多实例模板"]
+
+    LAYER4 --> S1["using_array_stencil_1d/<br/>一维滑动窗口计算"]
+    LAYER4 --> S2["using_array_stencil_2d/<br/>二维滑动窗口（图像处理）"]
+
+    LAYER5 --> C1["variable_bound_loops/<br/>运行时变长循环的处理"]
 </div>
-<p>一句话：<strong>接口不是“语法偏好”，而是性能开关</strong>。</p>
-<ul>
-<li>控制参数：<code>s_axilite</code></li>
-<li>大数组进出 DDR：<code>m_axi</code></li>
-<li>连续实时数据：<code>axis</code></li>
-</ul>
-<h3>快速决策流程</h3>
+<p>这张图揭示了一个重要规律：<strong>每个子目录对应一个独立的技术知识点</strong>。它们之间没有强制的前后顺序依赖（每个都是独立的&quot;完整菜谱&quot;），但从学习角度建议按&quot;基础层 → 数值计算层 → 高级抽象层&quot;的顺序逐步推进。</p>
+<hr />
+<h2>2.4 每个示例目录的内部结构：三层蛋糕</h2>
+<p>无论你打开哪个子目录，你都会看到相同的文件组合。就像每家宜家样板间里都有床、灯和储物柜——布局不同，但构成要素是固定的。</p>
+<div class="mermaid">graph TD
+    EXAMPLE["using_fixed_point/<br/>（任意一个示例目录）"]
+
+    EXAMPLE --> CFG["hls_config.cfg<br/>第一层：蛋糕底座<br/>告诉工具怎么编译这段硬件"]
+    EXAMPLE --> SRC["cpp_ap_fixed.cpp<br/>第二层：蛋糕主体<br/>算法的 C++ 实现"]
+    EXAMPLE --> TB["cpp_ap_fixed_test.cpp<br/>第三层：蛋糕顶部装饰<br/>测试：验证功能是否正确"]
+    EXAMPLE --> GOLDEN["result.golden.dat<br/>配料参考：期望的正确输出数据"]
+
+    CFG --> CFG1["part=xcvu9p... 目标FPGA型号"]
+    CFG --> CFG2["clock=4ns 目标时钟周期"]
+    CFG --> CFG3["syn.top=函数名 要综合的顶层函数"]
+    CFG --> CFG4["syn.directive.* HLS优化指令"]
+</div>
+<p>让我们逐层看这三层蛋糕：</p>
+<p><strong>第一层（蛋糕底座）：<code>hls_config.cfg</code></strong>
+这是整个项目的<strong>指挥官</strong>。它不只是个配置文件，而是告诉 HLS 工具：&quot;你要针对哪块 FPGA 芯片、跑多快的时钟、把哪个 C++ 函数变成硬件电路、用什么方式优化&quot;。类比摄影：这相当于相机的参数设置面板——快门速度（时钟频率）、对焦目标（顶层函数）、拍摄模式（流程目标）。</p>
+<p><strong>第二层（蛋糕主体）：<code>.cpp</code> 算法文件</strong>
+这是真正的<strong>算法逻辑</strong>，用 C/C++ 写成。但要注意：这里的 C++ 不是随便写的，它需要遵循&quot;对硬件友好&quot;的编码规范（这正是 <code>coding_modeling</code> 模块要教的内容）。</p>
+<p><strong>第三层（顶部装饰）：<code>_test.cpp</code> 测试文件</strong>
+这是<strong>验证员</strong>，负责给算法喂数据、检查输出是否正确。测试数据的期望答案存储在 <code>result.golden.dat</code> 文件里——就像一道数学题旁边附的&quot;答案&quot;，HLS 工具会自动对比实际输出和答案，确认设计正确。</p>
+<hr />
+<h2>2.5 深入理解：<code>libraries_migration</code> 的&quot;方言词典&quot;</h2>
+<p><code>libraries_migration</code> 模块的组织方式与 <code>coding_modeling</code> 不同。它的核心思想是：<strong>同一段算法，用三种不同的工具语言表达</strong>。</p>
+<p>想象同一首唐诗，被翻译成英文、法文、日文三个版本——原文是一样的，只是表达方式不同。</p>
+<div class="mermaid">flowchart LR
+    SRC["算法源码<br/>pointer_basic.c<br/>（不变的原文）"]
+
+    SRC --> TCL["传统 TCL 路径<br/>run_hls.tcl<br/>过程式：告诉工具一步一步怎么做"]
+    SRC --> INI["Unified CLI 路径<br/>hls_config.cfg<br/>声明式：描述这个设计是什么"]
+    SRC --> PY["Python 路径<br/>run.py + hls_config.cfg<br/>自动化：用程序驱动批量操作"]
+
+    TCL --> VIVADO["vivado_hls<br/>老版本工具"]
+    INI --> VITISRUN["vitis-run<br/>新版本命令行"]
+    PY --> PYTHONAPI["Python API<br/>CI/CD 集成"]
+
+    VIVADO --> OUT1["IP Catalog<br/>Vivado IP 封装"]
+    VITISRUN --> OUT2["XO Kernel<br/>Vitis 内核"]
+    PYTHONAPI --> OUT2
+</div>
+<p><strong>走读这张图：</strong> 最左边的算法源码 <code>pointer_basic.c</code> 保持不动。三条分支代表三种不同的&quot;驾驶方式&quot;开向同一个目的地。TCL 路径像手动档——你要一步步换挡；INI 路径像自动档——你只需声明目标；Python 路径像自动驾驶——程序自动批量处理。最终输出有两种形态：老流程产出 Vivado IP，新流程产出 Vitis XO 内核。</p>
+<hr />
+<h2>2.6 四大模块的关系：谁依赖谁？</h2>
+<div class="mermaid">graph TD
+    OP["optimization_parallelism<br/>第四层：性能优化<br/>（需要前三层的基础）"]
+    ID["interface_design<br/>第三层：接口设计<br/>（需要理解基础编码）"]
+    CM["coding_modeling<br/>第二层：编码建模<br/>（HLS 的基础语言）"]
+    LM["libraries_migration<br/>横向工具层：跨流程迁移<br/>（提供构建基础设施）"]
+
+    CM --> ID
+    CM --> OP
+    ID --> OP
+    LM -.-> CM
+    LM -.-> ID
+    LM -.-> OP
+
+    style CM fill:#d4edda,stroke:#28a745
+    style LM fill:#fff3cd,stroke:#ffc107
+    style ID fill:#cce5ff,stroke:#007bff
+    style OP fill:#f8d7da,stroke:#dc3545
+</div>
+<p><strong>实线箭头</strong>表示学习依赖——建议先掌握 <code>coding_modeling</code> 的基础，再去看 <code>interface_design</code>，最后研究 <code>optimization_parallelism</code>。</p>
+<p><strong>虚线箭头</strong>表示工具支持——<code>libraries_migration</code> 不是&quot;上层应用&quot;，而是<strong>横向的工具层</strong>，为其他三个模块提供&quot;如何运行这些示例&quot;的不同方式。不管你在看哪个模块的例子，都可能需要参考 <code>libraries_migration</code> 里的 TCL 脚本或配置文件格式。</p>
+<hr />
+<h2>2.7 实战：如何在代码库里找到你想要的东西</h2>
+<p>面对这么多目录，新来者最容易犯的错误是&quot;打开根目录，然后迷失&quot;。这里给你一张<strong>快速导航卡</strong>：</p>
 <div class="mermaid">flowchart TD
-    A[你的数据是什么?] --> B{标量控制参数?}
-    B -->|是| C[用s_axilite]
-    B -->|否| D{需要按地址访问外部内存?}
-    D -->|是| E[用m_axi]
-    D -->|否| F{连续实时流?}
-    F -->|是| G[用axis]
-    F -->|否| H[混合接口: m_axi + axis + s_axilite]
+    START["我想找的是什么？"]
+
+    START --> Q1{"我的 C++ 代码<br/>不能被综合，<br/>或者行为异常"}
+    START --> Q2{"我不知道怎么<br/>把函数参数<br/>变成 AXI 接口"}
+    START --> Q3{"我的设计太慢，<br/>想加速"}
+    START --> Q4{"我有旧的 TCL 脚本，<br/>想迁移到新流程"}
+
+    Q1 --> ANS1["去 coding_modeling/<br/>找对应的编码模式示例"]
+    Q2 --> ANS2["去 interface_design/<br/>找对应协议的接口示例"]
+    Q3 --> ANS3["去 optimization_parallelism/<br/>找对应的优化技术示例"]
+    Q4 --> ANS4["去 libraries_migration/<br/>对比 TCL 和 INI 配置差异"]
+
+    ANS1 --> STEP["打开子目录<br/>先看 hls_config.cfg<br/>再看 .cpp 实现<br/>最后运行测试"]
+    ANS2 --> STEP
+    ANS3 --> STEP
+    ANS4 --> STEP
 </div>
-<p>实际项目里最常见是 <strong>混合接口</strong>：<br />
-<code>s_axilite</code> 负责“控制台”，<code>m_axi</code> 负责“仓库”，<code>axis</code> 负责“传送带”。</p>
+<p><strong>黄金法则：每次打开一个新的示例子目录，先读 <code>hls_config.cfg</code>，再读 <code>.cpp</code>。</strong> 配置文件就像菜谱的&quot;原材料和烹饪说明&quot;，代码才是&quot;食材处理步骤&quot;。顺序搞反了，看代码时会不知道&quot;为什么要这样写&quot;。</p>
 <hr />
-<h2>3.7 对照仓库示例：这章该先跑哪些目录</h2>
-<div class="mermaid">graph TD
-    I1[using_axi_lite] --> G1[学控制寄存器]
-    I2[using_axi_master] --> G2[学m_axi基础]
-    I3[manual_burst_inference_success/failure] --> G3[学burst成败]
-    I4[using_axi_stream_no_side_channel] --> G4[学基础stream]
-    I5[using_axi_stream_with_side_channel] --> G5[学TLAST/TKEEP]
-    I6[axi_stream_to_master] --> G6[学流-内存桥接]
+<h2>2.8 一个具体的导航实例：找&quot;定点数&quot;示例</h2>
+<p>假设你想学习如何在 FPGA 上使用定点数（fixed-point number，一种比浮点数省资源的数值表示方式），我们一步步走：</p>
+<p><strong>第一步：</strong> 确认这属于&quot;编码建模&quot;的问题 → 进入 <code>coding_modeling/</code></p>
+<p><strong>第二步：</strong> 在子目录列表中找 <code>using_fixed_point/</code></p>
+<p><strong>第三步：</strong> 打开后，按顺序阅读：</p>
+<pre><code>using_fixed_point/
+├── hls_config.cfg          ← 第一步看这里
+│     part=xcvu9p...
+│     clock=4
+│     syn.top=cpp_ap_fixed
+│     syn.directive.pipeline=cpp_ap_fixed   ← &quot;哦！这个函数要流水线处理&quot;
+│
+├── cpp_ap_fixed.cpp        ← 第二步看这里
+│     #include &quot;ap_fixed.h&quot;
+│     ap_fixed&lt;16,8&gt; result = ...           ← &quot;16位总宽，8位整数部分&quot;
+│
+└── cpp_ap_fixed_test.cpp   ← 第三步看这里（可选）
+      // 验证计算结果正确性
+</code></pre>
+<p><strong>第四步：</strong> 如果你想实际运行这个例子，去看 <code>libraries_migration/</code> 里对应的运行脚本格式。</p>
+<p>这个流程适用于 <code>coding_modeling</code> 里<strong>任何一个</strong>示例，方法完全通用。</p>
+<hr />
+<h2>2.9 整体数据流：从 C++ 到 FPGA 比特流的旅程</h2>
+<p>理解了目录结构之后，我们来看整体的&quot;生产线&quot;是怎么转的：</p>
+<div class="mermaid">flowchart LR
+    DEV["开发阶段<br/>你写 .cpp 和<br/>hls_config.cfg"]
+    CSIM["C 仿真<br/>在电脑上验证<br/>算法功能正确性"]
+    HLS["HLS 综合<br/>C++ 变成 RTL<br/>（Verilog/VHDL）"]
+    COSIM["C/RTL 协同仿真<br/>验证生成的硬件行为<br/>与 C 模型一致"]
+    EXPORT["导出封装<br/>生成 IP Catalog<br/>或 XO 内核"]
+    IMPL["实现与部署<br/>布局布线，生成比特流<br/>下载到 FPGA"]
+
+    DEV --> CSIM
+    CSIM --> HLS
+    HLS --> COSIM
+    COSIM --> EXPORT
+    EXPORT --> IMPL
+
+    style DEV fill:#d4edda
+    style HLS fill:#cce5ff
+    style IMPL fill:#f8d7da
 </div>
-<p>建议你按图顺序跑。<br />
-这像先学“方向盘”，再学“高速超车”，最后学“拖挂车倒库”。</p>
+<p>这条流水线中，<code>coding_modeling</code> 的示例主要覆盖&quot;开发阶段&quot;和&quot;HLS 综合&quot;这两个环节——也就是说，<strong>学好 coding_modeling，相当于掌握了整条生产线最关键的原材料加工工艺</strong>。</p>
 <hr />
-<h2>本章小结（你现在应该掌握）</h2>
-<ol>
-<li><code>kernel</code> 边界有三条主路：控制、内存、流。</li>
-<li><code>s_axilite</code> 管“小而关键”的控制信号。</li>
-<li><code>m_axi</code> 管“大批量、有地址”的数据，<code>burst</code> 决定带宽上限。</li>
-<li><code>axis</code> 管“连续实时”数据，握手和背压决定是否稳定满速。</li>
-<li>接口选择直接塑造吞吐量、延迟和资源占用。</li>
-</ol>
-<p>下一章我们进内核内部，看“同样的数据，怎么在硬件里并行处理”。</p>
+<h2>2.10 小结：三个带走的核心认知</h2>
+<p>读完这章，希望你记住三件事：</p>
+<p><strong>第一：四个模块，四个主题，各司其职。</strong>
+<code>coding_modeling</code>（怎么写）→ <code>interface_design</code>（怎么连接）→ <code>optimization_parallelism</code>（怎么加速）→ <code>libraries_migration</code>（怎么迁移工具）。这是 HLS 开发的完整认知地图。</p>
+<p><strong>第二：每个示例目录都是一个&quot;完整的教学单元&quot;。</strong>
+三层结构——<code>hls_config.cfg</code>（配置）+ <code>.cpp</code>（实现）+ <code>_test.cpp</code>（验证）——在整个代码库里保持一致。找到这个结构，你就找到了学习入口。</p>
+<p><strong>第三：先看配置，再看代码。</strong>
+<code>hls_config.cfg</code> 是理解一个 HLS 示例的&quot;上下文&quot;，告诉你&quot;为什么要这样写代码&quot;。跳过配置文件直接看 <code>.cpp</code>，就像看厨师的动作却不知道他在做什么菜——动作能看懂，但不理解意图。</p>
+<hr />
+<h2>预告：下一章</h2>
+<p>现在你已经有了这份&quot;建筑平面图&quot;，下一章我们就走进 <code>coding_modeling</code> 里最核心的房间——<strong>学习如何把普通的 C/C++ 改写成&quot;硬件友好&quot;的代码</strong>：指针、结构体、模板、定点数，在 FPGA 的世界里它们分别意味着什么，又该如何正确使用。</p>
 
       </article>
       <div class="toc" id="toc">

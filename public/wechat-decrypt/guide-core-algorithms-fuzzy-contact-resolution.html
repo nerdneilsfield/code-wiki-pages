@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
 <script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
 <style>
@@ -84,6 +83,9 @@ article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-al
 article th{background:var(--bg2);font-weight:600;}
 article img{max-width:100%;border-radius:var(--r);}
 .mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
 .hljs{background:transparent!important;}
 #btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
 #btt:hover{background:var(--primary-h);transform:translateY(-2px);}
@@ -182,17 +184,17 @@ article img{max-width:100%;border-radius:var(--r);}
 <h1>多字段模糊联系人匹配算法深度解析</h1>
 <h2>1. 问题陈述</h2>
 <h3>1.1 形式化定义</h3>
-<p>设 (\mathcal{C}) 为微信联系人集合，每个联系人 (c \in \mathcal{C}) 具有三个标识属性：</p>
+<p>设 <span class="math-inline">\(\mathcal{C}\)</span> 为微信联系人集合，每个联系人 <span class="math-inline">\(c \in \mathcal{C}\)</span> 具有三个标识属性：</p>
 <ul>
-<li><strong>用户名</strong>（username）：(u(c) \in \Sigma^*)，系统唯一标识符，格式通常为 <code>wxid_xxxxxxxx</code> 或包含 <code>@chatroom</code> 后缀的群聊标识</li>
-<li><strong>显示名</strong>（display name）：(d(c) \in \Sigma^*)，用户设置的昵称</li>
-<li><strong>备注名</strong>（alias）：(a(c) \in \Sigma^* \cup {\bot})，用户为联系人设置的本地备注（可能为空）</li>
+<li><strong>用户名</strong>（username）：<span class="math-inline">\(u(c) \in \Sigma^*\)</span>，系统唯一标识符，格式通常为 <code>wxid_xxxxxxxx</code> 或包含 <code>@chatroom</code> 后缀的群聊标识</li>
+<li><strong>显示名</strong>（display name）：<span class="math-inline">\(d(c) \in \Sigma^*\)</span>，用户设置的昵称</li>
+<li><strong>备注名</strong>（alias）：<span class="math-inline">\(a(c) \in \Sigma^* \cup \{\bot\}\)</span>，用户为联系人设置的本地备注（可能为空）</li>
 </ul>
-<p>给定查询字符串 (q \in \Sigma^*)，<strong>多字段模糊联系人匹配问题</strong>要求找到映射函数：</p>
-<p>[f: \Sigma^* \to \mathcal{C} \cup {\text{null}}]</p>
+<p>给定查询字符串 <span class="math-inline">\(q \in \Sigma^*\)</span>，<strong>多字段模糊联系人匹配问题</strong>要求找到映射函数：</p>
+<div class="math-block">\[f: \Sigma^* \to \mathcal{C} \cup \{\text{null}\}\]</div>
 <p>使得：
-[f(q) = \begin{cases} c &amp; \text{if } q \approx c \ \text{null} &amp; \text{otherwise} \end{cases}]</p>
-<p>其中 (\approx) 表示&quot;匹配&quot;关系，需满足以下优先级约束（按优先级降序）：</p>
+<div class="math-block">\[f(q) = \begin{cases} c &amp; \text{if } q \approx c \\ \text{null} &amp; \text{otherwise} \end{cases}\]</div></p>
+<p>其中 <span class="math-inline">\(\approx\)</span> 表示&quot;匹配&quot;关系，需满足以下优先级约束（按优先级降序）：</p>
 <table>
 <thead>
 <tr>
@@ -205,22 +207,22 @@ article img{max-width:100%;border-radius:var(--r);}
 <tr>
 <td style="text-align:center">P1</td>
 <td style="text-align:left">精确用户名匹配</td>
-<td style="text-align:left">(q = u(c))</td>
+<td style="text-align:left"><span class="math-inline">\(q = u(c)\)</span></td>
 </tr>
 <tr>
 <td style="text-align:center">P2</td>
 <td style="text-align:left">用户名前缀/特征匹配</td>
-<td style="text-align:left">(q \in \text{Prefix}(u(c)) \lor \text{Pattern}(q, u(c)))</td>
+<td style="text-align:left"><span class="math-inline">\(q \in \text{Prefix}(u(c)) \lor \text{Pattern}(q, u(c))\)</span></td>
 </tr>
 <tr>
 <td style="text-align:center">P3</td>
 <td style="text-align:left">精确显示名匹配（大小写不敏感）</td>
-<td style="text-align:left">(q \stackrel{\text{case}}{=} d(c))</td>
+<td style="text-align:left"><span class="math-inline">\(q \stackrel{\text{case}}{=} d(c)\)</span></td>
 </tr>
 <tr>
 <td style="text-align:center">P4</td>
 <td style="text-align:left">子串显示名匹配（大小写不敏感）</td>
-<td style="text-align:left">(q \sqsubseteq^{\text{case}} d(c))</td>
+<td style="text-align:left"><span class="math-inline">\(q \sqsubseteq^{\text{case}} d(c)\)</span></td>
 </tr>
 </tbody>
 </table>
@@ -256,7 +258,7 @@ article img{max-width:100%;border-radius:var(--r);}
     return best_match
 </code></pre>
 <ul>
-<li><strong>失效原因</strong>：编辑距离对中文支持差；计算复杂度高 (O(n \cdot m \cdot |\mathcal{C}|))；过度模糊可能导致错误匹配</li>
+<li><strong>失效原因</strong>：编辑距离对中文支持差；计算复杂度高 <span class="math-inline">\(O(n \cdot m \cdot |\mathcal{C}|)\)</span>；过度模糊可能导致错误匹配</li>
 </ul>
 <p><strong>方法 C：简单子串匹配</strong></p>
 <pre><code class="language-python">def naive_substring(query, contacts):
@@ -271,7 +273,7 @@ article img{max-width:100%;border-radius:var(--r);}
 <h3>2.2 核心洞察</h3>
 <p>该算法的有效性建立在三个关键观察上：</p>
 <blockquote>
-<p><strong>观察 1（身份层级性）</strong>：微信的用户名 (u(c)) 是全局唯一标识符，具有最高权威性。任何能直接识别用户名的查询都应优先处理。</p>
+<p><strong>观察 1（身份层级性）</strong>：微信的用户名 <span class="math-inline">\(u(c)\)</span> 是全局唯一标识符，具有最高权威性。任何能直接识别用户名的查询都应优先处理。</p>
 </blockquote>
 <blockquote>
 <p><strong>观察 2（精确优先原则）</strong>：在相同匹配类型中，精确匹配应严格优先于子串匹配。即 &quot;张三&quot; 查询应优先匹配名为&quot;张三&quot;的用户，而非&quot;张三丰&quot;。</p>
@@ -283,45 +285,45 @@ article img{max-width:100%;border-radius:var(--r);}
 <hr />
 <h2>3. 形式化定义</h2>
 <h3>3.1 匹配谓词</h3>
-<p>定义匹配谓词族 (\mathcal{P} = {P_1, P_2, P_3, P_4})：</p>
-<p>[
+<p>定义匹配谓词族 <span class="math-inline">\(\mathcal{P} = \{P_1, P_2, P_3, P_4\}\)</span>：</p>
+<div class="math-block">\[
 \begin{aligned}
-P_1(q, c) &amp;\equiv q = u(c) \
-P_2(q, c) &amp;\equiv \text{starts_with}(u(c), \texttt{&quot;wxid_&quot;}) \lor \text{contains}(u(c), \texttt{&quot;@chatroom&quot;}) \
-P_3(q, c) &amp;\equiv \text{lower}(q) = \text{lower}(d(c)) \
+P_1(q, c) &amp;\equiv q = u(c) \\
+P_2(q, c) &amp;\equiv \text{starts\_with}(u(c), \texttt{"wxid\_"}) \lor \text{contains}(u(c), \texttt{"@chatroom"}) \\
+P_3(q, c) &amp;\equiv \text{lower}(q) = \text{lower}(d(c)) \\
 P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 \end{aligned}
-]</p>
-<p>其中 (\sqsubseteq) 表示子串关系。</p>
+\]</div>
+<p>其中 <span class="math-inline">\(\sqsubseteq\)</span> 表示子串关系。</p>
 <h3>3.2 优先级偏序</h3>
-<p>定义严格偏序 (\prec) 表示匹配优先级：</p>
-<p>[P_i \prec P_j \iff i &lt; j]</p>
+<p>定义严格偏序 <span class="math-inline">\(\prec\)</span> 表示匹配优先级：</p>
+<div class="math-block">\[P_i \prec P_j \iff i &lt; j\]</div>
 <p>即编号越小优先级越高。</p>
 <h3>3.3 算法目标</h3>
 <p>求解决策函数：</p>
-<p>[\hat{c} = \arg\max_{c \in \mathcal{C}} \left{ \max_{i: P_i(q,c)} w_i \right}]</p>
-<p>其中权重 (w_i = 4 - i)（优先级数值越小权重越大），平局时按遍历顺序打破。</p>
+<div class="math-block">\[\hat{c} = \arg\max_{c \in \mathcal{C}} \left\{ \max_{i: P_i(q,c)} w_i \right\}\]</div>
+<p>其中权重 <span class="math-inline">\(w_i = 4 - i\)</span>（优先级数值越小权重越大），平局时按遍历顺序打破。</p>
 <p>等价地，可表述为<strong>首次成功匹配</strong>问题：</p>
-<p>[\hat{c} = \text{FirstMatch}\left( \bigsqcup_{i=1}^{4} \left{ c \in \mathcal{C} : P_i(q, c) \right} \right)]</p>
-<p>其中 (\bigsqcup) 表示按优先级排序的不交并，(\text{FirstMatch}) 返回首个非空集合的元素。</p>
+<div class="math-block">\[\hat{c} = \text{FirstMatch}\left( \bigsqcup_{i=1}^{4} \left\{ c \in \mathcal{C} : P_i(q, c) \right\} \right)\]</div>
+<p>其中 <span class="math-inline">\(\bigsqcup\)</span> 表示按优先级排序的不交并，<span class="math-inline">\(\text{FirstMatch}\)</span> 返回首个非空集合的元素。</p>
 <h3>3.4 完整性约束</h3>
 <p>算法需满足：</p>
 <ul>
 <li><strong>确定性</strong>：相同输入始终产生相同输出（假设联系人集合不变）</li>
 <li><strong>终止性</strong>：有限步骤内必然返回结果</li>
-<li><strong>完备性</strong>：若存在 (c) 使 (P_1(q,c) \lor P_2(q,c)) 成立，则必返回非 null</li>
+<li><strong>完备性</strong>：若存在 <span class="math-inline">\(c\)</span> 使 <span class="math-inline">\(P_1(q,c) \lor P_2(q,c)\)</span> 成立，则必返回非 null</li>
 </ul>
 <hr />
 <h2>4. 算法描述</h2>
 <h3>4.1 高层流程</h3>
 <div class="mermaid">flowchart TD
-    A[输入: 查询字符串 q] --> B{q ∈ names? 或<br/>含 wxid_ 前缀? 或<br/>含 @chatroom?}
+    A[输入: 查询字符串 q] --> B{q in names?<br/>或含 wxid_ 前缀?<br/>或含 @chatroom?}
     B -->|是| C[返回 q 作为 username]
-    B -->|否| D[转换为小写: q' = lower(q)]
-    D --> E{∃c: lower(d(c)) = q'?}
-    E -->|是| F[返回对应 u(c)]
-    E -->|否| G{∃c: q' ⊂ lower(d(c))?}
-    G -->|是| H[返回首个匹配的 u(c)]
+    B -->|否| D[转换为小写: q_low = lower q]
+    D --> E{exists c: lower d c = q_low?}
+    E -->|是| F[返回对应 u c]
+    E -->|否| G{exists c: q_low in lower d c?}
+    G -->|是| H[返回首个匹配的 u c]
     G -->|否| I[返回 null]
     
     style C fill:#90EE90
@@ -334,34 +336,34 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 \caption{Multi-Field Fuzzy Contact Matching}
 \label{alg:mffcm}
 \begin{algorithmic}[1]
-\Require Query string \(q\), contact database \(\mathcal{C}\)
-\Ensure Username \(u \in \Sigma^* \cup \{\text{null}\}\)
+\Require Query string <span class="math-inline">\(q\)</span>, contact database <span class="math-inline">\(\mathcal{C}\)</span>
+\Ensure Username <span class="math-inline">\(u \in \Sigma^* \cup \{\text{null}\}\)</span>
 
-\State \(\text{names} \gets \{u(c) : c \in \mathcal{C}\}\) \Comment{预计算用户名集合}
+\State <span class="math-inline">\(\text{names} \gets \{u(c) : c \in \mathcal{C}\}\)</span> \Comment{预计算用户名集合}
 
-\If{\(q \in \text{names}\)} \label{line:exact-username}
-    \State \Return \(q\) \Comment{P1: 精确用户名匹配}
-\ElsIf{\(\text{starts\_with}(q, \texttt{&quot;wxid\_&quot;})\)} \label{line:wxid-prefix}
-    \State \Return \(q\) \Comment{P2: wxid 前缀启发式}
-\ElsIf{\(\text{contains}(q, \texttt{&quot;@chatroom&quot;})\)} \label{line:chatroom}
-    \State \Return \(q\) \Comment{P2: 群聊标识启发式}
+\If{<span class="math-inline">\(q \in \text{names}\)</span>} \label{line:exact-username}
+    \State \Return <span class="math-inline">\(q\)</span> \Comment{P1: 精确用户名匹配}
+\ElsIf{<span class="math-inline">\(\text{starts\_with}(q, \texttt{"wxid\_"})\)</span>} \label{line:wxid-prefix}
+    \State \Return <span class="math-inline">\(q\)</span> \Comment{P2: wxid 前缀启发式}
+\ElsIf{<span class="math-inline">\(\text{contains}(q, \texttt{"@chatroom"})\)</span>} \label{line:chatroom}
+    \State \Return <span class="math-inline">\(q\)</span> \Comment{P2: 群聊标识启发式}
 \EndIf
 
-\State \(q_{\text{low}} \gets \text{to\_lower}(q)\)
+\State <span class="math-inline">\(q_{\text{low}} \gets \text{to\_lower}(q)\)</span>
 
-\For{\((u, d) \in \text{display\_names}(\mathcal{C})\)} \label{line:exact-loop}
-    \If{\(q_{\text{low}} = \text{to\_lower}(d)\)} \Comment{P3: 精确显示名匹配}
-        \State \Return \(u\)
+\For{<span class="math-inline">\((u, d) \in \text{display\_names}(\mathcal{C})\)</span>} \label{line:exact-loop}
+    \If{<span class="math-inline">\(q_{\text{low}} = \text{to\_lower}(d)\)</span>} \Comment{P3: 精确显示名匹配}
+        \State \Return <span class="math-inline">\(u\)</span>
     \EndIf
 \EndFor
 
-\For{\((u, d) \in \text{display\_names}(\mathcal{C})\)} \label{line:substring-loop}
-    \If{\(q_{\text{low}} \sqsubseteq \text{to\_lower}(d)\)} \Comment{P4: 子串匹配}
-        \State \Return \(u\) \Comment{贪婪返回首个匹配}
+\For{<span class="math-inline">\((u, d) \in \text{display\_names}(\mathcal{C})\)</span>} \label{line:substring-loop}
+    \If{<span class="math-inline">\(q_{\text{low}} \sqsubseteq \text{to\_lower}(d)\)</span>} \Comment{P4: 子串匹配}
+        \State \Return <span class="math-inline">\(u\)</span> \Comment{贪婪返回首个匹配}
     \EndIf
 \EndFor
 
-\State \Return \(\text{null}\) \label{line:fail}
+\State \Return <span class="math-inline">\(\text{null}\)</span> \label{line:fail}
 
 \end{algorithmic}
 \end{algorithm}
@@ -371,17 +373,17 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 <div class="mermaid">stateDiagram-v2
     [*] --> Init: 接收查询 q
     
-    Init --> DirectHit: q ∈ names ∨ pattern_match(q)
+    Init --> DirectHit: q in names or pattern_match(q)
     Init --> Normalize: 否则
-    
+
     DirectHit --> Success: 返回 q
     Normalize --> ExactSearch: q_low = lower(q)
-    
-    ExactSearch --> ExactHit: ∃c: lower(d(c)) = q_low
+
+    ExactSearch --> ExactHit: exists c: lower(d(c)) = q_low
     ExactSearch --> SubstringSearch: 否则
-    
+
     ExactHit --> Success: 返回 u(c)
-    SubstringSearch --> SubstringHit: ∃c: q_low ⊂ lower(d(c))
+    SubstringSearch --> SubstringHit: exists c: q_low in lower(d(c))
     SubstringSearch --> Failure: 否则
     
     SubstringHit --> PartialSuccess: 返回首个 u(c)
@@ -446,7 +448,7 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 <hr />
 <h2>5. 复杂度分析</h2>
 <h3>5.1 时间复杂度</h3>
-<p>设 (n = |\mathcal{C}|) 为联系人数量，(L = \max_{c \in \mathcal{C}} |d(c)|) 为最大显示名长度。</p>
+<p>设 <span class="math-inline">\(n = |\mathcal{C}|\)</span> 为联系人数量，<span class="math-inline">\(L = \max_{c \in \mathcal{C}} |d(c)|\)</span> 为最大显示名长度。</p>
 <table>
 <thead>
 <tr>
@@ -460,37 +462,37 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 <tr>
 <td style="text-align:left">P1-P2</td>
 <td style="text-align:left">集合查找 + 前缀检查</td>
-<td style="text-align:left">(O(|q|))</td>
-<td style="text-align:left">哈希表平均 (O(1))，最坏 (O(|q|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(\|q\|)\)</span></td>
+<td style="text-align:left">哈希表平均 <span class="math-inline">\(O(1)\)</span>，最坏 <span class="math-inline">\(O(\|q\|)\)</span></td>
 </tr>
 <tr>
 <td style="text-align:left">P3</td>
 <td style="text-align:left">精确匹配扫描</td>
-<td style="text-align:left">(O(n \cdot L))</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot L)\)</span></td>
 <td style="text-align:left">逐字符比较</td>
 </tr>
 <tr>
 <td style="text-align:left">P4</td>
 <td style="text-align:left">子串匹配扫描</td>
-<td style="text-align:left">(O(n \cdot |q| \cdot L))</td>
-<td style="text-align:left">KMP 可优化至 (O(n \cdot (L + |q|)))</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot \|q\| \cdot L)\)</span></td>
+<td style="text-align:left">KMP 可优化至 <span class="math-inline">\(O(n \cdot (L + \|q\|))\)</span></td>
 </tr>
 </tbody>
 </table>
 <p><strong>总体最坏情况</strong>：
-[T(n, L, |q|) = O(|q|) + O(n \cdot L) + O(n \cdot |q| \cdot L) = O(n \cdot |q| \cdot L)]</p>
+<div class="math-block">\[T(n, L, |q|) = O(\|q\|) + O(n \cdot L) + O(n \cdot \|q\| \cdot L) = O(n \cdot \|q\| \cdot L)\]</div></p>
 <p><strong>典型场景</strong>（提前终止）：</p>
 <ul>
-<li>P1/P2 命中：(O(|q|))</li>
-<li>P3 命中：(O(n \cdot L))，但常数因子小（通常前几个即命中）</li>
+<li>P1/P2 命中：<span class="math-inline">\(O(\|q\|)\)</span></li>
+<li>P3 命中：<span class="math-inline">\(O(n \cdot L)\)</span>，但常数因子小（通常前几个即命中）</li>
 <li>P4 命中：取决于数据分布</li>
 </ul>
 <h3>5.2 空间复杂度</h3>
-<p>[S(n, L) = O(n \cdot L)]</p>
+<div class="math-block">\[S(n, L) = O(n \cdot L)\]</div>
 <p>用于存储：</p>
 <ul>
-<li>用户名集合：(O(n \cdot \bar{u}))，其中 (\bar{u} \approx 20)（wxid 固定长度）</li>
-<li>显示名映射：(O(n \cdot L))</li>
+<li>用户名集合：<span class="math-inline">\(O(n \cdot \bar{u})\)</span>，其中 <span class="math-inline">\(\bar{u} \approx 20\)</span>（wxid 固定长度）</li>
+<li>显示名映射：<span class="math-inline">\(O(n \cdot L)\)</span></li>
 </ul>
 <h3>5.3 场景分析</h3>
 <table>
@@ -506,25 +508,25 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 <tr>
 <td style="text-align:left"><strong>最佳</strong></td>
 <td style="text-align:left">直接输入 username/wxid</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">~5%</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>良好</strong></td>
 <td style="text-align:left">精确输入完整显示名</td>
-<td style="text-align:left">(O(k)), (k \ll n)</td>
+<td style="text-align:left"><span class="math-inline">\(O(k)\)</span>, <span class="math-inline">\(k \ll n\)</span></td>
 <td style="text-align:left">~60%</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>一般</strong></td>
 <td style="text-align:left">输入显著子串（如&quot;张三&quot;匹配&quot;张三李四&quot;）</td>
-<td style="text-align:left">(O(n \cdot L))</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot L)\)</span></td>
 <td style="text-align:left">~30%</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>最差</strong></td>
 <td style="text-align:left">输入罕见子串，需全表扫描</td>
-<td style="text-align:left">(O(n \cdot |q| \cdot L))</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot \|q\| \cdot L)\)</span></td>
 <td style="text-align:left">~5%</td>
 </tr>
 </tbody>
@@ -542,25 +544,25 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 <tbody>
 <tr>
 <td style="text-align:left">线性扫描 + Levenshtein</td>
-<td style="text-align:left">(O(n \cdot L^2))</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot L^2)\)</span></td>
 <td style="text-align:left">拼写纠错</td>
 <td style="text-align:left">中文场景编辑距离意义有限</td>
 </tr>
 <tr>
 <td style="text-align:left">Trie 树前缀匹配</td>
-<td style="text-align:left">(O(|q|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(\|q\|)\)</span></td>
 <td style="text-align:left">自动补全</td>
 <td style="text-align:left">不支持中段子串匹配</td>
 </tr>
 <tr>
 <td style="text-align:left">倒排索引</td>
-<td style="text-align:left">(O(\sqrt{n})) 查询</td>
+<td style="text-align:left"><span class="math-inline">\(O(\sqrt{n})\)</span> 查询</td>
 <td style="text-align:left">搜索引擎</td>
 <td style="text-align:left">构建成本高，联系人规模小</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>本算法（分层贪婪）</strong></td>
-<td style="text-align:left">(O(n \cdot L))~(O(n \cdot L \cdot |q|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot L)\)</span>~<span class="math-inline">\(O(n \cdot L \cdot \|q\|)\)</span></td>
 <td style="text-align:left">即时通讯</td>
 <td style="text-align:left">实现简单，符合用户习惯</td>
 </tr>
@@ -605,7 +607,7 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 </thead>
 <tbody>
 <tr>
-<td style="text-align:left">统一的 (P_2) 模式匹配</td>
+<td style="text-align:left">统一的 <span class="math-inline">\(P_2\)</span> 模式匹配</td>
 <td style="text-align:left">分离为 <code>startswith</code> 和 <code>in</code> 两个检查</td>
 <td style="text-align:left">Python 字符串操作优化，避免正则开销</td>
 </tr>
@@ -620,7 +622,7 @@ P_4(q, c) &amp;\equiv \text{lower}(q) \sqsubseteq \text{lower}(d(c))
 <td style="text-align:left">延迟计算，避免缓存膨胀</td>
 </tr>
 <tr>
-<td style="text-align:left">完整的 (\mathcal{C}) 遍历</td>
+<td style="text-align:left">完整的 <span class="math-inline">\(\mathcal{C}\)</span> 遍历</td>
 <td style="text-align:left">全局变量缓存 <code>names</code></td>
 <td style="text-align:left">联系人变化低频，牺牲实时性换取性能</td>
 </tr>
@@ -838,19 +840,71 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
-// KaTeX — render math in article content
-// Math delimiters are normalised server-side ($...$→\[...\], $...$→\(...\))
-// so only the unambiguous LaTeX delimiters are needed here.
-document.addEventListener('DOMContentLoaded',function(){
-  if(typeof renderMathInElement==='undefined')return;
-  renderMathInElement(document.getElementById('mc')||document.body,{
-    delimiters:[
-      {left:'\(',right:'\)',display:false},
-      {left:'\[',right:'\]',display:true}
-    ],
-    throwOnError:false
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
   });
-});
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
 </script>
 </body>
 </html>

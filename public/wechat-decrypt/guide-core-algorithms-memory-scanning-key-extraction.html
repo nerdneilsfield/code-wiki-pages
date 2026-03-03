@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
 <script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
 <style>
@@ -84,6 +83,9 @@ article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-al
 article th{background:var(--bg2);font-weight:600;}
 article img{max-width:100%;border-radius:var(--r);}
 .mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
 .hljs{background:transparent!important;}
 #btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
 #btt:hover{background:var(--primary-h);transform:translateY(-2px);}
@@ -182,18 +184,18 @@ article img{max-width:100%;border-radius:var(--r);}
 <h1>进程内存区域枚举与密钥发现算法深度解析</h1>
 <h2>1. 问题陈述</h2>
 <h3>1.1 形式化定义</h3>
-<p>设目标进程 (P) 的虚拟地址空间为 (\mathcal{V} = [0, 2^{47}-1])（Windows x64 用户模式地址空间上限）。该空间被划分为若干<strong>内存区域</strong>（Memory Regions），每个区域 (r_i) 由四元组描述：</p>
-<p>[r_i = (b_i, s_i, \sigma_i, \pi_i)]</p>
+<p>设目标进程 <span class="math-inline">\(P\)</span> 的虚拟地址空间为 <span class="math-inline">\(\mathcal{V} = [0, 2^{47}-1]\)</span>（Windows x64 用户模式地址空间上限）。该空间被划分为若干<strong>内存区域</strong>（Memory Regions），每个区域 <span class="math-inline">\(r_i\)</span> 由四元组描述：</p>
+<div class="math-block">\[r_i = (b_i, s_i, \sigma_i, \pi_i)\]</div>
 <p>其中：</p>
 <ul>
-<li>(b_i \in \mathcal{V})：基地址（Base Address）</li>
-<li>(s_i \in \mathbb{Z}^+)：区域大小（Region Size）</li>
-<li>(\sigma_i \in {\text{MEM_FREE}, \text{MEM_RESERVE}, \text{MEM_COMMIT}})：状态</li>
-<li>(\pi_i \subseteq \Pi)：保护属性集合，(\Pi = {PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE, \dots})</li>
+<li><span class="math-inline">\(b_i \in \mathcal{V}\)</span>：基地址（Base Address）</li>
+<li><span class="math-inline">\(s_i \in \mathbb{Z}^+\)</span>：区域大小（Region Size）</li>
+<li><span class="math-inline">\(\sigma_i \in \{\text{MEM\_FREE}, \text{MEM\_RESERVE}, \text{MEM\_COMMIT}\}\)</span>：状态</li>
+<li><span class="math-inline">\(\pi_i \subseteq \Pi\)</span>：保护属性集合，<span class="math-inline">\(\Pi = \{PAGE\_NOACCESS, PAGE\_READONLY, PAGE\_READWRITE, \dots\}\)</span></li>
 </ul>
-<p><strong>问题</strong>：给定进程句柄 (h)，枚举所有满足约束条件的已提交可读区域：</p>
-<p>[\mathcal{R}^* = { r_i \mid \sigma_i = \text{MEM_COMMIT} \land \pi_i \cap \Pi_{readable} \neq \emptyset \land 0 &lt; s_i &lt; S_{max} }]</p>
-<p>其中 (S_{max} = 500 \times 2^{20}) bytes（500MB 上限，排除映射文件等超大区域）。</p>
+<p><strong>问题</strong>：给定进程句柄 <span class="math-inline">\(h\)</span>，枚举所有满足约束条件的已提交可读区域：</p>
+<div class="math-block">\[\mathcal{R}^* = \{ r_i \mid \sigma_i = \text{MEM\_COMMIT} \land \pi_i \cap \Pi_{readable} \neq \emptyset \land 0 &lt; s_i &lt; S_{max} \}\]</div>
+<p>其中 <span class="math-inline">\(S_{max} = 500 \times 2^{20}\)</span> bytes（500MB 上限，排除映射文件等超大区域）。</p>
 <h3>1.2 应用背景</h3>
 <p>在 <code>wechat-decrypt</code> 项目中，此枚举是<strong>密钥发现</strong>的第一步。微信 WCDB 引擎在内存中缓存 SQLCipher 派生密钥，格式为 <code>x'&lt;hex&gt;'</code>。通过扫描可读内存区域，可定位这些密钥缓存，避免昂贵的 PBKDF2 计算（256,000 次迭代）。</p>
 <hr />
@@ -201,7 +203,7 @@ article img{max-width:100%;border-radius:var(--r);}
 <h3>2.1 朴素方法的失败</h3>
 <p><strong>方法 A：全地址空间线性扫描</strong></p>
 <ul>
-<li>以固定步长（如 4KB）遍历 (\mathcal{V})</li>
+<li>以固定步长（如 4KB）遍历 <span class="math-inline">\(\mathcal{V}\)</span></li>
 <li><strong>缺陷</strong>：未分配区域导致访问违规；无法获知区域边界和保护属性</li>
 </ul>
 <p><strong>方法 B：/proc/pid/maps 风格（Linux）</strong></p>
@@ -236,15 +238,15 @@ Record MBI:        // Memory Basic Information
 ReadableSet = {0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80}  // PAGE_READONLY, READWRITE, etc.
 </code></pre>
 <h3>3.2 算法规范</h3>
-<p><strong>输入</strong>：进程句柄 (h \in \mathcal{H})</p>
-<p><strong>输出</strong>：区域列表 (\mathcal{L} = [(b_1, s_1), (b_2, s_2), \dots, (b_n, s_n)])</p>
-<p><strong>不变式</strong>：设当前查询地址为 (a)，每次迭代满足：</p>
+<p><strong>输入</strong>：进程句柄 <span class="math-inline">\(h \in \mathcal{H}\)</span></p>
+<p><strong>输出</strong>：区域列表 <span class="math-inline">\(\mathcal{L} = [(b_1, s_1), (b_2, s_2), \dots, (b_n, s_n)]\)</span></p>
+<p><strong>不变式</strong>：设当前查询地址为 <span class="math-inline">\(a\)</span>，每次迭代满足：</p>
 <p>$$a = b_{i} + s_{i} \quad \text{（严格单调递增）}$$</p>
 <p><strong>终止条件</strong>：</p>
 <ul>
-<li>(a \geq A_{max} = 0\text{x}7FFFFFFFFFFF)（用户空间上限）</li>
+<li><span class="math-inline">\(a \geq A_{max} = 0\text{x}7FFFFFFFFFFF\)</span>（用户空间上限）</li>
 <li><code>VirtualQueryEx</code> 返回 0（错误，通常表示地址越界）</li>
-<li>(b_{i+1} \leq b_i)（安全检测：防止无限循环）</li>
+<li><span class="math-inline">\(b_{i+1} \leq b_i\)</span>（安全检测：防止无限循环）</li>
 </ul>
 <hr />
 <h2>4. 算法详解</h2>
@@ -327,28 +329,28 @@ end Algorithm
 <hr />
 <h2>5. 复杂度分析</h2>
 <h3>5.1 时间复杂度</h3>
-<p>设地址空间中实际存在的<strong>已分配区域</strong>数量为 (n)（而非理论上的最大页数）。</p>
+<p>设地址空间中实际存在的<strong>已分配区域</strong>数量为 <span class="math-inline">\(n\)</span>（而非理论上的最大页数）。</p>
 <p><strong>每次迭代成本</strong>：</p>
 <ul>
-<li><code>VirtualQueryEx</code>：系统调用开销 (T_{syscall} \approx 1-10,\mu\text{s})</li>
-<li>条件判断与列表追加：(O(1))</li>
+<li><code>VirtualQueryEx</code>：系统调用开销 <span class="math-inline">\(T_{syscall} \approx 1-10\,\mu\text{s}\)</span></li>
+<li>条件判断与列表追加：<span class="math-inline">\(O(1)\)</span></li>
 </ul>
 <p><strong>总时间</strong>：</p>
-<p>[T(n) = n \cdot T_{syscall} = O(n)]</p>
-<p>对比朴素线性扫描（步长 (p = 4096)）：</p>
+<div class="math-block">\[T(n) = n \cdot T_{syscall} = O(n)\]</div>
+<p>对比朴素线性扫描（步长 <span class="math-inline">\(p = 4096\)</span>）：</p>
 <p>$$T_{naive} = \frac{A_{max}}{p} \cdot T_{fault} = O(2^{35}) \quad \text{(不可行)}$$</p>
 <h3>5.2 空间复杂度</h3>
 <ul>
-<li><strong>辅助空间</strong>：单个 <code>MBI</code> 结构，(|\text{MBI}| = 48) bytes</li>
-<li><strong>结果存储</strong>：(O(n)) 个元组，每个 16 bytes（两个 uint64）</li>
+<li><strong>辅助空间</strong>：单个 <code>MBI</code> 结构，<span class="math-inline">\(|\text{MBI}| = 48\)</span> bytes</li>
+<li><strong>结果存储</strong>：<span class="math-inline">\(O(n)\)</span> 个元组，每个 16 bytes（两个 uint64）</li>
 </ul>
-<p>[S(n) = O(n)]</p>
+<div class="math-block">\[S(n) = O(n)\]</div>
 <h3>5.3 场景分析</h3>
 <table>
 <thead>
 <tr>
 <th style="text-align:left">场景</th>
-<th style="text-align:left">典型 (n)</th>
+<th style="text-align:left">典型 <span class="math-inline">\(n\)</span></th>
 <th style="text-align:left">耗时估算</th>
 <th style="text-align:left">备注</th>
 </tr>
@@ -410,7 +412,7 @@ def enum_regions(h):
 <tbody>
 <tr>
 <td style="text-align:left">地址上限</td>
-<td style="text-align:left">(2^{64}-1)</td>
+<td style="text-align:left"><span class="math-inline">\(2^{64}-1\)</span></td>
 <td style="text-align:left"><code>0x7FFFFFFFFFFF</code></td>
 <td style="text-align:left">Windows x64 用户空间实际限制</td>
 </tr>
@@ -467,9 +469,9 @@ def enum_regions(h):
 </tr>
 <tr>
 <td style="text-align:left">系统调用次数</td>
-<td style="text-align:left">(O(n))</td>
-<td style="text-align:left">(O(2^{47}/p))</td>
-<td style="text-align:left">(O(1))（单文件读）</td>
+<td style="text-align:left"><span class="math-inline">\(O(n)\)</span></td>
+<td style="text-align:left"><span class="math-inline">\(O(2^{47}/p)\)</span></td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span>（单文件读）</td>
 </tr>
 <tr>
 <td style="text-align:left">信息完整性</td>
@@ -493,7 +495,7 @@ def enum_regions(h):
 </table>
 <h3>7.2 与学术工作的联系</h3>
 <p><strong>内存取证领域</strong>：Volatility 框架的 <code>vadinfo</code>/<code>memmap</code> 插件采用类似思路，通过遍历 <code>_MMVAD</code> 结构重建地址空间布局。本算法可视为其<strong>在线、轻量版</strong>——无需完整内存转储，直接通过 API 查询。</p>
-<p><strong>形式化验证</strong>：Alglave et al. (2018) 在《The Semantics of Multicore x86 Machine Code》中讨论了虚拟地址空间的数学模型。本算法的终止性依赖于地址空间的<strong>良基性</strong>（well-foundedness）：((\mathcal{V}, &lt;)) 是良序集，且每次迭代严格递增。</p>
+<p><strong>形式化验证</strong>：Alglave et al. (2018) 在《The Semantics of Multicore x86 Machine Code》中讨论了虚拟地址空间的数学模型。本算法的终止性依赖于地址空间的<strong>良基性</strong>（well-foundedness）：<span class="math-inline">\((\mathcal{V}, &lt;)\)</span> 是良序集，且每次迭代严格递增。</p>
 <h3>7.3 替代方案评估</h3>
 <p><strong>方案：使用 <code>NtQueryVirtualMemory</code></strong></p>
 <ul>
@@ -519,7 +521,7 @@ def enum_regions(h):
 <h2>9. 总结</h2>
 <p><code>enum_regions</code> 算法展示了如何利用操作系统提供的抽象高效解决实际问题。其核心贡献在于：</p>
 <blockquote>
-<p><strong>将 (O(2^{47})) 的不可行搜索空间，通过内核元数据查询，压缩至 (O(n)) 的实际可行复杂度。</strong></p>
+<p><strong>将 <span class="math-inline">\(O(2^{47})\)</span> 的不可行搜索空间，通过内核元数据查询，压缩至 <span class="math-inline">\(O(n)\)</span> 的实际可行复杂度。</strong></p>
 </blockquote>
 <p>这一模式——&quot;利用系统已有的索引结构，而非重建&quot;——是系统编程中的常见优化策略，值得在类似场景下复用。</p>
 
@@ -603,19 +605,71 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
-// KaTeX — render math in article content
-// Math delimiters are normalised server-side ($...$→\[...\], $...$→\(...\))
-// so only the unambiguous LaTeX delimiters are needed here.
-document.addEventListener('DOMContentLoaded',function(){
-  if(typeof renderMathInElement==='undefined')return;
-  renderMathInElement(document.getElementById('mc')||document.body,{
-    delimiters:[
-      {left:'\(',right:'\)',display:false},
-      {left:'\[',right:'\]',display:true}
-    ],
-    throwOnError:false
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
   });
-});
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
 </script>
 </body>
 </html>

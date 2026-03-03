@@ -141,13 +141,13 @@ $$\hat{c} = \text{FirstMatch}\left( \bigsqcup_{i=1}^{4} \left\{ c \in \mathcal{C
 
 ```mermaid
 flowchart TD
-    A[输入: 查询字符串 q] --> B{q ∈ names? 或<br/>含 wxid_ 前缀? 或<br/>含 @chatroom?}
+    A[输入: 查询字符串 q] --> B{q in names?<br/>或含 wxid_ 前缀?<br/>或含 @chatroom?}
     B -->|是| C[返回 q 作为 username]
-    B -->|否| D[转换为小写: q' = lower(q)]
-    D --> E{∃c: lower(d(c)) = q'?}
-    E -->|是| F[返回对应 u(c)]
-    E -->|否| G{∃c: q' ⊂ lower(d(c))?}
-    G -->|是| H[返回首个匹配的 u(c)]
+    B -->|否| D[转换为小写: q_low = lower q]
+    D --> E{exists c: lower d c = q_low?}
+    E -->|是| F[返回对应 u c]
+    E -->|否| G{exists c: q_low in lower d c?}
+    G -->|是| H[返回首个匹配的 u c]
     G -->|否| I[返回 null]
     
     style C fill:#90EE90
@@ -204,17 +204,17 @@ flowchart TD
 stateDiagram-v2
     [*] --> Init: 接收查询 q
     
-    Init --> DirectHit: q ∈ names ∨ pattern_match(q)
+    Init --> DirectHit: q in names or pattern_match(q)
     Init --> Normalize: 否则
-    
+
     DirectHit --> Success: 返回 q
     Normalize --> ExactSearch: q_low = lower(q)
-    
-    ExactSearch --> ExactHit: ∃c: lower(d(c)) = q_low
+
+    ExactSearch --> ExactHit: exists c: lower(d(c)) = q_low
     ExactSearch --> SubstringSearch: 否则
-    
+
     ExactHit --> Success: 返回 u(c)
-    SubstringSearch --> SubstringHit: ∃c: q_low ⊂ lower(d(c))
+    SubstringSearch --> SubstringHit: exists c: q_low in lower(d(c))
     SubstringSearch --> Failure: 否则
     
     SubstringHit --> PartialSuccess: 返回首个 u(c)

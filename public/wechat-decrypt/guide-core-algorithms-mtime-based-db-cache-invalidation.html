@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
 <script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
 <style>
@@ -84,6 +83,9 @@ article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-al
 article th{background:var(--bg2);font-weight:600;}
 article img{max-width:100%;border-radius:var(--r);}
 .mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
 .hljs{background:transparent!important;}
 #btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
 #btt:hover{background:var(--primary-h);transform:translateY(-2px);}
@@ -182,8 +184,8 @@ article img{max-width:100%;border-radius:var(--r);}
 <h1>文件系统时间戳缓存一致性算法深度解析</h1>
 <h2>1. 问题陈述</h2>
 <h3>1.1 形式化定义</h3>
-<p>设 (\mathcal{D} = {D_1, D_2, \ldots, D_n}) 为一组加密数据库文件集合，每个数据库 (D_i) 关联一个 WAL（Write-Ahead Logging）文件 (W_i)。给定密钥映射 (\mathcal{K}: \mathcal{D} \to {0,1}^{256})，我们需要支持查询操作 (Q: \mathcal{D} \times \mathcal{T} \to \mathcal{R})，其中 (\mathcal{T}) 为 SQL 查询模板，(\mathcal{R}) 为查询结果。</p>
-<p><strong>核心约束</strong>：对于任意 (D_i)，若其在时刻 (t) 被修改（包括 (W_i) 的变更），则后续查询必须基于 (t) 之后的最新状态；反之，若文件未变更，应避免重复解密带来的计算开销。</p>
+<p>设 <span class="math-inline">\(\mathcal{D} = \{D_1, D_2, \ldots, D_n\}\)</span> 为一组加密数据库文件集合，每个数据库 <span class="math-inline">\(D_i\)</span> 关联一个 WAL（Write-Ahead Logging）文件 <span class="math-inline">\(W_i\)</span>。给定密钥映射 <span class="math-inline">\(\mathcal{K}: \mathcal{D} \to \{0,1\}^{256}\)</span>，我们需要支持查询操作 <span class="math-inline">\(Q: \mathcal{D} \times \mathcal{T} \to \mathcal{R}\)</span>，其中 <span class="math-inline">\(\mathcal{T}\)</span> 为 SQL 查询模板，<span class="math-inline">\(\mathcal{R}\)</span> 为查询结果。</p>
+<p><strong>核心约束</strong>：对于任意 <span class="math-inline">\(D_i\)</span>，若其在时刻 <span class="math-inline">\(t\)</span> 被修改（包括 <span class="math-inline">\(W_i\)</span> 的变更），则后续查询必须基于 <span class="math-inline">\(t\)</span> 之后的最新状态；反之，若文件未变更，应避免重复解密带来的计算开销。</p>
 <h3>1.2 优化目标</h3>
 <p>$$
 \begin{aligned}
@@ -191,7 +193,7 @@ article img{max-width:100%;border-radius:var(--r);}
 \text{约束} \quad &amp; \forall t, Q(D_i, t) \text{ 基于 } D_i^{(t)} \text{ 的最新版本}
 \end{aligned}
 $$</p>
-<p>其中 (C_{\text{decrypt}}(D_i)) 表示解密 (D_i) 的时间成本，(\mathbb{I}[\cdot]) 为指示函数。</p>
+<p>其中 <span class="math-inline">\(C_{\text{decrypt}}(D_i)\)</span> 表示解密 <span class="math-inline">\(D_i\)</span> 的时间成本，<span class="math-inline">\(\mathbb{I}[\cdot]\)</span> 为指示函数。</p>
 <hr />
 <h2>2. 直觉与关键洞察</h2>
 <h3>2.1 朴素方法的失效</h3>
@@ -205,7 +207,7 @@ $$</p>
 <tbody>
 <tr>
 <td style="text-align:left"><strong>无缓存</strong></td>
-<td style="text-align:left">每次查询都执行完整解密，时间复杂度 (O(n \cdot |D|))，不可接受</td>
+<td style="text-align:left">每次查询都执行完整解密，时间复杂度 <span class="math-inline">\(O(n \cdot \|D\|)\)</span>，不可接受</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>固定 TTL 缓存</strong></td>
@@ -228,18 +230,18 @@ $$</p>
 $$</p>
 <p>这一性质使得 mtime 成为理想的<strong>缓存失效令牌（cache invalidation token）</strong>：</p>
 <ul>
-<li><strong>获取成本</strong>：(O(1)) 系统调用，无需读取文件内容</li>
+<li><strong>获取成本</strong>：<span class="math-inline">\(O(1)\)</span> 系统调用，无需读取文件内容</li>
 <li><strong>原子性</strong>：内核保证与文件写操作的顺序一致性</li>
 <li><strong>完备性</strong>：任何内容变更必然触发 mtime 更新</li>
 </ul>
 <p>对于 SQLite 数据库，必须同时监控主数据库文件和 WAL 文件：</p>
-<p>[
+<div class="math-block">\[
 \text{valid}(D_i, W_i; c_i) \iff \begin{cases}
-\text{mtime}(D_i) = c_i.\text{db_mt} \land \
-\text{mtime}(W_i) = c_i.\text{wal_mt} \land \
+\text{mtime}(D_i) = c_i.\text{db\_mt} \land \\
+\text{mtime}(W_i) = c_i.\text{wal\_mt} \land \\
 \text{exists}(c_i.\text{path})
 \end{cases}
-]</p>
+\]</div>
 <hr />
 <h2>3. 形式化定义</h2>
 <h3>3.1 状态空间</h3>
@@ -259,23 +261,23 @@ $$</p>
     VALID --> [*]: return cached_path
 </div>
 <h3>3.2 数学规范</h3>
-<p><strong>定义 3.1</strong>（缓存条目）。缓存条目为四元组 (e = (k, d, w, p))，其中：</p>
+<p><strong>定义 3.1</strong>（缓存条目）。缓存条目为四元组 <span class="math-inline">\(e = (k, d, w, p)\)</span>，其中：</p>
 <ul>
-<li>(k \in \mathcal{K}_{\text{keys}})：相对路径键</li>
-<li>(d \in \mathbb{R}_{\geq 0})：数据库文件 mtime</li>
-<li>(w \in \mathbb{R}_{\geq 0})：WAL 文件 mtime（不存在时为 0）</li>
-<li>(p \in \mathcal{P})：临时解密文件路径</li>
+<li><span class="math-inline">\(k \in \mathcal{K}_{\text{keys}}\)</span>：相对路径键</li>
+<li><span class="math-inline">\(d \in \mathbb{R}_{\geq 0}\)</span>：数据库文件 mtime</li>
+<li><span class="math-inline">\(w \in \mathbb{R}_{\geq 0}\)</span>：WAL 文件 mtime（不存在时为 0）</li>
+<li><span class="math-inline">\(p \in \mathcal{P}\)</span>：临时解密文件路径</li>
 </ul>
-<p><strong>定义 3.2</strong>（缓存状态）。缓存状态 (\mathcal{C} \subseteq \mathcal{K}<em>{\text{keys}} \times \mathbb{R}</em>{\geq 0} \times \mathbb{R}_{\geq 0} \times \mathcal{P}) 为当前所有有效条目的集合。</p>
-<p><strong>定义 3.3</strong>（观察到的文件状态）。对于键 (k)，设：</p>
+<p><strong>定义 3.2</strong>（缓存状态）。缓存状态 <span class="math-inline">\(\mathcal{C} \subseteq \mathcal{K}_{\text{keys}} \times \mathbb{R}_{\geq 0} \times \mathbb{R}_{\geq 0} \times \mathcal{P}\)</span> 为当前所有有效条目的集合。</p>
+<p><strong>定义 3.3</strong>（观察到的文件状态）。对于键 <span class="math-inline">\(k\)</span>，设：</p>
 <ul>
-<li>(\hat{d}_k = \text{getmtime}(\text{db_path}(k)))（若存在，否则 (\bot)）</li>
-<li>(\hat{w}_k = \text{getmtime}(\text{wal_path}(k)))（若存在，否则 (0)）</li>
+<li><span class="math-inline">\(\hat{d}_k = \text{getmtime}(\text{db\_path}(k))\)</span>（若存在，否则 <span class="math-inline">\(\bot\)</span>）</li>
+<li><span class="math-inline">\(\hat{w}_k = \text{getmtime}(\text{wal\_path}(k))\)</span>（若存在，否则 <span class="math-inline">\(0\)</span>）</li>
 </ul>
-<p><strong>定义 3.4</strong>（缓存一致性谓词）。条目 ((k, d, w, p) \in \mathcal{C}) 是一致的当且仅当：</p>
-<p>[
+<p><strong>定义 3.4</strong>（缓存一致性谓词）。条目 <span class="math-inline">\((k, d, w, p) \in \mathcal{C}\)</span> 是一致的当且仅当：</p>
+<div class="math-block">\[
 \text{Consistent}(k, d, w, p) \triangleq (d = \hat{d}_k) \land (w = \hat{w}_k) \land (\text{exists}(p))
-]</p>
+\]</div>
 <h3>3.3 操作语义</h3>
 <p>$$
 \begin{array}{ll}
@@ -335,53 +337,53 @@ $$</p>
 <pre><code class="language-pseudocode">\begin{algorithm}
 \caption{Filesystem Timestamp Cache Coherency}
 \begin{algorithmic}[1]
-\Require Key mapping \(\mathcal{K}\), Cache directory \(\mathcal{C}\)
-\State \(\textit{cache} \gets \emptyset\) \Comment{Initialize empty cache}
+\Require Key mapping <span class="math-inline">\(\mathcal{K}\)</span>, Cache directory <span class="math-inline">\(\mathcal{C}\)</span>
+\State <span class="math-inline">\(\textit{cache} \gets \emptyset\)</span> \Comment{Initialize empty cache}
 
-\Function{Get}{\(k\)}
-    \If{\(k \notin \text{Keys}(\mathcal{K})\)}
-        \Return \(\bot\) \Comment{Invalid key}
+\Function{Get}{<span class="math-inline">\(k\)</span>}
+    \If{<span class="math-inline">\(k \notin \text{Keys}(\mathcal{K})\)</span>}
+        \Return <span class="math-inline">\(\bot\)</span> \Comment{Invalid key}
     \EndIf
     
-    \State \(p_{\text{db}} \gets \text{ResolvePath}(k)\)
-    \State \(p_{\text{wal}} \gets p_{\text{db}} + \text{``-wal''}\)
+    \State <span class="math-inline">\(p_{\text{db}} \gets \text{ResolvePath}(k)\)</span>
+    \State <span class="math-inline">\(p_{\text{wal}} \gets p_{\text{db}} + \text{``-wal''}\)</span>
     
-    \If{\(\neg \text{Exists}(p_{\text{db}})\)}
-        \Return \(\bot\) \Comment{Source file missing}
+    \If{<span class="math-inline">\(\neg \text{Exists}(p_{\text{db}})\)</span>}
+        \Return <span class="math-inline">\(\bot\)</span> \Comment{Source file missing}
     \EndIf
     
-    \State \(t_{\text{db}} \gets \text{GetMtime}(p_{\text{db}})\)
+    \State <span class="math-inline">\(t_{\text{db}} \gets \text{GetMtime}(p_{\text{db}})\)</span>
     \State $t_{\text{wal}} \gets \begin{cases} 
         \text{GetMtime}(p_{\text{wal}}) &amp; \text{if } \text{Exists}(p_{\text{wal}}) \\
         0 &amp; \text{otherwise}
     \end{cases}$
     
-    \If{\(k \in \textit{cache}\)}
-        \State \((t'_{\text{db}}, t'_{\text{wal}}, p') \gets \textit{cache}[k]\)
-        \If{\(t'_{\text{db}} = t_{\text{db}} \land t'_{\text{wal}} = t_{\text{wal}} \land \text{Exists}(p')\)}
-            \Return \(p'\) \Comment{Cache hit with valid entry}
+    \If{<span class="math-inline">\(k \in \textit{cache}\)</span>}
+        \State <span class="math-inline">\((t'_{\text{db}}, t'_{\text{wal}}, p') \gets \textit{cache}[k]\)</span>
+        \If{<span class="math-inline">\(t'_{\text{db}} = t_{\text{db}} \land t'_{\text{wal}} = t_{\text{wal}} \land \text{Exists}(p')\)</span>}
+            \Return <span class="math-inline">\(p'\)</span> \Comment{Cache hit with valid entry}
         \EndIf
-        \State \(\text{TryUnlink}(p')\) \Comment{Clean up stale temporary file}
+        \State <span class="math-inline">\(\text{TryUnlink}(p')\)</span> \Comment{Clean up stale temporary file}
     \EndIf
     
     \State \Comment{Cache miss or stale entry — perform decryption}
-    \State \(p_{\text{tmp}} \gets \text{MkStemp}(\text{suffix}=``.db'')\)
-    \State \(K \gets \text{DecodeHex}(\mathcal{K}[k].\text{enc\_key})\)
+    \State <span class="math-inline">\(p_{\text{tmp}} \gets \text{MkStemp}(\text{suffix}=``.db'')\)</span>
+    \State <span class="math-inline">\(K \gets \text{DecodeHex}(\mathcal{K}[k].\text{enc\_key})\)</span>
     
-    \State \(\text{FullDecrypt}(p_{\text{db}}, p_{\text{tmp}}, K)\)
-    \If{\(\text{Exists}(p_{\text{wal}})\)}
-        \State \(\text{DecryptWal}(p_{\text{wal}}, p_{\text{tmp}}, K)\)
+    \State <span class="math-inline">\(\text{FullDecrypt}(p_{\text{db}}, p_{\text{tmp}}, K)\)</span>
+    \If{<span class="math-inline">\(\text{Exists}(p_{\text{wal}})\)</span>}
+        \State <span class="math-inline">\(\text{DecryptWal}(p_{\text{wal}}, p_{\text{tmp}}, K)\)</span>
     \EndIf
     
-    \State \(\textit{cache}[k] \gets (t_{\text{db}}, t_{\text{wal}}, p_{\text{tmp}})\)
-    \Return \(p_{\text{tmp}}\)
+    \State <span class="math-inline">\(\textit{cache}[k] \gets (t_{\text{db}}, t_{\text{wal}}, p_{\text{tmp}})\)</span>
+    \Return <span class="math-inline">\(p_{\text{tmp}}\)</span>
 \EndFunction
 
 \Function{Cleanup}{}
-    \For{\((\_, \_, p) \in \textit{cache}\)}
-        \State \(\text{TryUnlink}(p)\)
+    \For{<span class="math-inline">\((\_, \_, p) \in \textit{cache}\)</span>}
+        \State <span class="math-inline">\(\text{TryUnlink}(p)\)</span>
     \EndFor
-    \State \(\textit{cache} \gets \emptyset\)
+    \State <span class="math-inline">\(\textit{cache} \gets \emptyset\)</span>
 \EndFunction
 \end{algorithmic}
 \end{algorithm}
@@ -426,33 +428,33 @@ $$</p>
 <tbody>
 <tr>
 <td style="text-align:left"><strong>缓存命中</strong></td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">两次 mtime 比较 + 一次文件存在性检查</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>缓存未命中（无 WAL）</strong></td>
-<td style="text-align:left">(O(|D|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(\|D\|)\)</span></td>
 <td style="text-align:left">完整数据库解密，线性于文件大小</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>缓存未命中（含 WAL）</strong></td>
-<td style="text-align:left">(O(|D| + |W|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(\|D\| + \|W\|)\)</span></td>
 <td style="text-align:left">额外 WAL 帧遍历与合并</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>缓存失效</strong></td>
-<td style="text-align:left">(O(1) + O(|D| + |W|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1) + O(\|D\| + \|W\|)\)</span></td>
 <td style="text-align:left">旧文件删除 + 重新解密</td>
 </tr>
 </tbody>
 </table>
-<p>形式化地，设 (T_{\text{decrypt}}) 为每页解密时间，(N_D = \lceil |D| / 4096 \rceil)，(N_W) 为 WAL 帧数：</p>
-<p>[
+<p>形式化地，设 <span class="math-inline">\(T_{\text{decrypt}}\)</span> 为每页解密时间，<span class="math-inline">\(N_D = \lceil \|D\| / 4096 \rceil\)</span>，<span class="math-inline">\(N_W\)</span> 为 WAL 帧数：</p>
+<div class="math-block">\[
 T_{\text{Get}}(k) = \begin{cases}
-O(1) &amp; \text{if cache hit} \
+O(1) &amp; \text{if cache hit} \\
 O(N_D \cdot T_{\text{decrypt}} + N_W \cdot T_{\text{frame}}) &amp; \text{otherwise}
 \end{cases}
-]</p>
+\]</div>
 <h3>5.2 空间复杂度</h3>
 <table>
 <thead>
@@ -465,31 +467,31 @@ O(N_D \cdot T_{\text{decrypt}} + N_W \cdot T_{\text{frame}}) &amp; \text{otherwi
 <tbody>
 <tr>
 <td style="text-align:left">缓存字典</td>
-<td style="text-align:left">(O(m))</td>
-<td style="text-align:left">(m) = 唯一访问的数据库数量，每项固定开销</td>
+<td style="text-align:left"><span class="math-inline">\(O(m)\)</span></td>
+<td style="text-align:left"><span class="math-inline">\(m\)</span> = 唯一访问的数据库数量，每项固定开销</td>
 </tr>
 <tr>
 <td style="text-align:left">临时解密文件</td>
-<td style="text-align:left">(O(|D|))</td>
+<td style="text-align:left"><span class="math-inline">\(O(\|D\|)\)</span></td>
 <td style="text-align:left">峰值时等于所有缓存数据库大小之和</td>
 </tr>
 <tr>
 <td style="text-align:left">运行时栈</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">无递归，固定深度调用</td>
 </tr>
 </tbody>
 </table>
-<p>总空间复杂度：(O(m + \sum_{i \in \text{cached}} |D_i|))</p>
+<p>总空间复杂度：<span class="math-inline">\(O(m + \sum_{i \in \text{cached}} \|D_i\|)\)</span></p>
 <h3>5.3 概率分析</h3>
-<p>设数据库修改服从泊松过程，强度为 (\lambda)（次/秒），查询间隔为 (\Delta t)：</p>
-<p>[
+<p>设数据库修改服从泊松过程，强度为 <span class="math-inline">\(\lambda\)</span>（次/秒），查询间隔为 <span class="math-inline">\(\Delta t\)</span>：</p>
+<div class="math-block">\[
 P(\text{cache hit}) = e^{-\lambda \cdot \Delta t} \cdot P(\text{file intact})
-]</p>
-<p>在典型场景下（微信消息接收 (\lambda \approx 0.001) Hz，查询间隔 (\Delta t \approx 10) s）：</p>
-<p>[
+\]</div>
+<p>在典型场景下（微信消息接收 <span class="math-inline">\(\lambda \approx 0.001\)</span> Hz，查询间隔 <span class="math-inline">\(\Delta t \approx 10\)</span> s）：</p>
+<div class="math-block">\[
 P(\text{hit}) \approx e^{-0.01} \approx 0.99
-]</p>
+\]</div>
 <p>即期望缓存命中率超过 99%。</p>
 <hr />
 <h2>6. 实现要点与工程权衡</h2>
@@ -594,12 +596,12 @@ wal_mtime = os.path.getmtime(wal_path) if os.path.exists(wal_path) else 0
 </table>
 <h3>7.2 与数据库连接池的对比</h3>
 <p>传统连接池（如 SQLAlchemy 的 <code>QueuePool</code>）管理的是<strong>到同一数据库的连接复用</strong>，而本算法管理的是<strong>不同解密版本的切换</strong>：</p>
-<p>[
+<div class="math-block">\[
 \text{Connection Pool}: \text{DB}_{\text{fixed}} \times \text{Conn}_1, \ldots, \text{Conn}_n
-]</p>
-<p>[
+\]</div>
+<div class="math-block">\[
 \text{DBCache}: \text{Version}_1(\text{DB}), \text{Version}_2(\text{DB}), \ldots \text{ with eviction by mtime}
-]</p>
+\]</div>
 <h3>7.3 与内存数据库（<code>:memory:</code>）方案</h3>
 <table>
 <thead>
@@ -639,10 +641,10 @@ wal_mtime = os.path.getmtime(wal_path) if os.path.exists(wal_path) else 0
 <hr />
 <h2>8. 正确性讨论</h2>
 <h3>8.1 安全性条件</h3>
-<p><strong>定理</strong>（缓存一致性）。对于任意查询序列 (q_1, q_2, \ldots, q_n)，若 (q_j) 是 (q_i) 之后首次对键 (k) 的查询（(j &gt; i)），且 (k) 对应的文件在 ((t_i, t_j]) 期间被修改，则 (q_j) 将触发重新解密。</p>
-<p><em>证明概要</em>：由 <code>Get</code> 算法的第 12-14 行，每次查询比较当前 mtime 与缓存值。文件修改必然更新 mtime（POSIX 保证），故 (\hat{d}_k^{(t_j)} \neq d^{(t_i)})，一致性检查失败，执行解密分支。∎</p>
+<p><strong>定理</strong>（缓存一致性）。对于任意查询序列 <span class="math-inline">\(q_1, q_2, \ldots, q_n\)</span>，若 <span class="math-inline">\(q_j\)</span> 是 <span class="math-inline">\(q_i\)</span> 之后首次对键 <span class="math-inline">\(k\)</span> 的查询（<span class="math-inline">\(j &gt; i\)</span>），且 <span class="math-inline">\(k\)</span> 对应的文件在 <span class="math-inline">\((t_i, t_j]\)</span> 期间被修改，则 <span class="math-inline">\(q_j\)</span> 将触发重新解密。</p>
+<p><em>证明概要</em>：由 <code>Get</code> 算法的第 12-14 行，每次查询比较当前 mtime 与缓存值。文件修改必然更新 mtime（POSIX 保证），故 <span class="math-inline">\(\hat{d}_k^{(t_j)} \neq d^{(t_i)}\)</span>，一致性检查失败，执行解密分支。∎</p>
 <h3>8.2 活性条件</h3>
-<p><strong>定理</strong>（无无限延迟）。对于任意查询 (q)，<code>Get</code> 操作必在有限时间内返回（成功或失败）。</p>
+<p><strong>定理</strong>（无无限延迟）。对于任意查询 <span class="math-inline">\(q\)</span>，<code>Get</code> 操作必在有限时间内返回（成功或失败）。</p>
 <p><em>证明概要</em>：算法无循环递归，所有分支要么返回（第 3, 6, 13 行），要么进入有限步骤的解密流程（第 16-22 行）。解密操作 <code>full_decrypt</code> 和 <code>decrypt_wal</code> 对有限大小文件必然终止。∎</p>
 <hr />
 <h2>9. 扩展方向</h2>
@@ -741,19 +743,71 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
-// KaTeX — render math in article content
-// Math delimiters are normalised server-side ($...$→\[...\], $...$→\(...\))
-// so only the unambiguous LaTeX delimiters are needed here.
-document.addEventListener('DOMContentLoaded',function(){
-  if(typeof renderMathInElement==='undefined')return;
-  renderMathInElement(document.getElementById('mc')||document.body,{
-    delimiters:[
-      {left:'\(',right:'\)',display:false},
-      {left:'\[',right:'\]',display:true}
-    ],
-    throwOnError:false
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
   });
-});
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
 </script>
 </body>
 </html>

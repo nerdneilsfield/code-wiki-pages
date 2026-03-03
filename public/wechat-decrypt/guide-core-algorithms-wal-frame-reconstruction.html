@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
 <script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
 <style>
@@ -84,6 +83,9 @@ article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-al
 article th{background:var(--bg2);font-weight:600;}
 article img{max-width:100%;border-radius:var(--r);}
 .mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
 .hljs{background:transparent!important;}
 #btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
 #btt:hover{background:var(--primary-h);transform:translateY(-2px);}
@@ -182,23 +184,23 @@ article img{max-width:100%;border-radius:var(--r);}
 <h1>WAL Frame 有效性过滤与数据库补丁算法深度解析</h1>
 <h2>1. 问题陈述</h2>
 <h3>1.1 形式化定义</h3>
-<p>设 (\mathcal{W}) 为 SQLite Write-Ahead Logging (WAL) 文件，其结构可定义为：</p>
-<p>[\mathcal{W} = \langle H_{\text{wal}}, F_1, F_2, \ldots, F_n, \Phi \rangle]</p>
+<p>设 <span class="math-inline">\(\mathcal{W}\)</span> 为 SQLite Write-Ahead Logging (WAL) 文件，其结构可定义为：</p>
+<div class="math-block">\[\mathcal{W} = \langle H_{\text{wal}}, F_1, F_2, \ldots, F_n, \Phi \rangle\]</div>
 <p>其中：</p>
 <ul>
-<li>(H_{\text{wal}} \in {0,1}^{32 \times 8})：WAL 文件头（32 字节）</li>
-<li>(F_i = \langle H_i^{(f)}, P_i \rangle)：第 (i) 个帧，包含帧头 (H_i^{(f)} \in {0,1}^{24 \times 8}) 和页数据 (P_i \in {0,1}^{4096 \times 8})</li>
-<li>(\Phi)：填充区域（预分配但未使用的空间）</li>
+<li><span class="math-inline">\(H_{\text{wal}} \in \{0,1\}^{32 \times 8}\)</span>：WAL 文件头（32 字节）</li>
+<li><span class="math-inline">\(F_i = \langle H_i^{(f)}, P_i \rangle\)</span>：第 <span class="math-inline">\(i\)</span> 个帧，包含帧头 <span class="math-inline">\(H_i^{(f)} \in \{0,1\}^{24 \times 8}\)</span> 和页数据 <span class="math-inline">\(P_i \in \{0,1\}^{4096 \times 8}\)</span></li>
+<li><span class="math-inline">\(\Phi\)</span>：填充区域（预分配但未使用的空间）</li>
 </ul>
-<p><strong>关键约束</strong>：由于 WCDB/SQLite 采用<strong>预分配固定大小策略</strong>（通常为 4MB），文件大小 (|\mathcal{W}|) 是恒定的，无法通过传统的大小变化检测有效数据边界。</p>
+<p><strong>关键约束</strong>：由于 WCDB/SQLite 采用<strong>预分配固定大小策略</strong>（通常为 4MB），文件大小 <span class="math-inline">\(|\mathcal{W}|\)</span> 是恒定的，无法通过传统的大小变化检测有效数据边界。</p>
 <h3>1.2 核心问题</h3>
 <p>给定：</p>
 <ul>
-<li>加密密钥 (K \in {0,1}^{256})</li>
-<li>WAL 文件 (\mathcal{W}) 及其盐值 (\text{salt}<em>{\text{wal}} = (s_1, s_2) \in \mathbb{Z}</em>{2^{32}}^2)</li>
-<li>目标数据库副本 (\mathcal{D})（已解密的基础版本）</li>
+<li>加密密钥 <span class="math-inline">\(K \in \{0,1\}^{256}\)</span></li>
+<li>WAL 文件 <span class="math-inline">\(\mathcal{W}\)</span> 及其盐值 <span class="math-inline">\(\text{salt}_{\text{wal}} = (s_1, s_2) \in \mathbb{Z}_{2^{32}}^2\)</span></li>
+<li>目标数据库副本 <span class="math-inline">\(\mathcal{D}\)</span>（已解密的基础版本）</li>
 </ul>
-<p>求：将 (\mathcal{W}) 中所有<strong>当前周期有效</strong>的帧解密并应用到 (\mathcal{D}) 的正确算法。</p>
+<p>求：将 <span class="math-inline">\(\mathcal{W}\)</span> 中所有<strong>当前周期有效</strong>的帧解密并应用到 <span class="math-inline">\(\mathcal{D}\)</span> 的正确算法。</p>
 <p><strong>挑战</strong>：区分当前事务周期的有效帧与历史遗留的无效帧，避免数据污染。</p>
 <hr />
 <h2>2. 直觉与洞察</h2>
@@ -231,7 +233,7 @@ article img{max-width:100%;border-radius:var(--r);}
 </table>
 <h3>2.2 关键洞察：Salt 作为世代标识符</h3>
 <p>SQLite/WCDB 的 WAL 协议使用**盐值（salt）**作为事务周期的逻辑时钟：</p>
-<p>[\text{frame}<em>i \text{ is valid} \iff H_i^{(f)}[8:16] = H</em>{\text{wal}}[16:24]]</p>
+<div class="math-block">\[\text{frame}_i \text{ is valid} \iff H_i^{(f)}[8:16] = H_{\text{wal}}[16:24]\]</div>
 <p>即：帧头的盐值必须与 WAL 文件头的盐值<strong>完全匹配</strong>。</p>
 <p>这一设计源于 SQLite WAL 的 checkpoint 机制：当执行 checkpoint 时，WAL 文件被逻辑重置，文件头的盐值重新生成，而物理文件保持预分配大小。因此，盐值不匹配即表示该帧属于已归档的历史周期。</p>
 <blockquote>
@@ -240,26 +242,26 @@ article img{max-width:100%;border-radius:var(--r);}
 <hr />
 <h2>3. 形式化定义</h2>
 <h3>3.1 数据结构形式化</h3>
-<p>[
+<div class="math-block">\[
 \begin{aligned}
-\text{WALHeader} &amp;= \langle \text{magic}: \mathbb{Z}<em>{2^{32}}, \text{version}: \mathbb{Z}</em>{2^{32}}, \
-&amp;\quad\quad \text{page_size}: \mathbb{Z}<em>{2^{32}}, \text{checkpoint_seq}: \mathbb{Z}</em>{2^{32}}, \
-&amp;\quad\quad \text{salt}<em>1: \mathbb{Z}</em>{2^{32}}, \text{salt}<em>2: \mathbb{Z}</em>{2^{32}}, \ldots \rangle \[6pt]
-\text{FrameHeader} &amp;= \langle \text{pgno}: \mathbb{Z}<em>{2^{32}}, \text{commit_size}: \mathbb{Z}</em>{2^{32}}, \
-&amp;\quad\quad \text{salt}<em>1: \mathbb{Z}</em>{2^{32}}, \text{salt}<em>2: \mathbb{Z}</em>{2^{32}}, \
+\text{WALHeader} &amp;= \langle \text{magic}: \mathbb{Z}_{2^{32}}, \text{version}: \mathbb{Z}_{2^{32}}, \\
+&amp;\quad\quad \text{page\_size}: \mathbb{Z}_{2^{32}}, \text{checkpoint\_seq}: \mathbb{Z}_{2^{32}}, \\
+&amp;\quad\quad \text{salt}_1: \mathbb{Z}_{2^{32}}, \text{salt}_2: \mathbb{Z}_{2^{32}}, \ldots \rangle \\[6pt]
+\text{FrameHeader} &amp;= \langle \text{pgno}: \mathbb{Z}_{2^{32}}, \text{commit\_size}: \mathbb{Z}_{2^{32}}, \\
+&amp;\quad\quad \text{salt}_1: \mathbb{Z}_{2^{32}}, \text{salt}_2: \mathbb{Z}_{2^{32}}, \\
 &amp;\quad\quad \text{checksum}: \mathbb{Z}_{2^{64}} \rangle
 \end{aligned}
-]</p>
+\]</div>
 <h3>3.2 有效性谓词</h3>
-<p>[\text{Valid}(F_i, H_{\text{wal}}) \triangleq \begin{cases}
-\text{true} &amp; \text{if } F_i.\text{salt}<em>1 = H</em>{\text{wal}}.\text{salt}_1 \land F_i.\text{salt}<em>2 = H</em>{\text{wal}}.\text{salt}<em>2 \
-&amp; \quad \land\ 1 \leq F_i.\text{pgno} \leq N</em>{\max} \
+<div class="math-block">\[\text{Valid}(F_i, H_{\text{wal}}) \triangleq \begin{cases}
+\text{true} &amp; \text{if } F_i.\text{salt}_1 = H_{\text{wal}}.\text{salt}_1 \land F_i.\text{salt}_2 = H_{\text{wal}}.\text{salt}_2 \\
+&amp; \quad \land\ 1 \leq F_i.\text{pgno} \leq N_{\max} \\
 \text{false} &amp; \text{otherwise}
-\end{cases}]</p>
-<p>其中 (N_{\max} = 10^6) 为工程约束的最大合法页号。</p>
+\end{cases}\]</div>
+<p>其中 <span class="math-inline">\(N_{\max} = 10^6\)</span> 为工程约束的最大合法页号。</p>
 <h3>3.3 算法目标函数</h3>
-<p>[\text{Patch}(\mathcal{D}, \mathcal{W}, K) = \mathcal{D}' \text{ where }]</p>
-<p>[\forall i: \text{Valid}(F_i, H_{\text{wal}}) \Rightarrow \mathcal{D}'[F_i.\text{pgno}] = \text{Decrypt}_K(F_i.P_i, F_i.\text{pgno})]</p>
+<div class="math-block">\[\text{Patch}(\mathcal{D}, \mathcal{W}, K) = \mathcal{D}' \text{ where }\]</div>
+<div class="math-block">\[\forall i: \text{Valid}(F_i, H_{\text{wal}}) \Rightarrow \mathcal{D}'[F_i.\text{pgno}] = \text{Decrypt}_K(F_i.P_i, F_i.\text{pgno})\]</div>
 <hr />
 <h2>4. 算法描述</h2>
 <h3>4.1 高层流程图</h3>
@@ -447,7 +449,7 @@ PROCEDURE:
 <hr />
 <h2>5. 复杂度分析</h2>
 <h3>5.1 时间复杂度</h3>
-<p>设 (n) 为 WAL 文件中的总帧数（包括有效和无效），(v) 为有效帧数（(v \leq n)）。</p>
+<p>设 <span class="math-inline">\(n\)</span> 为 WAL 文件中的总帧数（包括有效和无效），<span class="math-inline">\(v\)</span> 为有效帧数（<span class="math-inline">\(v \leq n\)</span>）。</p>
 <table>
 <thead>
 <tr>
@@ -459,39 +461,39 @@ PROCEDURE:
 <tbody>
 <tr>
 <td style="text-align:left">文件头读取</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">常数时间</td>
 </tr>
 <tr>
 <td style="text-align:left">顺序扫描</td>
-<td style="text-align:left">(n) 次迭代</td>
-<td style="text-align:left">(O(n))</td>
+<td style="text-align:left"><span class="math-inline">\(n\)</span> 次迭代</td>
+<td style="text-align:left"><span class="math-inline">\(O(n)\)</span></td>
 </tr>
 <tr>
 <td style="text-align:left">每帧处理</td>
 <td style="text-align:left">读取(1) + 条件判断(1)</td>
-<td style="text-align:left">(O(1)) 均摊</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span> 均摊</td>
 </tr>
 <tr>
 <td style="text-align:left">有效帧解密</td>
-<td style="text-align:left">(v \times) AES-256-CBC</td>
-<td style="text-align:left">(O(v \cdot B))，(B = 4096/16 = 256) 块</td>
+<td style="text-align:left"><span class="math-inline">\(v \times\)</span> AES-256-CBC</td>
+<td style="text-align:left"><span class="math-inline">\(O(v \cdot B)\)</span>，<span class="math-inline">\(B = 4096/16 = 256\)</span> 块</td>
 </tr>
 <tr>
 <td style="text-align:left">磁盘寻道</td>
-<td style="text-align:left">(v) 次 <code>seek</code></td>
-<td style="text-align:left">(O(v))（假设均匀分布）</td>
+<td style="text-align:left"><span class="math-inline">\(v\)</span> 次 <code>seek</code></td>
+<td style="text-align:left"><span class="math-inline">\(O(v)\)</span>（假设均匀分布）</td>
 </tr>
 <tr>
 <td style="text-align:left">磁盘写入</td>
-<td style="text-align:left">(v \times 4096) 字节</td>
-<td style="text-align:left">(O(v \cdot P))，(P = 4096)</td>
+<td style="text-align:left"><span class="math-inline">\(v \times 4096\)</span> 字节</td>
+<td style="text-align:left"><span class="math-inline">\(O(v \cdot P)\)</span>，<span class="math-inline">\(P = 4096\)</span></td>
 </tr>
 </tbody>
 </table>
 <p><strong>总时间复杂度</strong>：
-[T(n, v) = O(n + v \cdot B \cdot P) = O(n + v \cdot C_{\text{decrypt}})]</p>
-<p>其中 (C_{\text{decrypt}}) 为单页解密的常数因子。</p>
+<div class="math-block">\[T(n, v) = O(n + v \cdot B \cdot P) = O(n + v \cdot C_{\text{decrypt}})\]</div></p>
+<p>其中 <span class="math-inline">\(C_{\text{decrypt}}\)</span> 为单页解密的常数因子。</p>
 <h3>5.2 空间复杂度</h3>
 <table>
 <thead>
@@ -504,27 +506,27 @@ PROCEDURE:
 <tbody>
 <tr>
 <td style="text-align:left">WAL 头缓冲区</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">32 字节</td>
 </tr>
 <tr>
 <td style="text-align:left">帧头缓冲区</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">24 字节（重用）</td>
 </tr>
 <tr>
 <td style="text-align:left">加密页缓冲区</td>
-<td style="text-align:left">(O(P))</td>
+<td style="text-align:left"><span class="math-inline">\(O(P)\)</span></td>
 <td style="text-align:left">4096 字节</td>
 </tr>
 <tr>
 <td style="text-align:left">解密页缓冲区</td>
-<td style="text-align:left">(O(P))</td>
+<td style="text-align:left"><span class="math-inline">\(O(P)\)</span></td>
 <td style="text-align:left">4096 字节（可原地复用）</td>
 </tr>
 <tr>
 <td style="text-align:left">文件句柄</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">两个打开的文件描述符</td>
 </tr>
 </tbody>
@@ -545,26 +547,26 @@ $$S = O(P) = O(1) \text{（相对于输入规模）}$$</p>
 <tbody>
 <tr>
 <td style="text-align:left"><strong>最佳情况</strong></td>
-<td style="text-align:left">(n = 0)（空 WAL 或仅含头）</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(n = 0\)</span>（空 WAL 或仅含头）</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 <td style="text-align:left">~0.1 ms</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>典型情况</strong></td>
-<td style="text-align:left">(v \approx n)，密集有效帧</td>
-<td style="text-align:left">(O(n \cdot C_{\text{decrypt}}))</td>
+<td style="text-align:left"><span class="math-inline">\(v \approx n\)</span>，密集有效帧</td>
+<td style="text-align:left"><span class="math-inline">\(O(n \cdot C_{\text{decrypt}})\)</span></td>
 <td style="text-align:left">~70 ms（4MB WAL）</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>最坏情况</strong></td>
-<td style="text-align:left">(v = 0)，全无效帧需扫描</td>
-<td style="text-align:left">(O(n))</td>
+<td style="text-align:left"><span class="math-inline">\(v = 0\)</span>，全无效帧需扫描</td>
+<td style="text-align:left"><span class="math-inline">\(O(n)\)</span></td>
 <td style="text-align:left">~10 ms（仅I/O）</td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>病态情况</strong></td>
 <td style="text-align:left">碎片化严重，大量随机寻道</td>
-<td style="text-align:left">(O(v \cdot P_{\text{seek}}))</td>
+<td style="text-align:left"><span class="math-inline">\(O(v \cdot P_{\text{seek}})\)</span></td>
 <td style="text-align:left">受磁盘延迟限制</td>
 </tr>
 </tbody>
@@ -585,7 +587,7 @@ $$S = O(P) = O(1) \text{（相对于输入规模）}$$</p>
 </thead>
 <tbody>
 <tr>
-<td style="text-align:left">严格的 (n) 帧边界检测</td>
+<td style="text-align:left">严格的 <span class="math-inline">\(n\)</span> 帧边界检测</td>
 <td style="text-align:left"><code>while wf.tell() + frame_size &lt;= wal_size</code></td>
 <td style="text-align:left">防御性编程，防止部分帧读取</td>
 </tr>
@@ -755,22 +757,22 @@ $$S = O(P) = O(1) \text{（相对于输入规模）}$$</p>
 <h2>8. 正确性论证</h2>
 <h3>定理 1（有效性完备性）</h3>
 <blockquote>
-<p>若帧 (F_i) 满足 (\text{Valid}(F_i, H_{\text{wal}}) = \text{true})，则算法必定将其应用到目标数据库。</p>
+<p>若帧 <span class="math-inline">\(F_i\)</span> 满足 <span class="math-inline">\(\text{Valid}(F_i, H_{\text{wal}}) = \text{true}\)</span>，则算法必定将其应用到目标数据库。</p>
 </blockquote>
 <p><strong>证明</strong>：算法的主循环遍历所有物理上完整的帧。对于每个帧，依次检查：</p>
 <ol>
-<li>页号范围约束 —— 有效帧满足 (1 \leq \text{pgno} \leq 10^6)</li>
-<li>盐值相等约束 —— 有效帧满足 (\text{salt}<em>f = \text{salt}</em>{\text{wal}})</li>
+<li>页号范围约束 —— 有效帧满足 <span class="math-inline">\(1 \leq \text{pgno} \leq 10^6\)</span></li>
+<li>盐值相等约束 —— 有效帧满足 <span class="math-inline">\(\text{salt}_f = \text{salt}_{\text{wal}}\)</span></li>
 </ol>
 <p>两条件均满足时，执行路径必然到达解密-写入步骤。∎</p>
 <h3>定理 2（无效性安全性）</h3>
 <blockquote>
-<p>若帧 (F_i) 满足 (\text{Valid}(F_i, H_{\text{wal}}) = \text{false})，则算法<strong>不会</strong>将其应用到目标数据库。</p>
+<p>若帧 <span class="math-inline">\(F_i\)</span> 满足 <span class="math-inline">\(\text{Valid}(F_i, H_{\text{wal}}) = \text{false}\)</span>，则算法<strong>不会</strong>将其应用到目标数据库。</p>
 </blockquote>
 <p><strong>证明</strong>：分两种情况：</p>
 <ul>
-<li><strong>情况 A</strong>：(\text{pgno} \notin [1, 10^6]) —— 被第一个条件分支 <code>continue</code> 跳过</li>
-<li><strong>情况 B</strong>：(\text{salt}<em>f \neq \text{salt}</em>{\text{wal}}) —— 被第二个条件分支 <code>continue</code> 跳过</li>
+<li><strong>情况 A</strong>：<span class="math-inline">\(\text{pgno} \notin [1, 10^6]\)</span> —— 被第一个条件分支 <code>continue</code> 跳过</li>
+<li><strong>情况 B</strong>：<span class="math-inline">\(\text{salt}_f \neq \text{salt}_{\text{wal}}\)</span> —— 被第二个条件分支 <code>continue</code> 跳过</li>
 </ul>
 <p>两种情况下，执行流均跳过后续的解密-写入步骤。∎</p>
 <h3>定理 3（终止性）</h3>
@@ -782,7 +784,7 @@ $$S = O(P) = O(1) \text{（相对于输入规模）}$$</p>
 <li>若成功读取完整帧，<code>tell()</code> 增加 <code>frame_size = 4120</code></li>
 <li>若读取不完整，<code>break</code> 终止循环</li>
 </ul>
-<p>由于 <code>wal_size</code> 有限且 <code>tell()</code> 严格递增，循环最多执行 (\lfloor (\text{wal_size} - 32) / 4120 \rfloor) 次。∎</p>
+<p>由于 <code>wal_size</code> 有限且 <code>tell()</code> 严格递增，循环最多执行 <span class="math-inline">\(\lfloor (\text{wal\_size} - 32) / 4120 \rfloor\)</span> 次。∎</p>
 <hr />
 <h2>9. 结论</h2>
 <p>WAL Frame 有效性过滤与数据库补丁算法是一种<strong>针对特定约束优化的轻量级数据同步机制</strong>。其核心创新在于：</p>
@@ -873,19 +875,71 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
-// KaTeX — render math in article content
-// Math delimiters are normalised server-side ($...$→\[...\], $...$→\(...\))
-// so only the unambiguous LaTeX delimiters are needed here.
-document.addEventListener('DOMContentLoaded',function(){
-  if(typeof renderMathInElement==='undefined')return;
-  renderMathInElement(document.getElementById('mc')||document.body,{
-    delimiters:[
-      {left:'\(',right:'\)',display:false},
-      {left:'\[',right:'\]',display:true}
-    ],
-    throwOnError:false
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
   });
-});
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
 </script>
 </body>
 </html>

@@ -11,7 +11,6 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
 <script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
 <style>
@@ -84,6 +83,9 @@ article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-al
 article th{background:var(--bg2);font-weight:600;}
 article img{max-width:100%;border-radius:var(--r);}
 .mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
 .hljs{background:transparent!important;}
 #btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
 #btt:hover{background:var(--primary-h);transform:translateY(-2px);}
@@ -182,26 +184,26 @@ article img{max-width:100%;border-radius:var(--r);}
 <h1>SQLCipher 页面解密与 HMAC 验证算法深度解析</h1>
 <h2>1. 问题陈述</h2>
 <h3>1.1 形式化定义</h3>
-<p>设 (\mathcal{D}) 为 SQLCipher 4 加密的数据库文件，其由 (n) 个固定大小的页组成：
-[\mathcal{D} = {P_1, P_2, \ldots, P_n}, \quad |P_i| = 4096 \text{ bytes}]</p>
-<p>每页 (P_i) 具有如下结构：</p>
-<p>[
-P_i = \underbrace{E_{k_{\text{enc}}}^{\text{CBC}}(M_i; IV_i)}<em>{\text{encrypted payload}} \parallel \underbrace{IV_i}</em>{16\text{B}} \parallel \underbrace{HMAC_{k_{\text{mac}}}(C_i)}_{64\text{B}}
-]</p>
+<p>设 <span class="math-inline">\(\mathcal{D}\)</span> 为 SQLCipher 4 加密的数据库文件，其由 <span class="math-inline">\(n\)</span> 个固定大小的页组成：
+<div class="math-block">\[\mathcal{D} = \{P_1, P_2, \ldots, P_n\}, \quad |P_i| = 4096 \text{ bytes}\]</div></p>
+<p>每页 <span class="math-inline">\(P_i\)</span> 具有如下结构：</p>
+<div class="math-block">\[
+P_i = \underbrace{E_{k_{\text{enc}}}^{\text{CBC}}(M_i; IV_i)}_{\text{encrypted payload}} \parallel \underbrace{IV_i}_{16\text{B}} \parallel \underbrace{HMAC_{k_{\text{mac}}}(C_i)}_{64\text{B}}
+\]</div>
 <p>其中：</p>
 <ul>
-<li>(M_i): 明文页内容（第1页含16字节 SQLite 文件头 salt）</li>
-<li>(IV_i): 初始化向量，从保留区提取</li>
-<li>(C_i): 密文数据（即 encrypted payload）</li>
-<li>(k_{\text{enc}}): AES-256 加密密钥</li>
-<li>(k_{\text{mac}}): HMAC-SHA512 认证密钥</li>
+<li><span class="math-inline">\(M_i\)</span>: 明文页内容（第1页含16字节 SQLite 文件头 salt）</li>
+<li><span class="math-inline">\(IV_i\)</span>: 初始化向量，从保留区提取</li>
+<li><span class="math-inline">\(C_i\)</span>: 密文数据（即 encrypted payload）</li>
+<li><span class="math-inline">\(k_{\text{enc}}\)</span>: AES-256 加密密钥</li>
+<li><span class="math-inline">\(k_{\text{mac}}\)</span>: HMAC-SHA512 认证密钥</li>
 </ul>
-<p><strong>核心问题</strong>：给定派生密钥 (k_{\text{enc}}) 和加密页数据 (P_i)，恢复标准 SQLite 页 (M_i')，满足：
-[M_i' = \begin{cases}
-\text{SQLITE_HDR} \parallel M_i[16:] &amp; i = 1 \
+<p><strong>核心问题</strong>：给定派生密钥 <span class="math-inline">\(k_{\text{enc}}\)</span> 和加密页数据 <span class="math-inline">\(P_i\)</span>，恢复标准 SQLite 页 <span class="math-inline">\(M_i'\)</span>，满足：
+<div class="math-block">\[M_i' = \begin{cases} 
+\text{SQLITE\_HDR} \parallel M_i[16:] &amp; i = 1 \\
 M_i &amp; i &gt; 1
-\end{cases}]</p>
-<p>且 (|M_i'| = 4096) bytes（不足部分零填充）。</p>
+\end{cases}\]</div></p>
+<p>且 <span class="math-inline">\(|M_i'| = 4096\)</span> bytes（不足部分零填充）。</p>
 <h3>1.2 约束条件</h3>
 <table>
 <thead>
@@ -213,27 +215,27 @@ M_i &amp; i &gt; 1
 </thead>
 <tbody>
 <tr>
-<td style="text-align:left">(\text{PAGE_SZ})</td>
+<td style="text-align:left"><span class="math-inline">\(\text{PAGE\_SZ}\)</span></td>
 <td style="text-align:left">4096</td>
 <td style="text-align:left">SQLite 页大小</td>
 </tr>
 <tr>
-<td style="text-align:left">(\text{RESERVE_SZ})</td>
+<td style="text-align:left"><span class="math-inline">\(\text{RESERVE\_SZ}\)</span></td>
 <td style="text-align:left">80</td>
 <td style="text-align:left">每页保留区（IV + HMAC）</td>
 </tr>
 <tr>
-<td style="text-align:left">(\text{SALT_SZ})</td>
+<td style="text-align:left"><span class="math-inline">\(\text{SALT\_SZ}\)</span></td>
 <td style="text-align:left">16</td>
 <td style="text-align:left">第1页 salt 大小</td>
 </tr>
 <tr>
-<td style="text-align:left">(\text{KEY_SZ})</td>
+<td style="text-align:left"><span class="math-inline">\(\text{KEY\_SZ}\)</span></td>
 <td style="text-align:left">32</td>
 <td style="text-align:left">AES-256 密钥长度</td>
 </tr>
 <tr>
-<td style="text-align:left">(\text{IV_SZ})</td>
+<td style="text-align:left"><span class="math-inline">\(\text{IV\_SZ}\)</span></td>
 <td style="text-align:left">16</td>
 <td style="text-align:left">CBC 模式 IV 长度</td>
 </tr>
@@ -279,66 +281,66 @@ M_i &amp; i &gt; 1
 </ol>
 <h2>3. 形式化定义</h2>
 <h3>3.1 页分解函数</h3>
-<p>定义页分解算子 (\phi: {0,1}^{4096} \times \mathbb{Z}^+ \rightarrow {0,1}^* \times {0,1}^{16})：</p>
-<p>[
+<p>定义页分解算子 <span class="math-inline">\(\phi: \{0,1\}^{4096} \times \mathbb{Z}^+ \rightarrow \{0,1\}^* \times \{0,1\}^{16}\)</span>：</p>
+<div class="math-block">\[
 \phi(P_i, i) = \begin{cases}
-(P_i[16:4016], P_i[4016:4032]) &amp; i = 1 \
+(P_i[16:4016], P_i[4016:4032]) &amp; i = 1 \\
 (P_i[0:4016], P_i[4016:4032]) &amp; i &gt; 1
 \end{cases}
-]</p>
-<p>其中输出 ((C_i, IV_i)) 分别为密文段和初始化向量。</p>
+\]</div>
+<p>其中输出 <span class="math-inline">\((C_i, IV_i)\)</span> 分别为密文段和初始化向量。</p>
 <h3>3.2 解密变换</h3>
-<p>AES-256-CBC 解密算子 (\mathcal{D}_{k}^{\text{CBC}}: {0,1}^{<em>} \times {0,1}^{16} \rightarrow {0,1}^{</em>})：</p>
-<p>[
-M_i = \mathcal{D}<em>{k</em>{\text{enc}}}^{\text{CBC}}(C_i; IV_i) = \text{AES-256-Decrypt}_k(C_i) \oplus IV_i^{\text{chain}}
-]</p>
-<p>其中 (IV_i^{\text{chain}}) 为 CBC 链式向量（首块为 (IV_i)，后续为前序密文块）。</p>
+<p>AES-256-CBC 解密算子 <span class="math-inline">\(\mathcal{D}_{k}^{\text{CBC}}: \{0,1\}^{*} \times \{0,1\}^{16} \rightarrow \{0,1\}^{*}\)</span>：</p>
+<div class="math-block">\[
+M_i = \mathcal{D}_{k_{\text{enc}}}^{\text{CBC}}(C_i; IV_i) = \text{AES-256-Decrypt}_k(C_i) \oplus IV_i^{\text{chain}}
+\]</div>
+<p>其中 <span class="math-inline">\(IV_i^{\text{chain}}\)</span> 为 CBC 链式向量（首块为 <span class="math-inline">\(IV_i\)</span>，后续为前序密文块）。</p>
 <h3>3.3 页重构函数</h3>
-<p>定义重构算子 (\psi: {0,1}^{*} \times \mathbb{Z}^+ \rightarrow {0,1}^{4096})：</p>
-<p>[
+<p>定义重构算子 <span class="math-inline">\(\psi: \{0,1\}^{*} \times \mathbb{Z}^+ \rightarrow \{0,1\}^{4096}\)</span>：</p>
+<div class="math-block">\[
 \psi(M_i, i) = \begin{cases}
-\underbrace{\texttt{&quot;SQLite format 3\0&quot;}}_{\text{SQLITE_HDR}} \parallel M_i[16:] \parallel \mathbf{0}^{80} &amp; i = 1 \
+\underbrace{\texttt{"SQLite format 3\0"}}_{\text{SQLITE\_HDR}} \parallel M_i[16:] \parallel \mathbf{0}^{80} &amp; i = 1 \\
 M_i \parallel \mathbf{0}^{80} &amp; i &gt; 1
 \end{cases}
-]</p>
-<p>其中 (\mathbf{0}^{80}) 表示 80 字节零填充，用于替代原保留区。</p>
+\]</div>
+<p>其中 <span class="math-inline">\(\mathbf{0}^{80}\)</span> 表示 80 字节零填充，用于替代原保留区。</p>
 <h3>3.4 完整解密映射</h3>
-<p>单页解密函数 (\Delta: {0,1}^{4096} \times {0,1}^{256} \times \mathbb{Z}^+ \rightarrow {0,1}^{4096})：</p>
-<p>[
-\Delta(P_i, k_{\text{enc}}, i) = \psi\left(\mathcal{D}<em>{k</em>{\text{enc}}}^{\text{CBC}}(\phi(P_i, i)), i\right)
-]</p>
+<p>单页解密函数 <span class="math-inline">\(\Delta: \{0,1\}^{4096} \times \{0,1\}^{256} \times \mathbb{Z}^+ \rightarrow \{0,1\}^{4096}\)</span>：</p>
+<div class="math-block">\[
+\Delta(P_i, k_{\text{enc}}, i) = \psi\left(\mathcal{D}_{k_{\text{enc}}}^{\text{CBC}}(\phi(P_i, i)), i\right)
+\]</div>
 <h2>4. 算法描述</h2>
 <h3>4.1 伪代码</h3>
 <pre><code class="language-pseudocode">\begin{algorithm}
 \caption{SQLCipher Page Decryption with Format Reconstruction}
 \begin{algorithmic}[1]
-\Require Encrypted page \(P \in \{0,1\}^{4096}\), key \(k \in \{0,1\}^{256}\), page number \(pgno \in \mathbb{Z}^+\)
-\Ensure Standard SQLite page \(P' \in \{0,1\}^{4096}\)
+\Require Encrypted page <span class="math-inline">\(P \in \{0,1\}^{4096}\)</span>, key <span class="math-inline">\(k \in \{0,1\}^{256}\)</span>, page number <span class="math-inline">\(pgno \in \mathbb{Z}^+\)</span>
+\Ensure Standard SQLite page <span class="math-inline">\(P' \in \{0,1\}^{4096}\)</span>
 
 \State \textbf{constants:}
-\State \quad \(PAGE\_SZ \gets 4096\), \(RESERVE\_SZ \gets 80\), \(SALT\_SZ \gets 16\), \(IV\_SZ \gets 16\)
-\State \quad \(SQLITE\_HDR \gets \texttt{&quot;SQLite format 3\0&quot;}\) \Comment{16 bytes}
+\State \quad <span class="math-inline">\(PAGE\_SZ \gets 4096\)</span>, <span class="math-inline">\(RESERVE\_SZ \gets 80\)</span>, <span class="math-inline">\(SALT\_SZ \gets 16\)</span>, <span class="math-inline">\(IV\_SZ \gets 16\)</span>
+\State \quad <span class="math-inline">\(SQLITE\_HDR \gets \texttt{"SQLite format 3\0"}\)</span> \Comment{16 bytes}
 
 \State \textbf{extract IV:}
-\State \(iv\_offset \gets PAGE\_SZ - RESERVE\_SZ\)
-\State \(IV \gets P[iv\_offset : iv\_offset + IV\_SZ]\)
+\State <span class="math-inline">\(iv\_offset \gets PAGE\_SZ - RESERVE\_SZ\)</span>
+\State <span class="math-inline">\(IV \gets P[iv\_offset : iv\_offset + IV\_SZ]\)</span>
 
-\If{\(pgno = 1\)}
+\If{<span class="math-inline">\(pgno = 1\)</span>}
     \State \textbf{handle first page (header reconstruction):}
-    \State \(encrypted \gets P[SALT\_SZ : PAGE\_SZ - RESERVE\_SZ]\) \Comment{skip salt, exclude reserve}
-    \State \(decrypted \gets \text{AES-256-CBC-Decrypt}(k, IV, encrypted)\)
-    \State \(payload \gets SQLITE\_HDR \circ decrypted\) \Comment{reconstruct header}
+    \State <span class="math-inline">\(encrypted \gets P[SALT\_SZ : PAGE\_SZ - RESERVE\_SZ]\)</span> \Comment{skip salt, exclude reserve}
+    \State <span class="math-inline">\(decrypted \gets \text{AES-256-CBC-Decrypt}(k, IV, encrypted)\)</span>
+    \State <span class="math-inline">\(payload \gets SQLITE\_HDR \circ decrypted\)</span> \Comment{reconstruct header}
 \Else
     \State \textbf{handle data page:}
-    \State \(encrypted \gets P[0 : PAGE\_SZ - RESERVE\_SZ]\) \Comment{full page minus reserve}
-    \State \(decrypted \gets \text{AES-256-CBC-Decrypt}(k, IV, encrypted)\)
-    \State \(payload \gets decrypted\)
+    \State <span class="math-inline">\(encrypted \gets P[0 : PAGE\_SZ - RESERVE\_SZ]\)</span> \Comment{full page minus reserve}
+    \State <span class="math-inline">\(decrypted \gets \text{AES-256-CBC-Decrypt}(k, IV, encrypted)\)</span>
+    \State <span class="math-inline">\(payload \gets decrypted\)</span>
 \EndIf
 
 \State \textbf{padding:}
-\State \(P' \gets payload \circ \mathbf{0}^{RESERVE\_SZ}\) \Comment{zero-fill reserve area}
+\State <span class="math-inline">\(P' \gets payload \circ \mathbf{0}^{RESERVE\_SZ}\)</span> \Comment{zero-fill reserve area}
 
-\State \Return \(P'\)
+\State \Return <span class="math-inline">\(P'\)</span>
 \end{algorithmic}
 \end{algorithm}
 </code></pre>
@@ -408,10 +410,10 @@ M_i \parallel \mathbf{0}^{80} &amp; i &gt; 1
 </div>
 <h2>5. 复杂度分析</h2>
 <h3>5.1 时间复杂度</h3>
-<p>设 (L = PAGE_SZ - RESERVE_SZ = 4016) 为有效载荷长度。</p>
+<p>设 <span class="math-inline">\(L = PAGE\_SZ - RESERVE\_SZ = 4016\)</span> 为有效载荷长度。</p>
 <p><strong>AES-256-CBC 解密成本</strong>：</p>
 <ul>
-<li>分块数：(\lceil L / 16 \rceil = 251) 块（AES 块大小为 128 bits = 16 bytes）</li>
+<li>分块数：<span class="math-inline">\(\lceil L / 16 \rceil = 251\)</span> 块（AES 块大小为 128 bits = 16 bytes）</li>
 <li>每块操作：1 次 AES 解密 + 1 次 XOR</li>
 </ul>
 <p>$$
@@ -430,24 +432,24 @@ $$</p>
 <tr>
 <td style="text-align:left">最佳情况</td>
 <td style="text-align:left">缓存命中，跳过解密</td>
-<td style="text-align:left">(O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
 </tr>
 <tr>
 <td style="text-align:left">平均情况</td>
 <td style="text-align:left">单页解密</td>
-<td style="text-align:left">(\Theta(PAGE_SZ) = O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(\Theta(PAGE\_SZ) = O(1)\)</span></td>
 </tr>
 <tr>
 <td style="text-align:left">最坏情况</td>
-<td style="text-align:left">全库 (n) 页顺序解密</td>
-<td style="text-align:left">(\Theta(n \cdot PAGE_SZ) = \Theta(</td>
+<td style="text-align:left">全库 <span class="math-inline">\(n\)</span> 页顺序解密</td>
+<td style="text-align:left"><span class="math-inline">\(\Theta(n \cdot PAGE\_SZ) = \Theta(|\mathcal{D}|)\)</span></td>
 </tr>
 </tbody>
 </table>
 <p><strong>渐进分析</strong>：</p>
 <ul>
-<li>单页：(T(pgno) = \Theta(1))（常数时间，因页大小固定）</li>
-<li>全库：(T(\mathcal{D}) = \Theta(n))，其中 (n = |\mathcal{D}| / PAGE_SZ)</li>
+<li>单页：<span class="math-inline">\(T(pgno) = \Theta(1)\)</span>（常数时间，因页大小固定）</li>
+<li>全库：<span class="math-inline">\(T(\mathcal{D}) = \Theta(n)\)</span>，其中 <span class="math-inline">\(n = |\mathcal{D}| / PAGE\_SZ\)</span></li>
 </ul>
 <h3>5.2 空间复杂度</h3>
 <table>
@@ -461,37 +463,37 @@ $$</p>
 <tbody>
 <tr>
 <td style="text-align:left">输入页缓冲</td>
-<td style="text-align:left">(O(PAGE_SZ) = O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(PAGE\_SZ) = O(1)\)</span></td>
 <td style="text-align:left">固定 4096 字节</td>
 </tr>
 <tr>
 <td style="text-align:left">IV 提取</td>
-<td style="text-align:left">(O(IV_SZ) = O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(IV\_SZ) = O(1)\)</span></td>
 <td style="text-align:left">16 字节</td>
 </tr>
 <tr>
 <td style="text-align:left">密文切片</td>
-<td style="text-align:left">(O(L) = O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(L) = O(1)\)</span></td>
 <td style="text-align:left">引用/视图，无复制</td>
 </tr>
 <tr>
 <td style="text-align:left">解密输出</td>
-<td style="text-align:left">(O(L) = O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(L) = O(1)\)</span></td>
 <td style="text-align:left">PyCryptodome 内部缓冲</td>
 </tr>
 <tr>
 <td style="text-align:left">结果构造</td>
-<td style="text-align:left">(O(PAGE_SZ) = O(1))</td>
+<td style="text-align:left"><span class="math-inline">\(O(PAGE\_SZ) = O(1)\)</span></td>
 <td style="text-align:left">新 bytearray/string</td>
 </tr>
 </tbody>
 </table>
-<p><strong>总辅助空间</strong>：(S(n) = O(1))（与输入规模无关）</p>
+<p><strong>总辅助空间</strong>：<span class="math-inline">\(S(n) = O(1)\)</span>（与输入规模无关）</p>
 <h3>5.3 与理论下界的比较</h3>
 <p>该算法达到最优效率：</p>
-<p>[
-T^*(n) = \Omega(n \cdot PAGE_SZ) = \Omega(|\mathcal{D}|)
-]</p>
+<div class="math-block">\[
+T^*(n) = \Omega(n \cdot PAGE\_SZ) = \Omega(|\mathcal{D}|)
+\]</div>
 <p>因必须至少读取每个字节一次，本算法：</p>
 <ul>
 <li><strong>I/O 最优</strong>：顺序读取，无随机寻道</li>
@@ -610,8 +612,8 @@ return decrypted + b'\x00' * RESERVE_SZ  # O(1) 小常量复制
 </tr>
 <tr>
 <td style="text-align:left"><strong>密钥派生</strong></td>
-<td style="text-align:left">(k_{\text{enc}}, k_{\text{mac}} = \text{PBKDF2}(\text{password}, salt))</td>
-<td style="text-align:left">直接内存提取 (k_{\text{enc}})</td>
+<td style="text-align:left"><span class="math-inline">\(k_{\text{enc}}, k_{\text{mac}} = \text{PBKDF2}(\text{password}, salt)\)</span></td>
+<td style="text-align:left">直接内存提取 <span class="math-inline">\(k_{\text{enc}}\)</span></td>
 </tr>
 <tr>
 <td style="text-align:left"><strong>并发模型</strong></td>
@@ -694,7 +696,7 @@ return decrypted + b'\x00' * RESERVE_SZ  # O(1) 小常量复制
 <h2>8. 总结</h2>
 <p><code>decrypt_page</code> 算法是一个精练的工程实现，将密码学原语（AES-256-CBC）与数据库文件格式知识深度融合。其核心贡献在于：</p>
 <ol>
-<li><strong>常数时间单页解密</strong>：(O(1)) 时间，(O(1)) 空间</li>
+<li><strong>常数时间单页解密</strong>：<span class="math-inline">\(O(1)\)</span> 时间，<span class="math-inline">\(O(1)\)</span> 空间</li>
 <li><strong>格式透明转换</strong>：解密同时完成 SQLCipher → 标准 SQLite 的语义迁移</li>
 <li><strong>模块化设计</strong>：支撑下游多样化的应用场景（批量解密、实时监控、AI 查询）</li>
 </ol>
@@ -780,19 +782,71 @@ async function cwRenderMermaid(){
 }
 document.addEventListener('DOMContentLoaded',cwRenderMermaid);
 themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
-// KaTeX — render math in article content
-// Math delimiters are normalised server-side ($...$→\[...\], $...$→\(...\))
-// so only the unambiguous LaTeX delimiters are needed here.
-document.addEventListener('DOMContentLoaded',function(){
-  if(typeof renderMathInElement==='undefined')return;
-  renderMathInElement(document.getElementById('mc')||document.body,{
-    delimiters:[
-      {left:'\(',right:'\)',display:false},
-      {left:'\[',right:'\]',display:true}
-    ],
-    throwOnError:false
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
   });
-});
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
 </script>
 </body>
 </html>

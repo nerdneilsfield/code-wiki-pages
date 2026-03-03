@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sub-input_handler：输入处理子模块详解</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; MiroThinker</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-gpt-5.3-codex<br>
+    <b>Generated:</b> 2026-02-27T14:19<br>
+    <b>Components:</b> 357<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/MiroMindAI/MiroThinker" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/MiroMindAI/MiroThinker" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="miroflow_agent_core.html" class="nv">Miroflow Agent Core</a>
+      <button class="nvcaret" data-nav="miroflow_agent_core-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="miroflow_agent_core-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="orchestration_runtime.html" class="nv">Orchestration Runtime</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="answer_lifecycle.html" class="nv">Answer Lifecycle</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_and_stream_integration.html" class="nv">Tool And Stream Integration</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="miroflow_agent_llm_layer.html" class="nv">Miroflow Agent Llm Layer</a>
+      <button class="nvcaret" data-nav="miroflow_agent_llm_layer-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="miroflow_agent_llm_layer-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="llm_client_foundation.html" class="nv">Llm Client Foundation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="provider_implementations.html" class="nv">Provider Implementations</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="miroflow_agent_io.html" class="nv">Miroflow Agent Io</a>
+      <button class="nvcaret" data-nav="miroflow_agent_io-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="miroflow_agent_io-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="input_processing.html" class="nv">Input Processing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="output_formatting.html" class="nv">Output Formatting</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="miroflow_agent_logging.html" class="nv">Miroflow Agent Logging</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="miroflow_tools_management.html" class="nv">Miroflow Tools Management</a>
+      <button class="nvcaret" data-nav="miroflow_tools_management-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="miroflow_tools_management-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_manager_core.html" class="nv">Tool Manager Core</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="playwright_session_management.html" class="nv">Playwright Session Management</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="miroflow_agent_shared_utils.html" class="nv">Miroflow Agent Shared Utils</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>sub-input_handler：输入处理子模块详解</h1>
+<h2>1. 子模块定位与设计目标</h2>
+<p><code>input_handler</code> 是 <code>miroflow_agent_io</code> 中最靠近“用户原始输入”的一层。它的核心职责不是简单地“读文件”，而是把异构输入（文档、表格、演示文稿、图片、音频、视频、压缩包）转换为可直接拼接进提示词（prompt）的结构化文本，让上游编排器（见 <a href="miroflow_agent_core.html">miroflow_agent_core.md</a>）能够把任务交给 LLM 时，携带足够上下文。</p>
+<p>该模块的设计重点是三件事：第一，尽可能覆盖常见文件格式并提供专用解析路径；第二，在专用解析失败或不适用时，使用 <code>MarkItDown</code> 兜底；第三，对于多模态媒体，除通用 caption/transcription 外，再补一层“面向当前任务”的信息抽取，降低模型在后续推理阶段的无关信息负担。</p>
+<hr />
+<h2>2. 架构与处理流程</h2>
+<div class="mermaid">graph TD
+    A["process_input(task_description, task_file_name)"] --> B{按扩展名分流}
+
+    B -->|图片| C[_generate_image_caption]
+    B -->|图片| D[_extract_task_relevant_info_from_image]
+
+    B -->|音频| E[_generate_audio_caption]
+    B -->|音频| F[_extract_task_relevant_info_from_audio]
+
+    B -->|视频| G[_generate_video_caption]
+    B -->|视频| H[_extract_task_relevant_info_from_video]
+
+    B -->|HTML| I[HtmlConverter]
+    B -->|DOCX| J[DocxConverter]
+    B -->|XLSX| K[XlsxConverter]
+    B -->|PPTX| L[PptxConverter]
+    B -->|ZIP| M[ZipConverter]
+    B -->|PDF/TXT/JSON/PY 等| N[直接读取或库解析]
+
+    B -->|其他扩展| O[MarkItDown fallback]
+
+    I --> P[convert_html_to_md]
+    J --> P
+    L --> P
+    P --> Q[_CustomMarkdownify]
+
+    C --> R[拼接 file_content_section]
+    D --> R
+    E --> R
+    F --> R
+    G --> R
+    H --> R
+    I --> R
+    J --> R
+    K --> R
+    L --> R
+    M --> R
+    N --> R
+    O --> R
+
+    R --> S[追加 boxed 输出要求]
+    S --> T["返回 updated_task_description 元组"]
+</div>
+<p>从流程上看，<code>process_input</code> 是单入口函数；它先建立 <code>file_content_section</code>，再根据扩展名分支处理，最后统一拼接到任务描述后返回。由于上游核心链路（<code>Orchestrator.run_main_agent</code>）直接调用此函数，输入处理的成败会显著影响后续工具调用策略与最终答案质量。</p>
+<hr />
+<h2>3. 核心数据结构</h2>
+<h3>3.1 <code>DocumentConverterResult</code></h3>
+<p><code>DocumentConverterResult</code> 是统一转换结果对象，包含两个字段：</p>
+<ul>
+<li><code>title: Union[str, None]</code></li>
+<li><code>text_content: str</code></li>
+</ul>
+<p>这个结构被 HTML/DOCX/XLSX/PPTX/ZIP 等转换器共用，避免不同转换路径返回类型不一致。<code>process_input</code> 会优先读取 <code>title</code>，若存在则以“Title + Content”形式组织；否则直接写入 <code>text_content</code>。</p>
+<hr />
+<h2>4. 核心类：<code>_CustomMarkdownify</code></h2>
+<p><code>_CustomMarkdownify</code> 继承自 <code>markdownify.MarkdownConverter</code>，是 HTML 转 Markdown 的关键增强层。它并不是“功能扩展很多”，但每个改动都针对 LLM 输入稳定性：</p>
+<ol>
+<li><strong>标题风格固定为 ATX</strong>（<code>#</code>, <code>##</code>），利于一致的分段结构。</li>
+<li><strong>过滤危险或无意义链接</strong>：<code>convert_a</code> 中只允许 <code>http/https/file</code> scheme，<code>javascript:</code> 等被降级为纯文本。</li>
+<li><strong>URI path 转义</strong>：通过 <code>quote/unquote</code> 避免 URL 与 Markdown 语法冲突。</li>
+<li><strong>Data URI 图片截断</strong>：<code>convert_img</code> 遇到 <code>data:</code> 只保留头部前缀，防止超长 base64 污染上下文。</li>
+<li><strong>标题行前换行控制</strong>：<code>convert_hn</code> 保证块级标题前有换行，提高可读性与分块一致性。</li>
+</ol>
+<p>这类处理虽然“看起来细节”，但直接决定了长文档转换后的 token 消耗、格式稳定性和下游摘要质量。</p>
+<hr />
+<h2>5. 关键函数详解</h2>
+<h2>5.1 <code>process_input(task_description: str, task_file_name: str) -&gt; Tuple[str, str]</code></h2>
+<p>这是模块最重要的公开入口。它的内部策略可以概括为“专用优先、兜底补位、统一拼接”。</p>
+<h3>参数</h3>
+<ul>
+<li><code>task_description</code>：用户原始任务描述。</li>
+<li><code>task_file_name</code>：关联文件路径，可为空字符串。</li>
+</ul>
+<h3>返回值</h3>
+<ul>
+<li>返回一个二元组，两个元素当前实现<strong>相同</strong>，都为拼接后的任务描述。<br />
+这意味着调用方无需区分第一个和第二个值，但该签名保留了未来扩展空间。</li>
+</ul>
+<h3>内部关键行为</h3>
+<ol>
+<li>若有附件，按扩展名进入不同解析路径。</li>
+<li>对图片/音频/视频，生成两类文本：
+<ul>
+<li>unconditional caption/transcription（通用描述）</li>
+<li>task-relevant info（基于任务描述的相关信息抽取）</li>
+</ul>
+</li>
+<li>对文档类文件，优先走专用转换器（PDF、DOCX、XLSX、PPTX、HTML、ZIP 等）。</li>
+<li>若前述都未命中，且扩展名不在 <code>SKIP_MARKITDOWN_EXTENSIONS</code>，尝试 <code>MarkItDown</code> 兜底。</li>
+<li>文本统一放入代码块，并限制最大长度（默认 200,000 字符）。</li>
+<li>无论是否有附件，都会在任务尾部追加：
+<code>You should follow the format instruction in the request strictly and wrap the final answer in \boxed{}.</code></li>
+</ol>
+<h3>副作用</h3>
+<ul>
+<li>可能发起 OpenAI 网络请求（媒体解析）。</li>
+<li>控制台输出 <code>print</code> 日志与警告。</li>
+<li>ZIP 处理中创建临时目录并清理。</li>
+</ul>
+<h3>使用示例</h3>
+<pre><code class="language-python">from apps.miroflow-agent.src.io.input_handler import process_input
+
+task = &quot;请根据附件总结风险点，并给出优先级&quot;
+updated, _ = process_input(task, &quot;risk_report.pdf&quot;)
+print(updated[:1200])
+</code></pre>
+<hr />
+<h2>5.2 多模态生成函数</h2>
+<h3><code>_generate_image_caption(image_path: str) -&gt; str</code></h3>
+<h3><code>_generate_audio_caption(audio_path: str) -&gt; str</code></h3>
+<h3><code>_generate_video_caption(video_path: str) -&gt; str</code></h3>
+<p>这三类函数共同特点是：</p>
+<ul>
+<li>使用环境变量 <code>OPENAI_API_KEY</code>、<code>OPENAI_BASE_URL</code> 初始化 <code>OpenAI</code> 客户端。</li>
+<li>失败时不抛异常到上层，而是返回可读的占位文本（例如 <code>[Caption generation failed: ...]</code>）。</li>
+<li>模型侧分别使用 <code>gpt-4o</code>（图像/视频）和 <code>gpt-4o-transcribe</code>（音频转录）。</li>
+</ul>
+<p>注意，图像/视频走的是 base64 内联 data URL，这对大文件会造成明显延迟与成本上涨。</p>
+<hr />
+<h2>5.3 任务相关信息提取函数</h2>
+<h3><code>_extract_task_relevant_info_from_image(...) -&gt; str</code></h3>
+<h3><code>_extract_task_relevant_info_from_audio(...) -&gt; str</code></h3>
+<h3><code>_extract_task_relevant_info_from_video(...) -&gt; str</code></h3>
+<p>与通用 caption 的区别在于：它们会把 <code>task_description</code> 合并到提示词中，要求模型只输出与任务直接相关的信息。失败时返回空字符串（而不是错误文本），避免污染主提示词。</p>
+<p>这套机制在复杂任务里很有价值：它把“感知”与“任务意图”绑定在输入阶段完成，减少主模型在后续推理时需要自行筛噪的负担。</p>
+<hr />
+<h2>5.4 文档转换函数族</h2>
+<h3><code>convert_html_to_md(html_content)</code> + <code>HtmlConverter(local_path)</code></h3>
+<p>先用 <code>BeautifulSoup</code> 移除 <code>script/style</code>，优先抽取 <code>&lt;body&gt;</code>，再交给 <code>_CustomMarkdownify</code>。返回 <code>DocumentConverterResult</code>，并尝试携带 <code>title</code>。</p>
+<h3><code>DocxConverter(local_path)</code></h3>
+<p>用 <code>mammoth</code> 把 DOCX 转 HTML，再复用 HTML 转换链路。该设计避免重复维护 DOCX 与 HTML 两套 markdown 逻辑。</p>
+<h3><code>XlsxConverter(local_path)</code></h3>
+<p>这是最复杂的转换器之一。它基于 <code>openpyxl</code> 逐 sheet 构建 Markdown 表格，并尝试保留样式信息（背景色、字体色、粗体、斜体、下划线），通过内联 HTML <code>&lt;span&gt;</code> 表达。若检测到样式，会附加说明段，提示“并非所有 Markdown 渲染器都支持”。</p>
+<h3><code>PptxConverter(local_path)</code></h3>
+<p>处理 slide 文本、表格、图片和备注：</p>
+<ul>
+<li>标题形状映射为 Markdown <code>#</code> 标题。</li>
+<li>表格先转 HTML，再复用 HTML-&gt;MD。</li>
+<li>图片输出为 <code>![alt](filename)</code> 占位。</li>
+<li><code>notes_slide</code> 作为 <code>### Notes</code> 附加。</li>
+</ul>
+<h3><code>ZipConverter(local_path)</code></h3>
+<p>解压到临时目录后递归处理每个文件，基本复用 <code>process_input</code> 的分流策略。每个文件内容单独截断（默认 50,000 字符），最终合并为一份总览 Markdown。</p>
+<hr />
+<h2>6. 错误处理、边界条件与限制</h2>
+<div class="mermaid">flowchart TD
+    A[文件处理开始] --> B{文件存在?}
+    B -->|否| C[记录 Warning: File not found]
+    B -->|是| D{专用转换成功?}
+    D -->|否| E{允许 MarkItDown?}
+    E -->|是| F[尝试 fallback]
+    E -->|否| G[仅保留提示信息]
+    D -->|是| H[内容拼接]
+    F -->|失败| G
+    F -->|成功| H
+    H --> I{内容超长?}
+    I -->|是| J[截断并追加 Truncated 标记]
+    I -->|否| K[直接拼接]
+</div>
+<p>需要重点关注以下行为：</p>
+<ol>
+<li><strong>强制输出格式注入</strong>：函数始终追加 <code>\boxed{}</code> 要求；如果上游任务不希望此行为，需要在更高层改造。</li>
+<li><strong>返回值重复</strong>：当前返回 <code>(x, x)</code>，调用方如果误以为二者语义不同可能产生困惑。</li>
+<li><strong>媒体处理依赖外网与密钥</strong>：无 <code>OPENAI_API_KEY</code> 时，caption 返回占位文本或空串。</li>
+<li><strong>大媒体文件成本高</strong>：图片/视频使用 base64 全量传输，可能触发超时、限流或高成本。</li>
+<li><strong>ZIP 安全性与资源占用</strong>：<code>extractall</code> 对不可信压缩包存在路径穿越风险；超大 ZIP 可能导致 I/O 与磁盘压力。</li>
+<li><strong>Excel 格式兼容性</strong>：样式通过内联 HTML 表示，在纯文本 Markdown 环境可能不可见。</li>
+<li><strong>MarkItDown 插件不确定性</strong>：兜底成功率取决于运行环境插件支持，需做兼容测试。</li>
+</ol>
+<hr />
+<h2>7. 扩展与维护建议</h2>
+<p>如果你要新增文件类型（例如 <code>rtf</code>、<code>odt</code>），推荐遵循现有模式：</p>
+<ol>
+<li>在 <code>process_input</code> 中新增扩展名分支。</li>
+<li>优先实现专用转换器，返回 <code>DocumentConverterResult</code>。</li>
+<li>明确“提示模板”段落（<code>Note: ...</code> + <code>## File Type</code>）。</li>
+<li>设定合理截断策略，防止上下文膨胀。</li>
+<li>在 ZIP 分支里同步添加该扩展名处理逻辑，保持行为一致。</li>
+</ol>
+<p>简化示例：</p>
+<pre><code class="language-python">elif file_extension == &quot;rtf&quot;:
+    parsing_result = RtfConverter(local_path=task_file_name)
+    file_content_section += &quot;\n\nNote: An RTF file ...\n\n&quot;
+    file_content_section += f&quot;## RTF File\nFile: {task_file_name}\n\n&quot;
+</code></pre>
+<hr />
+<h2>8. 与其他模块的关系</h2>
+<ul>
+<li>与 <a href="miroflow_agent_core.html">miroflow_agent_core.md</a>：<code>Orchestrator.run_main_agent</code> 在主循环开始前调用 <code>process_input</code>，它是任务上下文的入口。</li>
+<li>与 <a href="miroflow_agent_llm_layer.html">miroflow_agent_llm_layer.md</a>：媒体 caption/抽取通过 OpenAI SDK 触发模型能力。</li>
+<li>与 <a href="miroflow_agent_logging.html">miroflow_agent_logging.md</a>：当前模块主要 <code>print</code>，并未深度接入结构化日志；如需可观测性增强可考虑统一接入 <code>TaskLog</code>。</li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

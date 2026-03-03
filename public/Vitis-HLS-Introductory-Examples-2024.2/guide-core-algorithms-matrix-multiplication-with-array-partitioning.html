@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocked/Partitioned Matrix Multiplication（Vitis HLS 示例）深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-claude-sonnet-4-6<br>
+    <b>Generated:</b> 2026-03-03T15:04<br>
+    <b>Components:</b> 666<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-advanced-coding-patterns-for-synthesis.html" class="nv">Advanced Coding Patterns For Synthesis</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-coding-patterns-that-synthesize-well.html" class="nv">Coding Patterns That Synthesize Well</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv">Data Flow At The Kernel Boundary</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-inside-the-kernel.html" class="nv">Data Flow Inside The Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-extracting-parallelism-and-performance.html" class="nv">Extracting Parallelism And Performance</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-from-cpp-to-fpga-what-this-project-is.html" class="nv">From Cpp To Fpga What This Project Is</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-data-moves-through-an-hls-kernel.html" class="nv">How Data Moves Through An Hls Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-collection-is-structured.html" class="nv">How The Example Collection Is Structured</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-library-is-organized.html" class="nv">How The Example Library Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-interface-design-bridging-software-and-hardware.html" class="nv">Interface Design Bridging Software And Hardware</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-maintaining-build-flows.html" class="nv">Migrating And Maintaining Build Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-running-across-hls-flows.html" class="nv">Migrating And Running Across Hls Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-parallelism-and-optimization.html" class="nv">Parallelism And Optimization</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv">Project Structure And Mental Model</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-software-to-hardware-coding-patterns.html" class="nv">Software To Hardware Coding Patterns</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-toolchain-migration-and-workflow.html" class="nv">Toolchain Migration And Workflow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-is-vitis-hls.html" class="nv">What Is Vitis Hls</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-this-project-is-and-why-it-exists.html" class="nv">What This Project Is And Why It Exists</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-digital-up-conversion-pipeline.html" class="nv">Digital Up Conversion Pipeline</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-matrix-multiplication-with-array-partitioning.html" class="nv on">Matrix Multiplication With Array Partitioning</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-stencil-2d-convolution-filter.html" class="nv">Stencil 2D Convolution Filter</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-systolic-architecture.html" class="nv">Streaming Fir Systolic Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-transposed-architecture.html" class="nv">Streaming Fir Transposed Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-task-channel-merge-split-scheduling.html" class="nv">Task Channel Merge Split Scheduling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism.html" class="nv">Optimization Parallelism</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism-interface_design.html" class="nv">Interface Design</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="coding_modeling.html" class="nv">Coding Modeling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="libraries_migration.html" class="nv">Libraries Migration</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>Blocked/Partitioned Matrix Multiplication（Vitis HLS 示例）深度解析</h1>
+<h2>1. 问题陈述（Problem Statement）</h2>
+<p>给定两个方阵输入 <span class="math-inline">\(A,B \in \mathbb{Z}^{n\times n}\)</span>，目标是计算：</p>
+<div class="math-block">\[
+C = A \times B,\quad C_{ij}=\sum_{k=0}^{n-1}A_{ik}B_{kj}
+\]</div>
+<p>并将结果写回外部存储器。<br />
+在本示例中，算法面向 <strong>FPGA 上的 HLS 实现</strong>，核心目标并非仅仅是算术正确性，而是通过数组分区（array partition）提升并行访问能力，从而提高吞吐率。</p>
+<p>源码包含两个变体：</p>
+<ol>
+<li><code>array_partition_block_cyclic/matmul_partition.cpp</code>：对一维展平数组使用 <strong>cyclic + block 分区</strong>。</li>
+<li><code>array_partition_complete/matmul_partition.cpp</code>：对二维数组使用 <strong>complete 分区</strong>。</li>
+</ol>
+<hr />
+<h2>2. 直觉（Intuition）</h2>
+<p>朴素三重循环矩阵乘法在 FPGA 上常见瓶颈是：</p>
+<ul>
+<li>同一周期需要多次访问数组，但 BRAM 端口有限（通常双端口），导致访存冲突。</li>
+<li>即使计算单元可流水，访存端也会“卡住”II（Initiation Interval）。</li>
+</ul>
+<p>关键洞察是：</p>
+<ul>
+<li><strong>分区把一个大数组拆成多个 bank</strong>，使并行访问成为可能。</li>
+<li><code>A</code> 需要高效行访问，<code>B</code> 需要高效列访问；因此采用不同分区策略（cyclic / block / complete）以匹配访问模式。</li>
+<li>在 HLS 中，正确的数据布局 + 分区往往比“纯算法层面”的循环重排更关键。</li>
+</ul>
+<hr />
+<h2>3. 形式化定义（Formal Definition）</h2>
+<p>设硬件上限参数分别为 <code>MAX_DIM</code> 或 <code>MAX_SIZE</code>，实际输入维度为 <span class="math-inline">\(n\)</span>（代码中 <code>dim</code> 或 <code>size</code>），且 <span class="math-inline">\(n\le M\)</span>，其中 <span class="math-inline">\(M\)</span> 代表硬件上限。</p>
+<h3>3.1 展平存储模型（block/cyclic 版本）</h3>
+<p>局部数组采用一维展平：
+<div class="math-block">\[
+\text{idx}(i,j)=i\cdot M + j
+\]</div></p>
+<p>计算形式为（源码实际）：
+<div class="math-block">\[
+C_{ij}=\sum_{k=0}^{M-1} A_{ik}B_{kj}
+\]</div>
+其中 <span class="math-inline">\(i,j\in[0,n-1]\)</span>。<br />
+注意：若 <span class="math-inline">\(M&gt;n\)</span>，则理论上应保证越界维度数据为零，否则会引入额外项。</p>
+<h3>3.2 二维存储模型（complete 版本）</h3>
+<p>二维数组版本计算流程等价于：
+<div class="math-block">\[
+C_{rj}=\sum_{c=0}^{n-1} A_{rc}B_{cj},\quad r,j\in[0,n-1]
+\]</div></p>
+<p>实现中用 <code>temp_sum[j]</code> 对列方向做累加缓存，属于一种循环重排/累加器化写法。</p>
+<hr />
+<h2>4. 算法（Algorithm）</h2>
+<p>下面给出与实现对应的抽象伪代码。</p>
+<h3>4.1 Block+Cyclic 分区版本伪代码</h3>
+<pre><code class="language-pseudocode">Algorithm MatMul_BlockCyclic(in1, in2, dim, rep_count, M):
+    Allocate local A[M*M], B[M*M], C[M*M]
+    Partition A cyclic factor=16 (dim=1)
+    Partition B block  factor=16 (dim=1)
+
+    # burst read
+    for itr in [0 .. dim*dim-1]:
+        (i, j) &lt;- row-major index from itr
+        A[i*M + j] &lt;- in1[itr]
+
+    for itr in [0 .. dim*dim-1]:
+        (i, j) &lt;- row-major index from itr
+        B[i*M + j] &lt;- in2[itr]
+
+    repeat rep_count times:
+        for i in [0 .. dim-1]:
+            for j in [0 .. dim-1]:
+                result &lt;- 0
+                for k in [0 .. M-1]:   # 注意：源码用 M 而非 dim
+                    result &lt;- result + A[i*M+k] * B[k*M+j]
+                C[i*M+j] &lt;- result
+
+    # burst write
+    for itr in [0 .. dim*dim-1]:
+        (i, j) &lt;- row-major index from itr
+        out[itr] &lt;- C[i*M+j]
+</code></pre>
+<h3>4.2 Complete 分区版本伪代码</h3>
+<pre><code class="language-pseudocode">Algorithm MatMul_CompletePartition(in1, in2, size, rep_count, M):
+    Allocate A[M][M], B[M][M], C[M][M], temp_sum[M]
+    Partition B dim=2 complete
+    Partition C dim=2 complete
+    Partition temp_sum dim=1 complete
+
+    Read A and B from global memory (row-major, only size*size valid)
+
+    repeat rep_count times:
+        for row in [0 .. size-1]:
+            for col in [0 .. size-1]:
+                for j in [0 .. M-1]:   # 源码上限为 M
+                    result &lt;- (col == 0) ? 0 : temp_sum[j]
+                    result &lt;- result + A[row][col] * B[col][j]
+                    temp_sum[j] &lt;- result
+                    if col == size-1:
+                        C[row][j] &lt;- result
+
+    Write C[0:size, 0:size] back to global memory
+</code></pre>
+<h3>4.3 执行流程图（flowchart）</h3>
+<div class="mermaid">flowchart TD
+    S([Start]) --> RA[Read A from AXI to local buffer]
+    RA --> RB[Read B from AXI to local buffer]
+    RB --> RC{rep_count loop}
+    RC -->|for each rep| ILOOP[i/row loop]
+    ILOOP --> JLOOP[j/col loop]
+    JLOOP --> KLOOP[k or j accumulation loop]
+    KLOOP --> STORE[Write partial/final result to C]
+    STORE --> JLOOP
+    JLOOP --> ILOOP
+    ILOOP --> RC
+    RC --> WC[Write C back to AXI]
+    WC --> E([End])
+</div>
+<h3>4.4 状态图（stateDiagram-v2）</h3>
+<div class="mermaid">stateDiagram-v2
+    [*] --> Idle
+    Idle --> ReadA: start
+    ReadA --> ReadB: done A
+    ReadB --> Compute: done B
+    Compute --> Compute: next i/j/k or next rep
+    Compute --> WriteC: all reps done
+    WriteC --> Done
+    Done --> [*]
+</div>
+<h3>4.5 数据结构关系图（graph）</h3>
+<div class="mermaid">graph LR
+    DRAM_A[(Global in1)] --> A_local[A buffer]
+    DRAM_B[(Global in2)] --> B_local[B buffer]
+    A_local --> PE[Multiply-Accumulate Engine]
+    B_local --> PE
+    PE --> C_local[C buffer]
+    C_local --> DRAM_C[(Global out_r)]
+
+    subgraph Partitioning
+      A_local --- A_part["A: cyclic partition (factor=16) or none"]
+      B_local --- B_part["B: block/complete partition"]
+      C_local --- C_part["C: complete partition (variant 2)"]
+      PE --- T_part["temp_sum complete partition (variant 2)"]
+    end
+</div>
+<hr />
+<h2>5. 复杂度分析（Complexity Analysis）</h2>
+<p>令 <span class="math-inline">\(n\)</span> 为实际矩阵维度，<span class="math-inline">\(M\)</span> 为编译期上限（<code>MAX_DIM</code>/<code>MAX_SIZE</code>），<span class="math-inline">\(r=\text{rep\_count}\)</span>。</p>
+<h3>5.1 时间复杂度</h3>
+<ul>
+<li>读入：<span class="math-inline">\(\Theta(n^2)\)</span></li>
+<li>写回：<span class="math-inline">\(\Theta(n^2)\)</span></li>
+</ul>
+<h4>变体一（block/cyclic）</h4>
+<p>核心计算：
+<div class="math-block">\[
+T_{\text{comp}} = \Theta(r\cdot n^2\cdot M)
+\]</div>
+若 <span class="math-inline">\(M=n\)</span>，退化为经典 <span class="math-inline">\(\Theta(rn^3)\)</span>；若 <span class="math-inline">\(M&gt;n\)</span>，会有“上限维度”额外开销。</p>
+<h4>变体二（complete）</h4>
+<p>三层循环为 <code>row(size) * col(size) * j(M)</code>：
+<div class="math-block">\[
+T_{\text{comp}} = \Theta(r\cdot n^2\cdot M)
+\]</div>
+同理，当 <span class="math-inline">\(M=n\)</span> 时是 <span class="math-inline">\(\Theta(rn^3)\)</span>。</p>
+<blockquote>
+<p>最好/最坏/平均：在该确定性内核中三者同阶，均为上述复杂度（无数据相关分支导致的数量级变化）。</p>
+</blockquote>
+<h3>5.2 空间复杂度</h3>
+<ul>
+<li>变体一：<span class="math-inline">\(A,B,C\)</span> 各 <span class="math-inline">\(M^2\)</span>，总 <span class="math-inline">\(\Theta(M^2)\)</span>（常数约 3 倍）。</li>
+<li>变体二：<span class="math-inline">\(A,B,C\)</span> 各 <span class="math-inline">\(M^2\)</span> + <code>temp_sum[M]</code>，总 <span class="math-inline">\(\Theta(M^2)\)</span>。</li>
+</ul>
+<p>但硬件资源层面，<strong>complete partition</strong> 会显著增加寄存器/LUT/BRAM bank 消耗，空间“常数”非常大。</p>
+<hr />
+<h2>6. 实现注记（Implementation Notes）</h2>
+<ol>
+<li>
+<p><strong>理论与实现的偏差：内层循环上界使用 <code>MAX_*</code> 而非 <code>size/dim</code></strong></p>
+<ul>
+<li>两个版本都有该特征。</li>
+<li>若未初始化 padding 区域，数学上可能引入未定义贡献；工程上常依赖测试配置使 <code>size==MAX_*</code> 或数据已清零。</li>
+</ul>
+</li>
+<li>
+<p><strong><code>LOOP_TRIPCOUNT</code> 仅用于 HLS 估计，不改变语义</strong><br />
+它帮助综合器做性能报告推断，不是功能逻辑。</p>
+</li>
+<li>
+<p><strong>分区策略与访问模式耦合</strong></p>
+<ul>
+<li><code>A</code> cyclic：适配跨步访问；</li>
+<li><code>B</code> block/complete：适配列并行读取；</li>
+<li><code>temp_sum</code> complete：为全并行累加创造条件。</li>
+</ul>
+</li>
+<li>
+<p><strong><code>rep_count</code> 常用于性能测量</strong><br />
+通过重复计算放大内核计算占比，减小一次性传输开销对统计的影响。</p>
+</li>
+<li>
+<p><strong>自动 pipeline + 低层循环展开依赖分区</strong><br />
+没有足够 bank 时，unroll 只会造成端口冲突，无法兑现吞吐。</p>
+</li>
+</ol>
+<hr />
+<h2>7. 对比分析（Comparison）</h2>
+<h3>7.1 与经典 CPU 三重循环</h3>
+<ul>
+<li>经典实现关注 cache locality（如 i-k-j 重排、cache blocking）。</li>
+<li>HLS/FPGA 实现更关注 <strong>存储体并行端口</strong> 与 <strong>流水线 II</strong>。</li>
+<li>本示例即使算术复杂度同为 <span class="math-inline">\(O(n^3)\)</span>，但通过分区可显著提升并行度。</li>
+</ul>
+<h3>7.2 与文献中的分块 GEMM / Systolic Array</h3>
+<ul>
+<li>经典分块 GEMM（如 GotoBLAS 思路）强调分层缓存复用。</li>
+<li>FPGA 常见更激进做法是 systolic array（二维 PE 阵列，数据流化）。</li>
+<li>本示例属于“入门级本地缓冲 + 分区并行”，结构简单、可读性高，但在峰值性能上通常不及专用 systolic 设计。</li>
+</ul>
+<h3>7.3 两个示例版本之间</h3>
+<ul>
+<li><strong>block+cyclic 版本</strong>：分区因子固定（16），资源更可控，适合中等并行度。</li>
+<li><strong>complete 版本</strong>：并行潜力更大，但资源成本高，规模扩大时可综合性更敏感。</li>
+</ul>
+<hr />
+<p>总体上，这两个内核展示了一个核心结论：在 HLS 矩阵乘法中，性能上限往往由“数据可并行供给能力”决定，而这正是数组分区（blocked/cyclic/complete）所直接解决的问题。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

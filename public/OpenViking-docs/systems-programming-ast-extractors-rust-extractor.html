@@ -1,0 +1,1344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RustExtractor 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-MiniMax-M2.5<br>
+    <b>Generated:</b> 2026-02-28T15:44<br>
+    <b>Components:</b> 4836<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/volcengine/OpenViking" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/volcengine/OpenViking" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="rust_cli_interface.html" class="nv">Rust Cli Interface</a>
+      <button class="nvcaret" data-nav="rust_cli_interface-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="rust_cli_interface-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="rust_cli_interface-cli_bootstrap_and_runtime_context.html" class="nv">Cli Bootstrap And Runtime Context</a>
+        <button class="nvcaret" data-nav="cli_bootstrap_and_runtime_context-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="cli_bootstrap_and_runtime_context-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cli_bootstrap_and_runtime_context-cli_command_structure.html" class="nv">Cli Command Structure</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cli-runtime-context.html" class="nv">Cli Runtime Context</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-cli_bootstrap_and_runtime_context-cli_configuration_management.html" class="nv">Cli Configuration Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="http-api-and-tabular-output.html" class="nv">Http Api And Tabular Output</a>
+        <button class="nvcaret" data-nav="http_api_and_tabular_output-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="http_api_and_tabular_output-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-http_api_and_tabular_output-http_client.html" class="nv">Http Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="http_api_and_tabular_output-output_formatting.html" class="nv">Output Formatting</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tui_application_orchestration.html" class="nv">Tui Application Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tui_tree_navigation_and_view_model.html" class="nv">Tui Tree Navigation And View Model</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="python_client_and_cli_utils.html" class="nv">Python Client And Cli Utils</a>
+      <button class="nvcaret" data-nav="python_client_and_cli_utils-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="python_client_and_cli_utils-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli-utils-client_session_and_transport.html" class="nv">Client Session And Transport</a>
+        <button class="nvcaret" data-nav="client_session_and_transport-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="client_session_and_transport-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-base_client.html" class="nv">Base Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-session_wrapper.html" class="nv">Session Wrapper</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-configuration_models_and_singleton.html" class="nv">Configuration Models And Singleton</a>
+        <button class="nvcaret" data-nav="configuration_models_and_singleton-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="configuration_models_and_singleton-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-embedding_config.html" class="nv">Embedding Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-open_viking_config.html" class="nv">Open Viking Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-content_extraction_schema_and_strategies.html" class="nv">Content Extraction Schema And Strategies</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-llm_and_rerank_clients.html" class="nv">Llm And Rerank Clients</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-retrieval_trace_and_scoring_types.html" class="nv">Retrieval Trace And Scoring Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_context_prompts_and_sessions.html" class="nv">Core Context Prompts And Sessions</a>
+      <button class="nvcaret" data-nav="core_context_prompts_and_sessions-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_context_prompts_and_sessions-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-context_typing_and_levels.html" class="nv">Context Typing And Levels</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-prompt_template_metadata.html" class="nv">Prompt Template Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_memory_deduplication.html" class="nv">Session Memory Deduplication</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_runtime_and_skill_discovery.html" class="nv">Session Runtime And Skill Discovery</a>
+        <button class="nvcaret" data-nav="session_runtime_and_skill_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="session_runtime_and_skill_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-context-prompts-and-sessions-session-runtime-and-skill-discovery-session-runtime.html" class="nv">Session Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-skill-loader.html" class="nv">Skill Loader</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_runtime.html" class="nv">Session Runtime</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core-skill-loader.html" class="nv">Skill Loader</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="parsing_and_resource_detection.html" class="nv">Parsing And Resource Detection</a>
+      <button class="nvcaret" data-nav="parsing_and_resource_detection-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="parsing_and_resource_detection-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_and_document_taxonomy.html" class="nv">Resource And Document Taxonomy</a>
+        <button class="nvcaret" data-nav="resource_and_document_taxonomy-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_document_taxonomy-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="resource_and_document_taxonomy_base_types.html" class="nv">Resource And Document Taxonomy Base Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="resource_and_document_taxonomy_html_parser.html" class="nv">Resource And Document Taxonomy Html Parser</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parser_abstractions_and_extension_points.html" class="nv">Parser Abstractions And Extension Points</a>
+        <button class="nvcaret" data-nav="parser_abstractions_and_extension_points-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="parser_abstractions_and_extension_points-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing-and_resource_detection-parser_abstractions_and_extension_points-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="code-language-ast-extractors.html" class="nv">Code Language Ast Extractors</a>
+        <button class="nvcaret" data-nav="code_language_ast_extractors-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="code_language_ast_extractors-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="systems_programming_ast_extractors.html" class="nv">Systems Programming Ast Extractors</a>
+          <button class="nvcaret" data-nav="systems_programming_ast_extractors-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="systems_programming_ast_extractors-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-cpp_extractor.html" class="nv">Cpp Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-rust_extractor.html" class="nv">Rust Extractor</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="application_and_web_platform_ast_extractors.html" class="nv">Application And Web Platform Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="systems-programming-ast-extractors-cpp-extractor.html" class="nv">Cpp Extractor</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="systems-programming-ast-extractors-rust-extractor.html" class="nv on">Rust Extractor</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-resource_detection_traversal_metadata.html" class="nv">Resource Detection Traversal Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_and_document_taxonomy_base_types.html" class="nv">Resource And Document Taxonomy Base Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_and_document_taxonomy_html_parser.html" class="nv">Resource And Document Taxonomy Html Parser</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="systems_programming_ast_extractors.html" class="nv">Systems Programming Ast Extractors</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="application_and_web_platform_ast_extractors.html" class="nv">Application And Web Platform Ast Extractors</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="model_providers_embeddings_and_vlm.html" class="nv">Model Providers Embeddings And Vlm</a>
+      <button class="nvcaret" data-nav="model_providers_embeddings_and_vlm-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="model_providers_embeddings_and_vlm-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-embedder_base_contracts.html" class="nv">Embedder Base Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-openai_embedding_providers.html" class="nv">Openai Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-vikingdb_embedding_providers.html" class="nv">Vikingdb Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-volcengine_embedding_providers.html" class="nv">Volcengine Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-jina_embedding_provider.html" class="nv">Jina Embedding Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vlm_abstractions_factory_and_structured_interface.html" class="nv">Vlm Abstractions Factory And Structured Interface</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="retrieval_and_evaluation.html" class="nv">Retrieval And Evaluation</a>
+      <button class="nvcaret" data-nav="retrieval_and_evaluation-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="retrieval_and_evaluation-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-ragas_evaluation_core.html" class="nv">Ragas Evaluation Core</a>
+        <button class="nvcaret" data-nav="ragas_evaluation_core-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ragas_evaluation_core-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="base_evaluator.html" class="nv">Base Evaluator</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ragas_evaluation_core-dataset_generator.html" class="nv">Dataset Generator</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ragas-config-and-evaluator.html" class="nv">Ragas Config And Evaluator</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ragas-evaluation-core-data-types.html" class="nv">Data Types</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-retrieval_query_orchestration.html" class="nv">Retrieval Query Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="evaluation_recording_and_storage_instrumentation.html" class="nv">Evaluation Recording And Storage Instrumentation</a>
+        <button class="nvcaret" data-nav="evaluation_recording_and_storage_instrumentation-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="evaluation_recording_and_storage_instrumentation-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="recorder-core.html" class="nv">Recorder Core</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval-and-evaluation-evaluation-recording-and-storage-instrumentation-recording-types.html" class="nv">Recording Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval-and-evaluation-evaluation-recording-and-storage-instrumentation-storage-wrappers.html" class="nv">Storage Wrappers</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="server_api_contracts.html" class="nv">Server Api Contracts</a>
+      <button class="nvcaret" data-nav="server_api_contracts-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="server_api_contracts-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-admin-user-and-role-contracts.html" class="nv">Admin User And Role Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-filesystem-mutation-contracts.html" class="nv">Filesystem Mutation Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-pack-import-export-contracts.html" class="nv">Pack Import Export Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-resource-and-relation-contracts.html" class="nv">Resource And Relation Contracts</a>
+        <button class="nvcaret" data-nav="resource_and_relation_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_relation_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-resource_request_contracts.html" class="nv">Resource Request Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server-api-contracts-resource-and-relation-contracts-relation-request-contracts.html" class="nv">Relation Request Contracts</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-search-request-contracts.html" class="nv">Search Request Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-session-message-contracts.html" class="nv">Session Message Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="system_and_usage_contracts.html" class="nv">System And Usage Contracts</a>
+        <button class="nvcaret" data-nav="system_and_usage_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="system_and_usage_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server-api-contracts-system-endpoint-contracts.html" class="nv">System Endpoint Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-system_and_usage_contracts-response_and_usage_models.html" class="nv">Response And Usage Models</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_core_and_runtime_primitives.html" class="nv">Storage Core And Runtime Primitives</a>
+      <button class="nvcaret" data-nav="storage_core_and_runtime_primitives-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="storage_core_and_runtime_primitives-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_schema_and_query_ranges.html" class="nv">Storage Schema And Query Ranges</a>
+        <button class="nvcaret" data-nav="storage_schema_and_query_ranges-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="storage_schema_and_query_ranges-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="openviking-storage-collection_schemas.html" class="nv">Collection Schemas</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-schema-and-query-ranges-expr.html" class="nv">Expr</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives.html" class="nv">Observer And Queue Processing Primitives</a>
+        <button class="nvcaret" data-nav="observer_and_queue_processing_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="observer_and_queue_processing_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-core-and-runtime-primitives-observer-and-queue-processing-primitives-base-observer.html" class="nv">Base Observer</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-core-and-runtime-primitives-observer-and-queue-processing-primitives-named_queue_and_handlers.html" class="nv">Named Queue And Handlers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-core-and-runtime-primitives-observer-and-queue-processing-primitives-embedding-msg-converter.html" class="nv">Embedding Msg Converter</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-kv_store_interfaces_and_operation_model.html" class="nv">Kv Store Interfaces And Operation Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage-core-and-runtime-primitives-store-value-typing-and-ttl.html" class="nv">Store Value Typing And Ttl</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-runtime_support_utilities.html" class="nv">Runtime Support Utilities</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectordb-domain-models-and-service-schemas.html" class="nv">Vectordb Domain Models And Service Schemas</a>
+      <button class="nvcaret" data-nav="vectordb_domain_models_and_service_schemas-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectordb_domain_models_and_service_schemas-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="domain_models_and_contracts.html" class="nv">Domain Models And Contracts</a>
+        <button class="nvcaret" data-nav="domain_models_and_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="domain_models_and_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service_schemas-collection-contracts-and-results.html" class="nv">Collection Contracts And Results</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service_schemas-domain_models_and_contracts-index_domain_models_and_interfaces.html" class="nv">Index Domain Models And Interfaces</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service-schemas-domain-models-and-contracts-metadata-dictionary-models.html" class="nv">Metadata Dictionary Models</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service-schemas-domain-models-and-contracts-project-domain-models-and-interfaces.html" class="nv">Project Domain Models And Interfaces</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-volcengine-data-api-integration.html" class="nv">Volcengine Data Api Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-service-api-models-collection-and-index-management.html" class="nv">Service Api Models Collection And Index Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-service-api-models-data-operations.html" class="nv">Service Api Models Data Operations</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="service-api-models-search-requests.html" class="nv">Service Api Models Search Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-schema-validation-and-constants.html" class="nv">Schema Validation And Constants</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectorization_and_storage_adapters.html" class="nv">Vectorization And Storage Adapters</a>
+      <button class="nvcaret" data-nav="vectorization_and_storage_adapters-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectorization_and_storage_adapters-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-vectorization_contracts_and_metadata.html" class="nv">Vectorization Contracts And Metadata</a>
+        <button class="nvcaret" data-nav="vectorization_contracts_and_metadata-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="vectorization_contracts_and_metadata-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectorization-contracts-and-metadata-vectorizer-factory-and-model-typing.html" class="nv">Vectorizer Factory And Model Typing</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization-contracts-and-metadata-vectorizer-factory-and-model-typing.html" class="nv">Vectorizer Factory And Model Typing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="collection_adapters_abstraction_and_backends.html" class="nv">Collection Adapters Abstraction And Backends</a>
+        <button class="nvcaret" data-nav="collection_adapters_abstraction_and_backends-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="collection_adapters_abstraction_and_backends-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="collection-adapter-abstractions.html" class="nv">Collection Adapter Abstractions</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="local_and_http_collection_backends.html" class="nv">Local And Http Collection Backends</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="provider_specific_managed_collection_backends.html" class="nv">Provider Specific Managed Collection Backends</a>
+          <button class="nvcaret" data-nav="provider_specific_managed_collection_backends-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="provider_specific_managed_collection_backends-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="vikingdb_private_adapter.html" class="nv">Vikingdb Private Adapter</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="vectorization_and_storage_adapters-provider_specific_managed_collection_backends-volcengine_adapter.html" class="nv">Volcengine Adapter</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="native_engine_and_python_bindings.html" class="nv">Native Engine And Python Bindings</a>
+      <button class="nvcaret" data-nav="native_engine_and_python_bindings-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="native_engine_and_python_bindings-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native-engine-and-python-bindings-python-bytes-row-bindings.html" class="nv">Python Bytes Row Bindings</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native_bytes_row_schema_and_field_layout.html" class="nv">Native Bytes Row Schema And Field Layout</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vector_recall_and_sparse_ann_primitives.html" class="nv">Vector Recall And Sparse Ann Primitives</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="search_context_and_fetch_state_models.html" class="nv">Search Context And Fetch State Models</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="scalar_bitmap_and_field_dictionary_structures.html" class="nv">Scalar Bitmap And Field Dictionary Structures</a>
+        <button class="nvcaret" data-nav="scalar_bitmap_and_field_dictionary_structures-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="scalar_bitmap_and_field_dictionary_structures-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-fields-dict.html" class="nv">Fields Dict</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="src-index-detail-scalar-bitmap-holder-dir_index.html" class="nv">Dir Index</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-ranged-map.html" class="nv">Ranged Map</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="build_and_packaging.html" class="nv">Build And Packaging</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>RustExtractor 模块技术深度解析</h1>
+<h2>概述</h2>
+<p><code>RustExtractor</code> 是 OpenViking 代码解析系统中的一个语言特定 AST（抽象语法树）提取器，专门负责解析 Rust 源代码文件并提取其结构化骨架信息。想象一座城市的地形图——如果把完整的代码库比作城市，那么 AST 提取器就是那个快速勾勒出建筑物、道路和公共设施位置的速写艺术家：它不关心建筑的每一砖一瓦，却能让人一眼看清城市的整体布局。</p>
+<p>这个模块解决的问题是：如何让大语言模型能够&quot;理解&quot; Rust 代码的架构——包括模块依赖（import）、数据类型定义（struct/trait/enum）、以及函数签名，而无需处理完整的源代码。根据代码解析的设计原则，大多数代码文件都在大模型的上下文窗口范围内（&lt;10k tokens），因此采用文件级解析而非分块处理。</p>
+<h2>架构定位与数据流</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────────────────┐
+│                          调用链路 (Call Chain)                           │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                         │
+│  ParserRegistry                                                        │
+│       │                                                                │
+│       ▼                                                                │
+│  CodeRepositoryParser  ──(异步处理)──▶  TreeBuilder                     │
+│       │                                           │                     │
+│       │  (仅搬运文件，不做语义理解)                ▼                     │
+│       │                              SemanticProcessor                   │
+│       │                                           │                     │
+│       ▼                                           ▼                     │
+│  VikingFS Temp Dir                   LanguageExtractor (工厂模式)       │
+│       │                              ┌──────┬──────┬──────┐            │
+│       │                              │ Rust │ C++  │ Go   │ ...        │
+│       │                              │Extrac│Extrac│Extrac│            │
+│       │                              └──┬───┴──────┴──────┘            │
+│       │                                 │                               │
+│       ▼                                 ▼                               │
+│  CodeSkeleton ◄──────────────── (结构化输出)                            │
+│       │                                                                │
+│       ▼                                                                │
+│  CodeSkeleton.to_text() ──▶ 文本格式的代码骨架                          │
+│       │                                                                │
+│       ▼                                                                │
+│  .overview.md 生成 (LLM 理解的输入)                                     │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p>从架构角度来看，<code>RustExtractor</code> 处于<strong>语义理解层</strong>的底层位置。它被 <a href="./systems_programming_ast_extractors.html">ASTExtractor</a>（也称 <code>LanguageExtractor</code> 调度器）的后续处理阶段调用——具体来说，是在生成目录概览时，需要了解每个代码文件的结构信息，以便 LLM 能够准确定位关键类型和函数的位置。</p>
+<h2>核心组件解析</h2>
+<h3>1. LanguageExtractor 抽象基类</h3>
+<p>所有语言提取器（包括 Rust、C++、Go、Python、Java、JavaScript/TypeScript）都继承自 <a href="./language_extractor_base.html">LanguageExtractor</a> 这个抽象基类。这是一种**策略模式（Strategy Pattern）**的应用——每种语言有自己的解析策略，但对外暴露统一的接口：</p>
+<pre><code class="language-python">class LanguageExtractor(ABC):
+    @abstractmethod
+    def extract(self, file_name: str, content: str) -&gt; CodeSkeleton:
+        &quot;&quot;&quot;Extract code skeleton from source. Raises on unrecoverable error.&quot;&quot;&quot;
+</code></pre>
+<p>这种设计的优势在于：</p>
+<ul>
+<li><strong>解耦</strong>：调用方无需关心具体是哪种语言</li>
+<li><strong>可扩展</strong>：新增语言支持只需实现同一接口</li>
+<li><strong>一致输出</strong>：所有提取器都产生 <code>CodeSkeleton</code> 结构，便于下游消费</li>
+</ul>
+<h3>2. CodeSkeleton 数据结构</h3>
+<p><code>RustExtractor.extract()</code> 方法的返回值是一个 <code>CodeSkeleton</code> 对象，它包含了代码文件的完整结构化表示：</p>
+<pre><code class="language-python">@dataclass
+class CodeSkeleton:
+    file_name: str           # 文件名
+    language: str            # &quot;Rust&quot;
+    module_doc: str          # 模块级文档注释（Rust 中较少使用）
+    imports: List[str]       # use 语句导入的模块
+    classes: List[ClassSkeleton]  # struct/trait/enum/impl 块
+    functions: List[FunctionSig] # 顶层函数
+</code></pre>
+<p>这个结构体的设计遵循了一个重要原则：<strong>保持足够的结构信息以供语义理解，同时避免过度细节化</strong>。例如，函数体内部的实现逻辑被完全忽略，但函数签名（名称、参数、返回类型）被保留；类的方法列表被提取，但方法体内容被省略。</p>
+<h3>3. Rust 特有的语法树节点处理</h3>
+<p><code>RustExtractor</code> 针对 Rust 语言的特点，实现了专门的节点类型识别：</p>
+<table>
+<thead>
+<tr>
+<th>节点类型</th>
+<th>提取结果</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>use_declaration</code></td>
+<td><code>imports</code></td>
+<td>Rust 的 <code>use</code> 语句，导入模块和符号</td>
+</tr>
+<tr>
+<td><code>struct_item</code></td>
+<td><code>classes</code></td>
+<td>结构体定义</td>
+</tr>
+<tr>
+<td><code>trait_item</code></td>
+<td><code>classes</code></td>
+<td>trait（接口）定义</td>
+</tr>
+<tr>
+<td><code>enum_item</code></td>
+<td><code>classes</code></td>
+<td>枚举定义</td>
+</tr>
+<tr>
+<td><code>impl_item</code></td>
+<td><code>classes</code></td>
+<td>impl 块（包含方法）</td>
+</tr>
+<tr>
+<td><code>function_item</code></td>
+<td><code>functions</code></td>
+<td>顶层函数</td>
+</tr>
+</tbody>
+</table>
+<p>这里有一个值得注意的设计选择：<strong><code>impl</code> 块被当作类来处理</strong>。在 Rust 中，<code>impl MyStruct { ... }</code> 块定义的是类型的方法，而非独立的类。但从语义理解的角度，将方法关联到其所属的类型更有价值，因此 <code>_extract_impl()</code> 函数返回一个 <code>ClassSkeleton</code>，其 <code>name</code> 字段被设置为 <code>&quot;impl {TypeName}&quot;</code> 形式，methods 字段包含该 impl 块中的所有方法。</p>
+<h3>4. 文档注释提取策略</h3>
+<p>Rust 使用 <code>///</code> 风格的行注释作为文档注释。<code>_preceding_doc()</code> 函数实现了这一逻辑：</p>
+<pre><code class="language-python">def _preceding_doc(siblings: list, idx: int, content_bytes: bytes) -&gt; str:
+    &quot;&quot;&quot;Collect consecutive /// doc comment lines before siblings[idx].&quot;&quot;&quot;
+    lines = []
+    i = idx - 1
+    while i &gt;= 0 and siblings[i].type == &quot;line_comment&quot;:
+        node = siblings[i]
+        # Only /// doc comments have a doc_comment child
+        doc_child = next((c for c in node.children if c.type == &quot;doc_comment&quot;), None)
+        if doc_child is None:
+            break
+        lines.insert(0, _node_text(doc_child, content_bytes).strip())
+        i -= 1
+    return &quot;\n&quot;.join(lines).strip()
+</code></pre>
+<p>这段代码的逻辑是：<strong>从当前节点向前遍历，寻找连续的行注释</strong>。如果遇到非注释节点（如空行或其他代码），则停止收集。这与 Rust 的文档注释规则一致——只有在定义前紧邻的连续 <code>///</code> 注释才被认为是该定义的文档。</p>
+<h3>5. 文本提取的字节切片策略</h3>
+<p><code>_node_text()</code> 函数使用了一种高效的文本提取方式：</p>
+<pre><code class="language-python">def _node_text(node, content_bytes: bytes) -&gt; str:
+    return content_bytes[node.start_byte:node.end_byte].decode(&quot;utf-8&quot;, errors=&quot;replace&quot;)
+</code></pre>
+<p>tree-sitter 提供的节点包含 <code>start_byte</code> 和 <code>end_byte</code> 偏移量，这些是相对于源文件的字节偏移。通过直接切片原始字节数组并解码，可以快速获取节点对应的文本。这种方式比逐字符遍历要高效得多。</p>
+<p>使用 <code>errors=&quot;replace&quot;</code> 是一种防御性编程实践——如果源文件包含无效的 UTF-8 序列，解码器会用替换字符（）替代而不是抛出异常。虽然 Rust 编译器会拒绝包含无效 UTF-8 的代码，但在处理用户可能提供的任意文件时，这种容错能力很重要。</p>
+<h2>设计决策与权衡</h2>
+<h3>1. 为什么选择 tree-sitter 而非 rustc 的内省 API？</h3>
+<p>这是一个关键的架构选择。tree-sitter 是一个通用的增量解析库，它可以：</p>
+<ul>
+<li><strong>增量解析</strong>：只重新解析变更的部分，适合编辑器场景</li>
+<li><strong>跨语言</strong>：同一套接口支持多种语言</li>
+<li><strong>纯文本输出</strong>：不依赖编译器工具链，部署更轻量</li>
+</ul>
+<p>相比之下，使用 <code>rustc</code> 的内省 API（如 <code>rustc_codegen_utils::rustc::hir</code>）虽然能获得更完整的 AST 信息，但会引入对 Rust 编译器的强依赖，在 Python 环境中使用也不太方便。对于代码骨架提取这种场景，tree-sitter 提供的信息已经足够。</p>
+<h3>2. 为什么不用完整的 AST 而是用&quot;骨架&quot;？</h3>
+<p>这是一个<strong>信息密度与成本的权衡</strong>。完整的 AST 包含每个表达式的完整结构，而骨架只保留顶层定义。考虑以下 Rust 代码：</p>
+<pre><code class="language-rust">pub fn process_user_request(
+    config: &amp;Config,
+    user_id: UserId,
+) -&gt; Result&lt;Response, Error&gt; {
+    let cache_key = format!(&quot;user:{}&quot;, user_id);
+    if let Some(cached) = cache.get(&amp;cache_key) {
+        return Ok(cached);
+    }
+    // ... 大量实现逻辑
+}
+</code></pre>
+<p>骨架提取只会保留 <code>process_user_request(config: &amp;Config, user_id: UserId) -&gt; Result&lt;Response, Error&gt;</code> 这一行。这是有意为之的，因为：</p>
+<ol>
+<li><strong>LLM 的注意力焦点</strong>：在生成目录概览时，LLM 需要知道&quot;这个文件提供了哪些接口&quot;，而不是实现细节</li>
+<li><strong>上下文窗口</strong>：完整的 AST 可能使单个文件膨胀数倍，容易超出上下文限制</li>
+<li><strong>信息相关性</strong>：对于架构层面的理解，函数名和签名比实现逻辑更有价值</li>
+</ol>
+<h3>3. 为什么 impl 块被特殊处理？</h3>
+<p>在 Rust 中，<code>impl</code> 块是一种独特的语法结构——它没有独立的名称，而是关联到某个具体类型。将 <code>impl MyType { fn foo() {...} }</code> 扁平化为独立的函数在语义上是不完整的，因为无法判断 <code>foo</code> 属于哪个类型。</p>
+<p>因此，<code>_extract_impl()</code> 返回一个 <code>ClassSkeleton</code>，其 <code>name</code> 字段被格式化为 <code>&quot;impl {TypeName}&quot;</code> 形式。这种处理方式使得代码骨架的文本输出能够保持类型与方法之间的关联：</p>
+<pre><code>impl MyType
+  + foo()
+  + bar()
+</code></pre>
+<p><strong>潜在问题</strong>：当同一个类型有多个 <code>impl</code> 块时，每个块会被提取为独立的 <code>ClassSkeleton</code>，名称分别为 <code>&quot;impl MyType&quot;</code>（可能重复）。这可能导致：</p>
+<ul>
+<li>搜索结果中同一类型出现多次</li>
+<li>LLM 在生成概览时需要理解这些是同一类型的不同 impl 块</li>
+</ul>
+<p>这算是一个简化实现与语义完整性之间的权衡。如果需要更精确的合并，需要在提取后增加后处理步骤来合并同名 impl 块。</p>
+<h3>4. 同步解析 vs 异步处理</h3>
+<p><code>RustExtractor.extract()</code> 是一个<strong>同步方法</strong>，这与整个系统采用异步架构形成了对比。这是有意为之的：</p>
+<ul>
+<li><strong>tree-sitter 的性能</strong>：解析单个文件通常在毫秒级完成，同步调用开销可忽略</li>
+<li><strong>GIL 释放</strong>：tree-sitter 的核心解析逻辑在 C 扩展中执行，会释放 Python GIL</li>
+<li><strong>实现复杂度</strong>：如果下游调用方需要并行处理多个文件，可以在调用方使用 <code>asyncio.gather()</code> 批量调用</li>
+</ul>
+<h2>依赖关系分析</h2>
+<h3>上游依赖（RustExtractor 依赖什么）</h3>
+<pre><code>RustExtractor
+    │
+    ├── tree_sitter_rust (第三方库)
+    │       └── 提供 Rust 语言的 tree-sitter 语法定义
+    │
+    ├── tree_sitter (第三方库)
+    │       ├── Language 类
+    │       └── Parser 类
+    │
+    └── openviking.parse.parsers.code.ast.languages.base
+            └── LanguageExtractor (抽象基类)
+    
+    └── openviking.parse.parsers.code.ast.skeleton
+            ├── CodeSkeleton
+            ├── ClassSkeleton
+            └── FunctionSig
+</code></pre>
+<p>这些依赖关系揭示了一个重要事实：<code>RustExtractor</code> 本身不产生任何持久化副作用，它是一个<strong>纯函数式组件</strong>——给定相同的输入文件，总是产生相同的 <code>CodeSkeleton</code> 输出。这种性质使得测试和缓存都变得简单。</p>
+<h3>下游消费者（谁使用 RustExtractor 的输出）</h3>
+<p>根据代码架构，<code>RustExtractor.extract()</code> 的返回值通过以下链路被消费：</p>
+<ol>
+<li>
+<p><strong>ASTExtractor 调度器</strong>：<a href="./systems-programming-ast-extractors.md#ast-extractor">extractor.py</a> 中的 <code>ASTExtractor</code> 是直接的消费者，它负责：</p>
+<ul>
+<li>根据文件扩展名检测语言（<code>.rs</code> → <code>rust</code>）</li>
+<li>维护提取器实例缓存（避免重复初始化 tree-sitter 解析器）</li>
+<li>统一错误处理：当提取失败时返回 None，触发 LLM 回退机制</li>
+</ul>
+</li>
+<li>
+<p><strong>CodeSkeleton.to_text()</strong>：将结构化输出转换为文本格式</p>
+<ul>
+<li>这个文本是 LLM 生成目录概览（<code>.overview.md</code>）的直接输入</li>
+<li><code>verbose</code> 参数控制是否包含完整文档注释</li>
+<li>非 verbose 模式仅保留文档字符串首行（用于 embedding 生成）</li>
+<li>verbose 模式保留完整文档字符串（用于 LLM 输入）</li>
+</ul>
+</li>
+<li>
+<p><strong>可能的下游使用场景</strong>：</p>
+<ul>
+<li>代码搜索索引的构建</li>
+<li>自动生成 API 文档</li>
+<li>代码复杂度分析</li>
+<li>依赖关系图谱构建</li>
+</ul>
+</li>
+</ol>
+<h3>与其他语言提取器的对比</h3>
+<p>从模块树中可以看到，RustExtractor 与其他系统编程语言提取器（如 <a href="./systems_programming_ast_extractors-cpp_extractor.html">CppExtractor</a> 和 <a href="./parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html">GoExtractor</a>）处于同一层级，共享相同的设计模式：</p>
+<p>| 特性 | RustExtractor | CppExtractor | GoExtractor |
+|------|-------------|--------------|--------------|-------------|
+| 语法解析器 | tree-sitter-rust | tree-sitter-cpp | tree-sitter-go |
+| 导入语句 | <code>use_declaration</code> | <code>preproc_include</code> | <code>import_declaration</code> |
+| 类型定义 | struct/trait/enum | class_specifier/struct_specifier | type_spec (struct/interface) |
+| 方法关联 | impl_item → ClassSkeleton | 嵌套在 class 内 | 通过 method_declaration 扁平化 |
+| 顶级函数 | function_item | function_definition | function_declaration |</p>
+<h3>耦合度分析</h3>
+<p><code>RustExtractor</code> 与以下组件存在<strong>较紧密的耦合</strong>：</p>
+<ol>
+<li>
+<p><strong>tree-sitter-rust 的节点类型</strong>：如果 tree-sitter-rust 的 grammar 版本升级，某些节点类型名称可能发生变化，导致提取逻辑失效</p>
+</li>
+<li>
+<p><strong>CodeSkeleton 的结构</strong>：作为约定的输出格式，任何对 <code>CodeSkeleton</code> 的修改都需要同步更新所有语言提取器</p>
+</li>
+</ol>
+<p>与以下组件<strong>解耦</strong>：</p>
+<ol>
+<li><strong>VikingFS 存储层</strong>：不直接依赖任何存储后端</li>
+<li><strong>HTTP 客户端</strong>：纯本地计算</li>
+<li><strong>LLM 调用</strong>：输出是 LLM 的输入，但本身不调用 LLM</li>
+</ol>
+<h2>扩展点与使用示例</h2>
+<h3>手动使用 RustExtractor</h3>
+<p>如果你需要在项目中使用 <code>RustExtractor</code> 来提取代码骨架：</p>
+<pre><code class="language-python">from openviking.parse.parsers.code.ast.languages.rust import RustExtractor
+from pathlib import Path
+
+# 初始化提取器（首次调用会加载 tree-sitter-rust）
+extractor = RustExtractor()
+
+# 读取 Rust 源文件
+source_file = Path(&quot;src/main.rs&quot;)
+content = source_file.read_text(encoding=&quot;utf-8&quot;)
+
+# 提取代码骨架
+skeleton = extractor.extract(source_file.name, content)
+
+# 获取文本表示
+print(skeleton.to_text(verbose=False))
+# 输出示例：
+# # main.rs [Rust]
+# imports: crate::config, crate::error::AppError, serde, serde_json
+#
+# struct Config
+#   - load() -&gt; Config
+#
+# impl Config
+#   + from_file(path: &amp;str) -&gt; Result&lt;Config, AppError&gt;
+#
+# fn main()
+</code></pre>
+<h3>添加新的语言支持</h3>
+<p>如果你需要添加一种新语言的支持（例如 Julia），可以参考以下模式：</p>
+<pre><code class="language-python">from openviking.parse.parsers.code.ast.languages.base import LanguageExtractor
+from openviking.parse.parsers.code.ast.skeleton import CodeSkeleton, ClassSkeleton, FunctionSig
+
+class JuliaExtractor(LanguageExtractor):
+    def __init__(self):
+        import tree_sitter_julia as tsjulia
+        from tree_sitter import Language, Parser
+        
+        self._language = Language(tsjulia.language())
+        self._parser = Parser(self._language)
+    
+    def extract(self, file_name: str, content: str) -&gt; CodeSkeleton:
+        # 实现 Julia 特定的提取逻辑
+        # ...
+        return CodeSkeleton(...)
+</code></pre>
+<h2>边界情况与注意事项</h2>
+<h3>1. 编码问题</h3>
+<p><code>RustExtractor</code> 假设输入是有效的 UTF-8 编码。如果遇到非 UTF-8 文件：</p>
+<pre><code class="language-python">content_bytes = content.encode(&quot;utf-8&quot;)  # 如果 content 包含非 UTF-8 字符，这里会抛出 UnicodeEncodeError
+</code></pre>
+<p>在调用 <code>extract()</code> 之前，确保源文件是正确的 UTF-8 编码。如果不能保证这一点，应该在读取文件时使用容错解码：</p>
+<pre><code class="language-python"># 安全的文件读取方式
+with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+    content = f.read()
+</code></pre>
+<h3>2. 特大文件</h3>
+<p>虽然大多数 Rust 源文件都在几KB到几十KB的范围内，但理论上一个 Rust 文件可以任意大。<code>RustExtractor</code> 在解析前会将整个文件内容加载到内存并编码为字节数组。对于超过 10MB 的源文件，可能会遇到内存压力。</p>
+<p>系统级过滤：代码解析器的过滤规则中包含 <code>大小 &gt; 10MB 的文件会被跳过</code> 的处理，因此实际场景中不太可能遇到这个问题。</p>
+<h3>3. tree-sitter-rust 的版本兼容性</h3>
+<p>tree-sitter 解析器的行为依赖于其 grammar 定义。不同版本的 <code>tree-sitter-rust</code> 可能对某些语法结构产生不同的节点类型。例如，Rust 的 async/await 语法在不同时期的 grammar 版本中可能有不同的 AST 表示。</p>
+<p><strong>注意事项</strong>：如果你发现某些 Rust 语法结构没有被正确提取，首先检查 <code>tree-sitter-rust</code> 的版本，并参考其 changelog。</p>
+<h3>4. 宏与条件编译</h3>
+<p><code>RustExtractor</code> 不处理宏展开。考虑以下代码：</p>
+<pre><code class="language-rust">#[cfg(test)]
+mod tests {
+    #[test]
+    fn it_works() { ... }
+}
+</code></pre>
+<p><code>#[cfg(test)]</code> 属性会被保留，但不会影响提取结果——测试模块和函数会被正常提取。这是正确的设计决策，因为：</p>
+<ul>
+<li>宏展开需要完整的编译器工具链</li>
+<li>即使是 <code>#[cfg(...)]</code> 条件编译，代码在某些构建配置下仍然是有效的 Rust 代码</li>
+</ul>
+<h3>5. 文档注释的归属</h3>
+<p><code>_preceding_doc()</code> 的实现遵循&quot;最近邻&quot;原则——只有<strong>紧邻</strong>定义前的注释才被认为是该定义的文档。这意味着：</p>
+<pre><code class="language-rust">// 这是一个通用注释
+
+/// 这是 Config 的文档
+struct Config { ... }
+</code></pre>
+<p>第一行注释不会被关联到 <code>Config</code>，因为它们之间有空行。这符合 Rust 文档注释的惯例。</p>
+<h3>6. trait 约束与泛型</h3>
+<p>当前实现对 trait 约束的处理相对简单：</p>
+<pre><code class="language-rust">pub struct MyStruct&lt;T: Clone + Default&gt; { ... }  // trait_bounds 被提取为基类
+</code></pre>
+<p>在 <code>_extract_struct_or_trait()</code> 中，trait 约束被提取为 <code>bases</code> 字段。多个约束会用逗号分隔保存为字符串列表。这种处理对于概览生成是足够的，但如果你需要精确的结构化表示（例如区分泛型参数和 trait 约束），需要更细致的解析逻辑。</p>
+<h3>7. 不支持的语法结构</h3>
+<p>以下 Rust 语法构造<strong>不会</strong>被提取到骨架中：</p>
+<table>
+<thead>
+<tr>
+<th>语法类型</th>
+<th>示例</th>
+<th>现状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>常量</td>
+<td><code>const MAX_SIZE: usize = 100;</code></td>
+<td>不提取</td>
+</tr>
+<tr>
+<td>静态变量</td>
+<td><code>static COUNTER: Mutex&lt;i32&gt; = ...</code></td>
+<td>不提取</td>
+</tr>
+<tr>
+<td>宏规则</td>
+<td><code>macro_rules! my_macro { ... }</code></td>
+<td>不提取</td>
+</tr>
+<tr>
+<td>外部块</td>
+<td><code>extern &quot;C&quot; { ... }</code></td>
+<td>不提取</td>
+</tr>
+<tr>
+<td>属性宏</td>
+<td><code>#[derive(Debug)]</code></td>
+<td>仅保留文本，不解析</td>
+</tr>
+</tbody>
+</table>
+<p>如果你需要支持这些语法，需要扩展提取逻辑。</p>
+<h2>总结</h2>
+<p><code>RustExtractor</code> 模块是 OpenViking 代码理解基础设施的关键组件。它通过 tree-sitter 提供的增量解析能力，将 Rust 源代码转换为结构化的骨架表示，使得大语言模型能够高效地理解代码的接口和架构。</p>
+<p>理解本模块的关键要点：</p>
+<ol>
+<li><strong>定位</strong>：处于语义理解层的最底层，负责将原始代码转换为结构化数据</li>
+<li><strong>设计原则</strong>：提取足够的结构信息用于架构理解，避免过度细节化</li>
+<li><strong>核心权衡</strong>：选择 tree-sitter 而非编译器内省，选择骨架而非完整 AST</li>
+<li><strong>扩展方式</strong>：通过实现 <code>LanguageExtractor</code> 接口添加新语言支持</li>
+<li><strong>注意事项</strong>：编码兼容性、版本兼容性、文档注释归属规则</li>
+</ol>
+<p>如果你计划修改这个模块或添加新功能，建议首先阅读 <a href="./base_parser_abstract_class.html">base_parser_abstract_class.md</a> 了解 parser 的抽象接口，以及 <a href="./language_extractor_base.html">language_extractor_base.md</a> 了解提取器的统一接口。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

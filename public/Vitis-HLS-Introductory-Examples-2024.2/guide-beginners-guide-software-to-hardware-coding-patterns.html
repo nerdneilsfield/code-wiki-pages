@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第三章：写出能编译成硬件的 C/C++：核心编码模式</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-claude-sonnet-4-6<br>
+    <b>Generated:</b> 2026-03-03T15:04<br>
+    <b>Components:</b> 666<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-advanced-coding-patterns-for-synthesis.html" class="nv">Advanced Coding Patterns For Synthesis</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-coding-patterns-that-synthesize-well.html" class="nv">Coding Patterns That Synthesize Well</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv">Data Flow At The Kernel Boundary</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-inside-the-kernel.html" class="nv">Data Flow Inside The Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-extracting-parallelism-and-performance.html" class="nv">Extracting Parallelism And Performance</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-from-cpp-to-fpga-what-this-project-is.html" class="nv">From Cpp To Fpga What This Project Is</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-data-moves-through-an-hls-kernel.html" class="nv">How Data Moves Through An Hls Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-collection-is-structured.html" class="nv">How The Example Collection Is Structured</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-library-is-organized.html" class="nv">How The Example Library Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-interface-design-bridging-software-and-hardware.html" class="nv">Interface Design Bridging Software And Hardware</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-maintaining-build-flows.html" class="nv">Migrating And Maintaining Build Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-running-across-hls-flows.html" class="nv">Migrating And Running Across Hls Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-parallelism-and-optimization.html" class="nv">Parallelism And Optimization</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv">Project Structure And Mental Model</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-software-to-hardware-coding-patterns.html" class="nv on">Software To Hardware Coding Patterns</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-toolchain-migration-and-workflow.html" class="nv">Toolchain Migration And Workflow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-is-vitis-hls.html" class="nv">What Is Vitis Hls</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-this-project-is-and-why-it-exists.html" class="nv">What This Project Is And Why It Exists</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-digital-up-conversion-pipeline.html" class="nv">Digital Up Conversion Pipeline</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-matrix-multiplication-with-array-partitioning.html" class="nv">Matrix Multiplication With Array Partitioning</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-stencil-2d-convolution-filter.html" class="nv">Stencil 2D Convolution Filter</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-systolic-architecture.html" class="nv">Streaming Fir Systolic Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-transposed-architecture.html" class="nv">Streaming Fir Transposed Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-task-channel-merge-split-scheduling.html" class="nv">Task Channel Merge Split Scheduling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism.html" class="nv">Optimization Parallelism</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism-interface_design.html" class="nv">Interface Design</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="coding_modeling.html" class="nv">Coding Modeling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="libraries_migration.html" class="nv">Libraries Migration</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第三章：写出能编译成硬件的 C/C++：核心编码模式</h1>
+<blockquote>
+<p><strong>本章学习目标</strong>：发现熟悉的软件构件——指针、结构体、模板、定点类型——在 FPGA 硬件中必须以不同方式编写，以 <code>coding_modeling</code> 示例作为&quot;烹饪书&quot;，掌握每一种核心编码模式。</p>
+</blockquote>
+<hr />
+<h2>3.1 从软件思维到硬件思维：一道鸿沟</h2>
+<p>想象你是一位厨师，过去一直在家里的厨房做饭——炉子是顺序的，你先炒菜，再煮汤，再蒸饭，一件事做完再做下一件。这就是 CPU 的工作方式：<strong>一条指令接一条指令，顺序执行</strong>。</p>
+<p>现在你来到了一家大型餐厅的后厨，这里有十几个炉灶同时开火，每个炉灶负责一道菜，所有菜同时在做。这就是 FPGA 的工作方式：<strong>所有逻辑同时运行，并行处理</strong>。</p>
+<p>问题来了：你过去写的&quot;家庭食谱&quot;（软件代码）直接拿到餐厅后厨用，很多步骤根本行不通。HLS（高层次综合）工具的任务，就是帮你把家庭食谱翻译成餐厅后厨的操作手册——但翻译的质量，<strong>高度依赖于你最初写食谱的方式</strong>。</p>
+<div class="mermaid">graph TD
+    A[软件思维<br/>顺序执行 一次一步] -->|鸿沟| B[硬件思维<br/>并行执行 同时多步]
+    B --> C{HLS 翻译质量}
+    C -->|编码方式好| D[高效硬件<br/>高吞吐 低延迟 省资源]
+    C -->|编码方式差| E[低效硬件<br/>串行化 资源浪费 时序违规]
+    
+    D --> F[目标: 吞吐量 10x]
+    E --> G[结果: 吞吐量 1x]
+</div>
+<p>上图说明了一个关键事实：<strong>同样的算法，不同的编码风格，可能导致吞吐量相差 10 倍、资源消耗相差 5 倍</strong>。这就是为什么我们需要专门学习&quot;硬件友好的编码模式&quot;。</p>
+<hr />
+<h2>3.2 每个示例的三层结构：你的烹饪书格式</h2>
+<p>在深入具体模式之前，先理解 <code>coding_modeling</code> 中每个示例的统一结构。就像每本烹饪书都有固定的菜谱格式（食材、步骤、成品图），每个 HLS 示例也有三层：</p>
+<div class="mermaid">graph TD
+    subgraph 示例目录 using_fixed_point
+        L1[第一层: hls_config.cfg<br/>硬件蓝图 告诉工具做什么]
+        L2[第二层: cpp_ap_fixed.cpp<br/>算法实现 计算逻辑是什么]
+        L3[第三层: cpp_ap_fixed_test.cpp<br/>测试激励 验证正确性]
+        L4[result.golden.dat<br/>黄金参考 期望输出]
+    end
+    
+    L1 -->|综合指令| HLS[Vitis HLS 工具]
+    L2 -->|算法逻辑| HLS
+    L3 -->|测试向量| HLS
+    L4 -->|对比验证| HLS
+    HLS --> RTL[生成 RTL 硬件]
+</div>
+<p><strong>第一层（<code>hls_config.cfg</code>）</strong> 就像相机的参数设置面板——它告诉 HLS 工具目标芯片是什么、时钟频率是多少、用什么接口协议。这些配置直接决定生成的硬件架构。</p>
+<p><strong>第二层（<code>.cpp</code> 实现文件）</strong> 是你最熟悉的部分，但编写方式决定硬件质量。</p>
+<p><strong>第三层（<code>_test.cpp</code> 和 <code>.dat</code>）</strong> 是验证层，确保硬件行为和软件模型完全一致。</p>
+<hr />
+<h2>3.3 模式一：指针——从&quot;随意访问内存&quot;到&quot;明确的硬件接口&quot;</h2>
+<h3>3.3.1 软件中的指针 vs. 硬件中的指针</h3>
+<p>在软件里，指针就像一张&quot;地址便条&quot;——你可以把它传给任何函数，函数拿着便条去内存里取数据，简单直接。</p>
+<p>在硬件里，指针意味着<strong>一条物理总线</strong>。当你的 FPGA 内核需要通过指针访问外部 DDR 内存时，它必须通过 AXI4 Master 总线发出读写请求，等待内存控制器响应。这不是&quot;取数据&quot;，而是&quot;发起一次网络请求&quot;。</p>
+<div class="mermaid">sequenceDiagram
+    participant CPU as 软件 CPU
+    participant FPGA as FPGA 内核
+    participant DDR as 外部 DDR 内存
+
+    Note over CPU: 软件指针访问
+    CPU->>DDR: *ptr (直接读取, 1-2 周期)
+    DDR-->>CPU: 数据返回
+
+    Note over FPGA: 硬件指针访问
+    FPGA->>DDR: AXI4 读请求 (地址 + 突发长度)
+    Note over DDR: 等待内存控制器调度
+    DDR-->>FPGA: AXI4 读响应 (数据 + 握手信号)
+    Note over FPGA: 可能需要 50-200 个时钟周期
+</div>
+<p>这个时序图揭示了一个重要差异：软件指针访问是&quot;即时&quot;的，而硬件指针访问需要经过完整的 AXI 协议握手，延迟可能高达数百个时钟周期。</p>
+<h3>3.3.2 <code>Pointers/basic_arithmetic</code> 示例解析</h3>
+<p>来看 <code>coding_modeling</code> 中的指针示例。这个例子展示了如何正确地在 HLS 中使用指针：</p>
+<pre><code class="language-cpp">// 典型的 HLS 指针使用模式
+void cpp_ap_int_arith(dio_t *in1, dio_t *in2, dio_t *out1, dio_t *out2) {
+    // HLS 会为这些指针生成 m_axi 接口
+    static int acc = 0;  // 静态变量 -&gt; 带使能信号的寄存器
+    
+    *out1 = *in1 + *in2;  // 加法运算
+    acc  += *in1 * *in2;  // 累加器
+    *out2 = acc;
+}
+</code></pre>
+<p>对应的 <code>hls_config.cfg</code> 配置：</p>
+<pre><code class="language-ini">part=xcvu9p-flga2104-2-i
+[hls]
+clock=4
+syn.file=cpp_ap_int_arith.cpp
+syn.top=cpp_ap_int_arith
+# 关键：为指针参数指定 AXI Master 接口
+syn.directive.interface=cpp_ap_int_arith out1 mode=m_axi depth=1
+syn.directive.interface=cpp_ap_int_arith out2 mode=m_axi depth=1
+</code></pre>
+<div class="mermaid">graph TD
+    subgraph C++ 代码层
+        P1[指针参数 in1]
+        P2[指针参数 in2]
+        P3[指针参数 out1]
+        P4[指针参数 out2]
+        SA[static int acc]
+    end
+    
+    subgraph 生成的硬件层
+        AXI1[AXI4 Master 读端口 in1]
+        AXI2[AXI4 Master 读端口 in2]
+        AXI3[AXI4 Master 写端口 out1]
+        AXI4[AXI4 Master 写端口 out2]
+        REG[带使能信号的寄存器 acc]
+        ADD[加法器 LUT]
+        MUL[乘法器 DSP48]
+    end
+    
+    P1 --> AXI1
+    P2 --> AXI2
+    P3 --> AXI3
+    P4 --> AXI4
+    SA --> REG
+    AXI1 & AXI2 --> ADD --> AXI3
+    AXI1 & AXI2 --> MUL --> REG --> AXI4
+</div>
+<h3>3.3.3 指针别名：最容易踩的陷阱</h3>
+<p>想象两个人同时指向同一个房间——如果你不告诉 HLS 工具&quot;这两个指针绝对不会指向同一块内存&quot;，工具会<strong>保守地假设它们可能重叠</strong>，从而强制串行化所有访问，彻底破坏流水线。</p>
+<pre><code class="language-cpp">// 危险：HLS 不知道 in 和 out 是否重叠
+void bad_example(int *in, int *out, int n) {
+    for (int i = 0; i &lt; n; i++) {
+        out[i] = in[i] * 2;  // HLS 假设 out[i] 可能影响 in[i+1]
+    }
+}
+
+// 安全：使用 __restrict__ 告诉 HLS 指针不重叠
+void good_example(int * __restrict__ in, int * __restrict__ out, int n) {
+    for (int i = 0; i &lt; n; i++) {
+        #pragma HLS PIPELINE II=1
+        out[i] = in[i] * 2;  // HLS 现在可以安全地流水线化
+    }
+}
+</code></pre>
+<blockquote>
+<p><strong>关键原则</strong>：在 HLS 中，每个指针参数都代表一条物理总线。用 <code>__restrict__</code> 声明无别名，用 <code>m_axi</code> 接口配置访问外部内存，用 <code>depth=</code> 参数告诉工具最大访问深度。</p>
+</blockquote>
+<hr />
+<h2>3.4 模式二：任意精度整数——精确控制每一个比特</h2>
+<h3>3.4.1 为什么不能直接用 <code>int</code>？</h3>
+<p>在软件里，<code>int</code> 就是 32 位，没得商量。但在 FPGA 上，<strong>每一个比特都对应真实的硬件资源</strong>。如果你的算法只需要 12 位精度，却用了 32 位的 <code>int</code>，你就浪费了 20 个比特的 LUT 和连线资源——就像用一辆 40 吨的卡车运一个快递包裹。</p>
+<p>HLS 提供了 <code>ap_int&lt;N&gt;</code> 类型，让你精确指定任意位宽：</p>
+<pre><code class="language-cpp">#include &quot;ap_int.h&quot;
+
+// 精确控制位宽
+ap_int&lt;8&gt;   pixel;      // 8 位有符号整数（图像像素）
+ap_uint&lt;12&gt; adc_val;    // 12 位无符号整数（ADC 采样值）
+ap_int&lt;24&gt;  audio;      // 24 位有符号整数（音频样本）
+ap_uint&lt;1&gt;  flag;       // 1 位标志位（单个触发器）
+</code></pre>
+<div class="mermaid">graph TD
+    subgraph 软件世界 固定位宽
+        INT32[int 32位<br/>无论需要多少位都用32位]
+        FLOAT64[double 64位<br/>无论精度需求都用64位]
+    end
+    
+    subgraph 硬件世界 精确位宽
+        AP8[ap_uint 8<br/>只用8个LUT]
+        AP12[ap_uint 12<br/>只用12个LUT]
+        AP24[ap_int 24<br/>只用24个LUT]
+        AP1[ap_uint 1<br/>只用1个触发器]
+    end
+    
+    INT32 -->|资源浪费| W1[浪费 20-31 位资源]
+    AP8 -->|精确匹配| S1[节省 75% 资源]
+    AP12 -->|精确匹配| S2[节省 62% 资源]
+</div>
+<h3>3.4.2 <code>using_arbitrary_precision_arith</code> 示例</h3>
+<p>这个示例展示了 <code>ap_int</code> 的典型用法：</p>
+<pre><code class="language-cpp">#include &quot;ap_int.h&quot;
+
+typedef ap_int&lt;8&gt;  din_t;   // 8 位输入
+typedef ap_int&lt;13&gt; dout_t;  // 13 位输出（防止溢出：8+8=16，但实际只需13位）
+typedef ap_int&lt;6&gt;  dsel_t;  // 6 位选择信号
+
+dout_t cpp_ap_int_arith(din_t in1, din_t in2, dsel_t sel) {
+    dout_t out;
+    if (sel[0])           // 直接访问单个比特！
+        out = in1 + in2;  // 8位 + 8位 = 9位结果，自动扩展到13位
+    else
+        out = in1 - in2;  // 8位 - 8位 = 9位结果
+    return out;
+}
+</code></pre>
+<p>注意 <code>sel[0]</code> 这个写法——在软件里你需要位运算 <code>sel &amp; 1</code>，但 <code>ap_int</code> 允许你<strong>直接用下标访问单个比特</strong>，就像访问数组元素一样直观。</p>
+<div class="mermaid">classDiagram
+    class ap_int_8 {
+        +8位有符号整数
+        +范围: -128 到 127
+        +硬件: 8个LUT或DSP输入
+        +操作: 加减乘除 位运算
+    }
+    
+    class ap_uint_12 {
+        +12位无符号整数
+        +范围: 0 到 4095
+        +硬件: 12个LUT或DSP输入
+        +典型用途: ADC采样 图像像素
+    }
+    
+    class ap_fixed_16_8 {
+        +16位定点数 整数部分8位
+        +小数部分8位
+        +精度: 1/256 约0.004
+        +硬件: 16个LUT 无浮点单元
+    }
+    
+    class standard_int {
+        +固定32位
+        +无法精确控制位宽
+        +可能浪费大量资源
+    }
+    
+    ap_int_8 --|> standard_int : 替代方案
+    ap_uint_12 --|> standard_int : 替代方案
+    ap_fixed_16_8 --|> standard_int : 替代方案
+</div>
+<hr />
+<h2>3.5 模式三：定点数——在精度和资源之间找到甜蜜点</h2>
+<h3>3.5.1 浮点数的&quot;奢侈税&quot;</h3>
+<p>浮点数（<code>float</code>/<code>double</code>）在软件里用起来很方便，但在 FPGA 上，它们就像是&quot;奢侈品&quot;——一个单精度浮点乘法器需要消耗大量 LUT 和 DSP 资源，延迟也比整数运算高得多。</p>
+<p>想象你要建一座桥：</p>
+<ul>
+<li><strong>浮点数</strong> = 用钢铁建造，坚固无比，但造价昂贵、工期长</li>
+<li><strong>定点数</strong> = 用预制混凝土建造，足够坚固，造价低廉、工期短</li>
+</ul>
+<p>对于大多数信号处理应用，定点数完全够用，而且资源消耗只有浮点数的几分之一。</p>
+<h3>3.5.2 <code>ap_fixed</code> 的格式解读</h3>
+<p><code>ap_fixed&lt;W, I&gt;</code> 中：</p>
+<ul>
+<li><code>W</code> = 总位宽（Width）</li>
+<li><code>I</code> = 整数部分位宽（Integer bits）</li>
+<li>小数部分位宽 = <code>W - I</code></li>
+</ul>
+<p>$$\text{ap_fixed}&lt;16, 8&gt; \Rightarrow \underbrace{8\text{ 位整数}}<em>{\text{范围: -128 到 127}}.\underbrace{8\text{ 位小数}}</em>{\text{精度: } 1/256 \approx 0.004}$$</p>
+<div class="mermaid">graph TD
+    subgraph ap_fixed 16 8 的位布局
+        B15[位15<br/>符号位]
+        B14[位14]
+        B13[位13]
+        B8[位8<br/>整数最低位]
+        B7[位7<br/>小数最高位]
+        B0[位0<br/>小数最低位]
+    end
+    
+    B15 -->|符号| INT[整数部分 8位<br/>范围 -128 到 127]
+    B14 --> INT
+    B13 --> INT
+    B8 --> INT
+    B7 -->|精度| FRAC[小数部分 8位<br/>精度 1 除以 256]
+    B0 --> FRAC
+    
+    INT & FRAC --> VAL[实际值 = 整数 + 小数]
+</div>
+<h3>3.5.3 <code>using_fixed_point</code> 示例解析</h3>
+<pre><code class="language-cpp">#include &quot;ap_fixed.h&quot;
+
+typedef ap_fixed&lt;16, 8&gt;  fixed_t;   // 16位总宽，8位整数部分
+typedef ap_fixed&lt;32, 16&gt; result_t;  // 32位总宽，16位整数部分（防止乘法溢出）
+
+result_t cpp_ap_fixed(fixed_t in_val) {
+    // 定点数运算：HLS 自动处理小数点对齐
+    result_t result = in_val * in_val;  // 平方运算
+    return result;
+}
+</code></pre>
+<p>对应的配置文件关键部分：</p>
+<pre><code class="language-ini">[hls]
+clock=4
+syn.top=cpp_ap_fixed
+# 为输入输出指定寄存器接口（AXI-Lite 控制）
+syn.directive.interface=cpp_ap_fixed in_val register
+syn.directive.interface=cpp_ap_fixed return register
+# 启用函数级流水线
+syn.directive.pipeline=cpp_ap_fixed
+</code></pre>
+<h3>3.5.4 定点数 vs. 浮点数：资源对比</h3>
+<div class="mermaid">graph TD
+    subgraph 乘法运算资源消耗对比
+        FXP[ap_fixed 16 8 乘法<br/>约 1 个 DSP48<br/>延迟 1-2 周期]
+        FP32[float 单精度乘法<br/>约 3 个 DSP48 加大量 LUT<br/>延迟 3-5 周期]
+        FP64[double 双精度乘法<br/>约 11 个 DSP48 加更多 LUT<br/>延迟 5-8 周期]
+    end
+    
+    FXP -->|资源比较| R1[基准 1x]
+    FP32 -->|资源比较| R2[约 3-5x 资源]
+    FP64 -->|资源比较| R3[约 10-15x 资源]
+    
+    R1 --> USE1[适用: DSP滤波 通信调制 低功耗]
+    R2 --> USE2[适用: 科学计算 图像处理 大动态范围]
+    R3 --> USE3[适用: 高精度科学计算 仿真]
+</div>
+<blockquote>
+<p><strong>经验法则</strong>：如果你的算法能接受 0.1% 的精度损失，用定点数替代浮点数，通常可以节省 3-10 倍的硬件资源，同时提高 2-3 倍的时钟频率。</p>
+</blockquote>
+<h3>3.5.5 <code>fixed_point_sqrt</code>：定点函数的实现技巧</h3>
+<p>开方运算（<code>sqrt</code>）在浮点数中有专用硬件单元，但在定点数中需要用迭代算法实现。<code>fixed_point_sqrt</code> 示例展示了如何用 HLS 实现高效的定点开方：</p>
+<pre><code class="language-cpp">#include &quot;ap_fixed.h&quot;
+
+typedef ap_fixed&lt;16, 8, AP_RND, AP_SAT&gt; fxp_t;  // 带舍入和饱和的定点数
+
+fxp_t fxp_sqrt_top(fxp_t in_val) {
+    #pragma HLS PIPELINE  // 启用流水线
+    
+    // 使用 HLS 内置的定点开方函数
+    return hls::sqrt(in_val);
+}
+</code></pre>
+<p>注意 <code>ap_fixed&lt;16, 8, AP_RND, AP_SAT&gt;</code> 中的两个额外参数：</p>
+<ul>
+<li><code>AP_RND</code>：舍入模式（Round），避免截断误差累积</li>
+<li><code>AP_SAT</code>：饱和模式（Saturate），防止溢出时出现&quot;绕回&quot;错误</li>
+</ul>
+<hr />
+<h2>3.6 模式四：C++ 模板——编译期参数化的硬件工厂</h2>
+<h3>3.6.1 模板在硬件中的魔力</h3>
+<p>在软件里，C++ 模板是&quot;代码复用&quot;的工具——写一次，用于多种类型。在硬件里，模板有更深刻的意义：<strong>模板参数在编译期确定，HLS 为每个不同的参数组合生成专门的硬件电路</strong>。</p>
+<p>想象一个工厂的模具：</p>
+<ul>
+<li>软件模板 = 一个通用模具，运行时根据参数调整</li>
+<li>硬件模板 = 为每种参数<strong>铸造一个专用模具</strong>，零运行时开销</li>
+</ul>
+<div class="mermaid">graph TD
+    TMPL[C++ 模板函数<br/>template N<br/>fibon_s N]
+    
+    TMPL -->|N=8 实例化| H1[硬件模块 A<br/>计算 Fibonacci 8<br/>纯组合逻辑 无状态机]
+    TMPL -->|N=12 实例化| H2[硬件模块 B<br/>计算 Fibonacci 12<br/>纯组合逻辑 无状态机]
+    TMPL -->|N=16 实例化| H3[硬件模块 C<br/>计算 Fibonacci 16<br/>纯组合逻辑 无状态机]
+    
+    H1 & H2 & H3 -->|零运行时开销| RESULT[每个模块独立运行<br/>不共享任何资源]
+</div>
+<h3>3.6.2 <code>using_C++_templates</code> 示例：递归模板展开</h3>
+<p>这个示例用模板元编程实现斐波那契数列计算，展示了 HLS 如何将递归模板<strong>完全展开为纯组合逻辑</strong>：</p>
+<pre><code class="language-cpp">#include &quot;cpp_template.h&quot;
+
+// 通用模板：递归展开
+template&lt;int N&gt;
+struct fibon_s {
+    static data_t fibon_f(data_t a, data_t b) {
+        return fibon_s&lt;N-1&gt;::fibon_f(b, a + b);
+    }
+};
+
+// 模板特化：递归终止条件
+template&lt;&gt;
+struct fibon_s&lt;1&gt; {
+    static data_t fibon_f(data_t a, data_t b) {
+        return b;  // 基础情况
+    }
+};
+
+// 顶层函数：实例化模板
+data_t cpp_template(data_t a, data_t b) {
+    return fibon_s&lt;FIB_N&gt;::fibon_f(a, b);
+}
+</code></pre>
+<p>当 <code>FIB_N = 8</code> 时，HLS 在编译期将递归完全展开，生成一条<strong>纯组合逻辑链</strong>：</p>
+<div class="mermaid">flowchart LR
+    IN_A[输入 a] --> S1[步骤1<br/>b1 = a+b]
+    IN_B[输入 b] --> S1
+    S1 --> S2[步骤2<br/>b2 = b+b1]
+    S2 --> S3[步骤3<br/>b3 = b1+b2]
+    S3 --> S4[步骤4<br/>b4 = b2+b3]
+    S4 --> S5[步骤5<br/>b5 = b3+b4]
+    S5 --> S6[步骤6<br/>b6 = b4+b5]
+    S6 --> S7[步骤7<br/>b7 = b5+b6]
+    S7 --> OUT[输出 Fib 8]
+    
+    style S1 fill:#e8f4f8
+    style S2 fill:#e8f4f8
+    style S3 fill:#e8f4f8
+    style S4 fill:#e8f4f8
+    style S5 fill:#e8f4f8
+    style S6 fill:#e8f4f8
+    style S7 fill:#e8f4f8
+</div>
+<p>这条组合逻辑链没有任何寄存器、没有状态机、没有时钟控制——<strong>输入进来，输出立刻出去</strong>（在一个时钟周期内完成）。这就是&quot;零运行时开销&quot;的含义。</p>
+<h3>3.6.3 <code>using_C++_templates_for_multiple_instances</code>：一套代码，多套硬件</h3>
+<p>更强大的用法是用同一套模板代码，通过不同的配置文件，生成多个参数不同的硬件实例：</p>
+<pre><code class="language-cpp">// 同一个模板源文件
+template&lt;int W, int I&gt;
+ap_fixed&lt;W*2, I*2&gt; parameterized_multiply(
+    ap_fixed&lt;W, I&gt; a, 
+    ap_fixed&lt;W, I&gt; b
+) {
+    return a * b;
+}
+</code></pre>
+<pre><code class="language-ini"># 配置文件 A：生成 16 位版本
+syn.top=multiply_16bit
+# 配置文件 B：生成 32 位版本  
+syn.top=multiply_32bit
+</code></pre>
+<div class="mermaid">graph TD
+    SRC[同一套 C++ 模板源码]
+    
+    SRC -->|配置 A: W=8 I=4| MOD_A[硬件模块 A<br/>8位定点乘法器<br/>消耗 1 个 DSP48]
+    SRC -->|配置 B: W=16 I=8| MOD_B[硬件模块 B<br/>16位定点乘法器<br/>消耗 2 个 DSP48]
+    SRC -->|配置 C: W=32 I=16| MOD_C[硬件模块 C<br/>32位定点乘法器<br/>消耗 4 个 DSP48]
+    
+    MOD_A --> APP_A[低功耗嵌入式应用]
+    MOD_B --> APP_B[通用信号处理]
+    MOD_C --> APP_C[高精度科学计算]
+</div>
+<blockquote>
+<p><strong>关键洞察</strong>：C++ 模板在 HLS 中不是&quot;运行时多态&quot;，而是&quot;编译期硬件工厂&quot;。每个模板实例化都生成一个独立的、专用的硬件模块，彼此之间不共享任何资源。</p>
+</blockquote>
+<hr />
+<h2>3.7 模式五：数组 Stencil——硬件中的滑动窗口</h2>
+<h3>3.7.1 什么是 Stencil 计算？</h3>
+<p>Stencil（模板）计算是一种常见的计算模式：对数组中的每个元素，用它和它的邻居元素做某种运算，产生输出。图像滤波、有限差分法、卷积神经网络都是 Stencil 计算的例子。</p>
+<p>想象你在用一个放大镜扫描一张照片：放大镜每次覆盖 3×3 个像素，对这 9 个像素做加权平均，产生一个输出像素，然后移动到下一个位置。这就是 2D Stencil。</p>
+<div class="mermaid">flowchart TD
+    subgraph 输入数组 1D Stencil
+        A0[a0] --- A1[a1] --- A2[a2] --- A3[a3] --- A4[a4]
+    end
+    
+    subgraph 滑动窗口 大小为3
+        W0[窗口位置0<br/>a0 a1 a2]
+        W1[窗口位置1<br/>a1 a2 a3]
+        W2[窗口位置2<br/>a2 a3 a4]
+    end
+    
+    subgraph 输出数组
+        O0[out0 = f a0 a1 a2]
+        O1[out1 = f a1 a2 a3]
+        O2[out2 = f a2 a3 a4]
+    end
+    
+    A0 & A1 & A2 --> W0 --> O0
+    A1 & A2 & A3 --> W1 --> O1
+    A2 & A3 & A4 --> W2 --> O2
+</div>
+<h3>3.7.2 <code>using_array_stencil_1d</code> 示例</h3>
+<pre><code class="language-cpp">#define N 8
+#define KERNEL_SIZE 3
+
+void array_stencil_1d(int in[N], int out[N - KERNEL_SIZE + 1]) {
+    // 窗口缓冲：用移位寄存器保存当前窗口
+    int window[KERNEL_SIZE];
+    #pragma HLS ARRAY_PARTITION variable=window complete  // 完全分区，支持并行访问
+    
+    // 初始化窗口
+    for (int i = 0; i &lt; KERNEL_SIZE - 1; i++) {
+        window[i] = in[i];
+    }
+    
+    // 滑动窗口计算
+    STENCIL_LOOP: for (int i = 0; i &lt; N - KERNEL_SIZE + 1; i++) {
+        #pragma HLS PIPELINE II=1  // 每个时钟周期处理一个输出
+        
+        // 移入新元素
+        window[KERNEL_SIZE - 1] = in[i + KERNEL_SIZE - 1];
+        
+        // 计算输出（简单求和）
+        int sum = 0;
+        for (int k = 0; k &lt; KERNEL_SIZE; k++) {
+            sum += window[k];
+        }
+        out[i] = sum;
+        
+        // 移位窗口
+        for (int k = 0; k &lt; KERNEL_SIZE - 1; k++) {
+            window[k] = window[k + 1];
+        }
+    }
+}
+</code></pre>
+<h3>3.7.3 为什么需要 <code>ARRAY_PARTITION</code>？</h3>
+<p>这是 Stencil 计算中最关键的优化。想象一个 BRAM（块 RAM）就像一个只有一个窗口的银行柜台——每次只能服务一个客户。如果你的 Stencil 需要同时访问 3 个元素，但 BRAM 每次只能给你一个，你就必须等 3 个时钟周期，流水线 II 变成 3。</p>
+<p><code>ARRAY_PARTITION</code> 就是把这个银行柜台<strong>拆分成 3 个独立的柜台</strong>，每个柜台服务一个客户，同时完成，II 降回 1。</p>
+<div class="mermaid">graph TD
+    subgraph 未分区 单端口 BRAM
+        BRAM1[BRAM 单端口<br/>每次只能读1个元素]
+        BRAM1 -->|周期1| R1[读 window 0]
+        BRAM1 -->|周期2| R2[读 window 1]
+        BRAM1 -->|周期3| R3[读 window 2]
+        R1 & R2 & R3 --> CALC1[计算<br/>II = 3]
+    end
+    
+    subgraph 完全分区 3个独立寄存器
+        REG0[寄存器 0]
+        REG1[寄存器 1]
+        REG2[寄存器 2]
+        REG0 & REG1 & REG2 -->|同时读取| CALC2[计算<br/>II = 1]
+    end
+</div>
+<hr />
+<h2>3.8 模式六：变量边界循环——告诉 HLS 最坏情况</h2>
+<h3>3.8.1 固定边界 vs. 变量边界</h3>
+<p>HLS 工具在调度循环时，需要知道循环会执行多少次（Trip Count）。固定边界循环（<code>for (int i = 0; i &lt; 1024; i++)</code>）让 HLS 可以精确计算资源需求和时序。</p>
+<p>变量边界循环（<code>for (int i = 0; i &lt; n; i++)</code>）就像告诉建筑师&quot;这栋楼要能住 n 个人，但 n 我还不确定&quot;——建筑师只能按最坏情况设计，可能导致资源过度分配。</p>
+<div class="mermaid">flowchart TD
+    LOOP_TYPE{循环边界类型}
+    
+    LOOP_TYPE -->|固定边界 i less than 1024| FIXED[固定边界循环]
+    LOOP_TYPE -->|变量边界 i less than n| VAR[变量边界循环]
+    
+    FIXED --> F1[HLS 精确知道 Trip Count = 1024]
+    FIXED --> F2[精确资源估计]
+    FIXED --> F3[保证 II = 1 可实现]
+    FIXED --> F4[适合: 图像处理 固定长度 DSP]
+    
+    VAR --> V1[HLS 必须假设最坏情况]
+    VAR --> V2[资源可能过度分配]
+    VAR --> V3[需要 TRIPCOUNT pragma 辅助]
+    VAR --> V4[适合: 变长数据 自适应算法]
+</div>
+<h3>3.8.2 <code>variable_bound_loops</code> 示例</h3>
+<pre><code class="language-cpp">void variable_bound_loops(int *in, int *out, int n) {
+    // 告诉 HLS 循环的最小/最大/平均 trip count
+    // 这不影响功能，只影响性能报告的准确性
+    #pragma HLS LOOP_TRIPCOUNT min=1 max=1024 avg=512
+    
+    LOOP_X: for (int i = 0; i &lt; n; i++) {
+        #pragma HLS PIPELINE II=1
+        out[i] = in[i] * 2;
+    }
+}
+</code></pre>
+<p>对应的配置文件：</p>
+<pre><code class="language-ini">[hls]
+syn.directive.unroll=loop_var/LOOP_X
+# 即使循环边界是变量，也尝试展开 LOOP_X
+# HLS 会使用最大可能 trip count 进行资源分配
+</code></pre>
+<blockquote>
+<p><strong>重要提示</strong>：<code>LOOP_TRIPCOUNT</code> pragma 只影响<strong>性能报告</strong>中的估算数字，不影响实际生成的硬件逻辑。它就像告诉 GPS 导航&quot;我通常以 60 公里/小时行驶&quot;——导航会给你更准确的到达时间估计，但不会改变路线。</p>
+</blockquote>
+<hr />
+<h2>3.9 模式七：<code>hls_config.cfg</code> 的三段式结构</h2>
+<h3>3.9.1 配置文件是硬件的&quot;蓝图&quot;</h3>
+<p>每个示例的 <code>hls_config.cfg</code> 都遵循三段式结构，就像建筑图纸分为&quot;总平面图、平面图、详图&quot;三个层次：</p>
+<div class="mermaid">graph TD
+    subgraph hls_config.cfg 三段式结构
+        S1[段1: 目标平台配置<br/>part = xcvu9p-flga2104-2-i<br/>决定硬件舞台的布景]
+        S2[段2: 综合流程配置<br/>clock flow_target syn.top<br/>决定烹饪方法]
+        S3[段3: 架构指令配置<br/>syn.directive.interface pipeline unroll<br/>决定微架构的雕刻]
+    end
+    
+    S1 -->|影响| R1[资源预算 时序约束 硬核 IP]
+    S2 -->|影响| R2[输出格式 XO 或 IP 时钟频率]
+    S3 -->|影响| R3[接口协议 流水线 II 并行度]
+    
+    R1 & R2 & R3 --> HW[最终生成的硬件架构]
+</div>
+<h3>3.9.2 关键指令速查表</h3>
+<table>
+<thead>
+<tr>
+<th>指令</th>
+<th>作用</th>
+<th>典型用法</th>
+<th>硬件影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>syn.directive.interface</code></td>
+<td>定义端口协议</td>
+<td><code>mode=m_axi depth=1024</code></td>
+<td>生成 AXI 总线逻辑</td>
+</tr>
+<tr>
+<td><code>syn.directive.pipeline</code></td>
+<td>启用流水线</td>
+<td><code>fxp_sqrt_top</code></td>
+<td>降低 II，提高吞吐量</td>
+</tr>
+<tr>
+<td><code>syn.directive.unroll</code></td>
+<td>展开循环</td>
+<td><code>LOOP_X factor=4</code></td>
+<td>复制硬件，提高并行度</td>
+</tr>
+<tr>
+<td><code>syn.directive.array_partition</code></td>
+<td>分区数组</td>
+<td><code>type=complete</code></td>
+<td>增加访问端口数</td>
+</tr>
+</tbody>
+</table>
+<h3>3.9.3 <code>flow_target</code> 的选择：Vitis vs. Vivado</h3>
+<div class="mermaid">graph TD
+    FT{flow_target 选择}
+    
+    FT -->|flow_target = vitis| V1[生成 .xo 内核文件]
+    FT -->|flow_target = vivado| V2[生成 RTL IP 核]
+    
+    V1 --> U1[用于 Vitis 统一软件平台]
+    V1 --> U2[数据中心加速卡 Alveo]
+    V1 --> U3[云 FPGA 服务 FaaS]
+    
+    V2 --> U4[用于 Vivado 传统 RTL 流程]
+    V2 --> U5[Zynq SoC 嵌入式系统]
+    V2 --> U6[定制 FPGA 板卡]
+    
+    U1 & U2 & U3 --> OUT1[package.output.format = xo]
+    U4 & U5 & U6 --> OUT2[package.output.format = ip_catalog]
+</div>
+<hr />
+<h2>3.10 从 C++ 到比特流：完整的数据流旅程</h2>
+<p>现在让我们把所有模式串联起来，看一个完整的示例（<code>using_fixed_point</code>）从源代码到硬件的全过程：</p>
+<div class="mermaid">flowchart TD
+    DEV[开发者编写<br/>C++ 算法 + hls_config.cfg]
+    
+    DEV --> CSIM[C 仿真<br/>在 CPU 上验证算法正确性<br/>速度: 秒级]
+    CSIM -->|功能正确| SYN[HLS 综合<br/>C++ 转换为 RTL 硬件描述]
+    CSIM -->|功能错误| DEV
+    
+    SYN --> RPT[综合报告<br/>资源估计 LUT FF DSP BRAM<br/>性能估计 II 延迟 频率]
+    RPT -->|满足要求| COSIM[C/RTL 协同仿真<br/>验证 RTL 行为与 C 模型一致<br/>速度: 分钟到小时级]
+    RPT -->|不满足要求| OPT[优化迭代<br/>调整 hls_config.cfg 指令<br/>修改 C++ 编码风格]
+    OPT --> SYN
+    
+    COSIM -->|验证通过| EXPORT[导出内核<br/>Vitis: .xo 文件<br/>Vivado: IP Catalog]
+    COSIM -->|验证失败| DEV
+    
+    EXPORT --> IMPL[Vivado 实现<br/>布局布线 生成比特流]
+    IMPL --> FPGA[部署到 FPGA<br/>运行硬件加速器]
+    
+    style DEV fill:#fff3cd
+    style CSIM fill:#d4edda
+    style SYN fill:#cce5ff
+    style COSIM fill:#d4edda
+    style EXPORT fill:#f8d7da
+    style FPGA fill:#d1ecf1
+</div>
+<p>这个流程图展示了 HLS 开发的迭代本质：<strong>写代码 → 仿真验证 → 综合 → 检查报告 → 优化 → 再综合</strong>，直到满足所有要求。</p>
+<hr />
+<h2>3.11 常见陷阱与最佳实践</h2>
+<h3>3.11.1 五大常见陷阱</h3>
+<div class="mermaid">graph TD
+    TRAP[HLS 编码常见陷阱]
+    
+    TRAP --> T1[陷阱1: 指针别名<br/>两个指针可能指向同一内存<br/>导致 HLS 串行化所有访问]
+    TRAP --> T2[陷阱2: 动态递归<br/>运行时深度未知的递归<br/>HLS 无法综合]
+    TRAP --> T3[陷阱3: 变量边界循环<br/>不加 TRIPCOUNT pragma<br/>性能报告不准确]
+    TRAP --> T4[陷阱4: 忽视配置文件<br/>只改 C++ 不改 cfg<br/>硬件架构不变]
+    TRAP --> T5[陷阱5: 混淆仿真结果<br/>C 仿真通过不等于<br/>RTL 仿真通过]
+    
+    T1 --> FIX1[修复: 使用 __restrict__<br/>或 DEPENDENCE pragma]
+    T2 --> FIX2[修复: 改为模板递归<br/>确保编译期可展开]
+    T3 --> FIX3[修复: 添加 LOOP_TRIPCOUNT<br/>提供 min max avg 估计]
+    T4 --> FIX4[修复: 理解 cfg 指令<br/>配置决定架构]
+    T5 --> FIX5[修复: 必须运行 cosim<br/>验证 RTL 行为]
+</div>
+<h3>3.11.2 编码风格对比：好 vs. 差</h3>
+<p><strong>指针使用</strong>：</p>
+<pre><code class="language-cpp">// 差：可能有别名，HLS 保守串行化
+void bad(int *a, int *b) { *b = *a + 1; }
+
+// 好：明确无别名，HLS 可以流水线化
+void good(int * __restrict__ a, int * __restrict__ b) { *b = *a + 1; }
+</code></pre>
+<p><strong>循环边界</strong>：</p>
+<pre><code class="language-cpp">// 差：变量边界，HLS 无法精确调度
+for (int i = 0; i &lt; n; i++) { ... }
+
+// 好：固定边界，HLS 精确调度
+for (int i = 0; i &lt; 1024; i++) { ... }
+
+// 可接受：变量边界 + TRIPCOUNT 提示
+#pragma HLS LOOP_TRIPCOUNT min=1 max=1024
+for (int i = 0; i &lt; n; i++) { ... }
+</code></pre>
+<p><strong>数据类型</strong>：</p>
+<pre><code class="language-cpp">// 差：32位 int，浪费资源
+int pixel = 128;
+
+// 好：精确位宽，节省资源
+ap_uint&lt;8&gt; pixel = 128;
+
+// 差：double 浮点，资源消耗巨大
+double coeff = 0.5;
+
+// 好：定点数，资源节省 10 倍
+ap_fixed&lt;16, 8&gt; coeff = 0.5;
+</code></pre>
+<hr />
+<h2>3.12 本章总结：软件到硬件的编码心法</h2>
+<div class="mermaid">graph TD
+    subgraph 本章核心编码模式
+        P1[模式1: 指针<br/>每个指针 = 一条物理总线<br/>用 m_axi 接口 + restrict 声明]
+        P2[模式2: 任意精度整数<br/>ap_int N 精确控制位宽<br/>节省 LUT 资源]
+        P3[模式3: 定点数<br/>ap_fixed W I 替代浮点<br/>节省 3-10x 资源]
+        P4[模式4: C++ 模板<br/>编译期参数化<br/>零运行时开销的硬件工厂]
+        P5[模式5: 数组 Stencil<br/>ARRAY_PARTITION 提供并行端口<br/>PIPELINE 降低 II]
+        P6[模式6: 变量边界循环<br/>LOOP_TRIPCOUNT 提供估计<br/>固定边界优先]
+        P7[模式7: hls_config.cfg<br/>三段式配置<br/>配置决定硬件架构]
+    end
+    
+    P1 & P2 & P3 & P4 & P5 & P6 & P7 --> GOAL[目标: 高效 FPGA 硬件<br/>高吞吐 低延迟 省资源]
+</div>
+<p>本章介绍了七种核心编码模式，每种模式都对应一个从&quot;软件直觉&quot;到&quot;硬件现实&quot;的思维转变：</p>
+<ol>
+<li><strong>指针</strong> → 不是内存地址，而是物理总线；用 <code>m_axi</code> 接口和 <code>__restrict__</code> 声明</li>
+<li><strong>任意精度整数</strong> → 用 <code>ap_int&lt;N&gt;</code> 精确控制位宽，避免资源浪费</li>
+<li><strong>定点数</strong> → 用 <code>ap_fixed&lt;W,I&gt;</code> 替代浮点数，节省 3-10 倍资源</li>
+<li><strong>C++ 模板</strong> → 编译期硬件工厂，每个实例化生成独立的专用电路</li>
+<li><strong>数组 Stencil</strong> → 用 <code>ARRAY_PARTITION</code> 提供并行访问端口，用 <code>PIPELINE</code> 降低 II</li>
+<li><strong>变量边界循环</strong> → 用 <code>LOOP_TRIPCOUNT</code> 提供估计，优先使用固定边界</li>
+<li><strong>配置文件</strong> → 三段式结构，配置决定硬件架构，与算法代码分离</li>
+</ol>
+<hr />
+<h2>3.13 下一步：接口设计</h2>
+<p>掌握了这些核心编码模式之后，你的 FPGA 内核已经能够正确地描述计算逻辑了。但还有一个关键问题没有解决：<strong>数据怎么进出这个内核？</strong></p>
+<p>下一章《连接你的内核到世界：接口设计》将深入探讨 HLS 如何将 C/C++ 函数参数映射到物理 FPGA 协议（AXI4-Full、AXI4-Stream、AXI4-Lite），以及为什么选错接口会彻底毁掉你精心优化的算法性能。</p>
+<hr />
+<p><em>本章示例均来自 <code>coding_modeling</code> 目录，建议在本地安装 Vitis HLS 后，亲手综合这些示例，观察综合报告中资源和性能数字的变化——这是建立硬件直觉最有效的方式。</em></p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

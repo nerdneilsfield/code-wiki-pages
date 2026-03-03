@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>session_runtime 模块技术深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-MiniMax-M2.5<br>
+    <b>Generated:</b> 2026-02-28T15:44<br>
+    <b>Components:</b> 4836<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/volcengine/OpenViking" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/volcengine/OpenViking" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="rust_cli_interface.html" class="nv">Rust Cli Interface</a>
+      <button class="nvcaret" data-nav="rust_cli_interface-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="rust_cli_interface-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="rust_cli_interface-cli_bootstrap_and_runtime_context.html" class="nv">Cli Bootstrap And Runtime Context</a>
+        <button class="nvcaret" data-nav="cli_bootstrap_and_runtime_context-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="cli_bootstrap_and_runtime_context-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cli_bootstrap_and_runtime_context-cli_command_structure.html" class="nv">Cli Command Structure</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="cli-runtime-context.html" class="nv">Cli Runtime Context</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-cli_bootstrap_and_runtime_context-cli_configuration_management.html" class="nv">Cli Configuration Management</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="http-api-and-tabular-output.html" class="nv">Http Api And Tabular Output</a>
+        <button class="nvcaret" data-nav="http_api_and_tabular_output-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="http_api_and_tabular_output-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="rust_cli_interface-http_api_and_tabular_output-http_client.html" class="nv">Http Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="http_api_and_tabular_output-output_formatting.html" class="nv">Output Formatting</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tui_application_orchestration.html" class="nv">Tui Application Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tui_tree_navigation_and_view_model.html" class="nv">Tui Tree Navigation And View Model</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="python_client_and_cli_utils.html" class="nv">Python Client And Cli Utils</a>
+      <button class="nvcaret" data-nav="python_client_and_cli_utils-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="python_client_and_cli_utils-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli-utils-client_session_and_transport.html" class="nv">Client Session And Transport</a>
+        <button class="nvcaret" data-nav="client_session_and_transport-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="client_session_and_transport-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-base_client.html" class="nv">Base Client</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-client_session_and_transport-session_wrapper.html" class="nv">Session Wrapper</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-configuration_models_and_singleton.html" class="nv">Configuration Models And Singleton</a>
+        <button class="nvcaret" data-nav="configuration_models_and_singleton-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="configuration_models_and_singleton-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-embedding_config.html" class="nv">Embedding Config</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="python_client_and_cli_utils-configuration_models_and_singleton-open_viking_config.html" class="nv">Open Viking Config</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-content_extraction_schema_and_strategies.html" class="nv">Content Extraction Schema And Strategies</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-llm_and_rerank_clients.html" class="nv">Llm And Rerank Clients</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="python_client_and_cli_utils-retrieval_trace_and_scoring_types.html" class="nv">Retrieval Trace And Scoring Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_context_prompts_and_sessions.html" class="nv">Core Context Prompts And Sessions</a>
+      <button class="nvcaret" data-nav="core_context_prompts_and_sessions-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_context_prompts_and_sessions-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-context_typing_and_levels.html" class="nv">Context Typing And Levels</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-prompt_template_metadata.html" class="nv">Prompt Template Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_memory_deduplication.html" class="nv">Session Memory Deduplication</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_runtime_and_skill_discovery.html" class="nv">Session Runtime And Skill Discovery</a>
+        <button class="nvcaret" data-nav="session_runtime_and_skill_discovery-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="session_runtime_and_skill_discovery-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-context-prompts-and-sessions-session-runtime-and-skill-discovery-session-runtime.html" class="nv on">Session Runtime</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core-skill-loader.html" class="nv">Skill Loader</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="session_runtime.html" class="nv">Session Runtime</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core-skill-loader.html" class="nv">Skill Loader</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="core_context_prompts_and_sessions-session_runtime_and_skill_discovery-directory_definition.html" class="nv">Directory Definition</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="parsing_and_resource_detection.html" class="nv">Parsing And Resource Detection</a>
+      <button class="nvcaret" data-nav="parsing_and_resource_detection-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="parsing_and_resource_detection-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_and_document_taxonomy.html" class="nv">Resource And Document Taxonomy</a>
+        <button class="nvcaret" data-nav="resource_and_document_taxonomy-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_document_taxonomy-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="resource_and_document_taxonomy_base_types.html" class="nv">Resource And Document Taxonomy Base Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="resource_and_document_taxonomy_html_parser.html" class="nv">Resource And Document Taxonomy Html Parser</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parser_abstractions_and_extension_points.html" class="nv">Parser Abstractions And Extension Points</a>
+        <button class="nvcaret" data-nav="parser_abstractions_and_extension_points-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="parser_abstractions_and_extension_points-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing-and_resource_detection-parser_abstractions_and_extension_points-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="code-language-ast-extractors.html" class="nv">Code Language Ast Extractors</a>
+        <button class="nvcaret" data-nav="code_language_ast_extractors-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="code_language_ast_extractors-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="systems_programming_ast_extractors.html" class="nv">Systems Programming Ast Extractors</a>
+          <button class="nvcaret" data-nav="systems_programming_ast_extractors-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="systems_programming_ast_extractors-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-cpp_extractor.html" class="nv">Cpp Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-rust_extractor.html" class="nv">Rust Extractor</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="application_and_web_platform_ast_extractors.html" class="nv">Application And Web Platform Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="systems-programming-ast-extractors-cpp-extractor.html" class="nv">Cpp Extractor</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="parsing_and_resource_detection-code_language_ast_extractors-systems_programming_ast_extractors-go_extractor.html" class="nv">Go Extractor</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="systems-programming-ast-extractors-rust-extractor.html" class="nv">Rust Extractor</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-resource_detection_traversal_metadata.html" class="nv">Resource Detection Traversal Metadata</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_and_document_taxonomy_base_types.html" class="nv">Resource And Document Taxonomy Base Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_and_document_taxonomy_html_parser.html" class="nv">Resource And Document Taxonomy Html Parser</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parser_abstractions_and_extension_points-custom_parser_protocol_and_wrappers.html" class="nv">Custom Parser Protocol And Wrappers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-base_parser_abstract_class.html" class="nv">Base Parser Abstract Class</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parser_abstractions_and_extension_points-language_extractor_base.html" class="nv">Language Extractor Base</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="systems_programming_ast_extractors.html" class="nv">Systems Programming Ast Extractors</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="application_and_web_platform_ast_extractors.html" class="nv">Application And Web Platform Ast Extractors</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_and_resource_detection-scripting_language_ast_extractors.html" class="nv">Scripting Language Ast Extractors</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="model_providers_embeddings_and_vlm.html" class="nv">Model Providers Embeddings And Vlm</a>
+      <button class="nvcaret" data-nav="model_providers_embeddings_and_vlm-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="model_providers_embeddings_and_vlm-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-embedder_base_contracts.html" class="nv">Embedder Base Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-openai_embedding_providers.html" class="nv">Openai Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-vikingdb_embedding_providers.html" class="nv">Vikingdb Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-volcengine_embedding_providers.html" class="nv">Volcengine Embedding Providers</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="model_providers_embeddings_and_vlm-jina_embedding_provider.html" class="nv">Jina Embedding Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vlm_abstractions_factory_and_structured_interface.html" class="nv">Vlm Abstractions Factory And Structured Interface</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="retrieval_and_evaluation.html" class="nv">Retrieval And Evaluation</a>
+      <button class="nvcaret" data-nav="retrieval_and_evaluation-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="retrieval_and_evaluation-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-ragas_evaluation_core.html" class="nv">Ragas Evaluation Core</a>
+        <button class="nvcaret" data-nav="ragas_evaluation_core-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="ragas_evaluation_core-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="base_evaluator.html" class="nv">Base Evaluator</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ragas_evaluation_core-dataset_generator.html" class="nv">Dataset Generator</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ragas-config-and-evaluator.html" class="nv">Ragas Config And Evaluator</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="ragas-evaluation-core-data-types.html" class="nv">Data Types</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="retrieval_and_evaluation-retrieval_query_orchestration.html" class="nv">Retrieval Query Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="evaluation_recording_and_storage_instrumentation.html" class="nv">Evaluation Recording And Storage Instrumentation</a>
+        <button class="nvcaret" data-nav="evaluation_recording_and_storage_instrumentation-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="evaluation_recording_and_storage_instrumentation-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="recorder-core.html" class="nv">Recorder Core</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval-and-evaluation-evaluation-recording-and-storage-instrumentation-recording-types.html" class="nv">Recording Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="retrieval-and-evaluation-evaluation-recording-and-storage-instrumentation-storage-wrappers.html" class="nv">Storage Wrappers</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="server_api_contracts.html" class="nv">Server Api Contracts</a>
+      <button class="nvcaret" data-nav="server_api_contracts-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="server_api_contracts-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-admin-user-and-role-contracts.html" class="nv">Admin User And Role Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-filesystem-mutation-contracts.html" class="nv">Filesystem Mutation Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-pack-import-export-contracts.html" class="nv">Pack Import Export Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-resource-and-relation-contracts.html" class="nv">Resource And Relation Contracts</a>
+        <button class="nvcaret" data-nav="resource_and_relation_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="resource_and_relation_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-resource_and_relation_contracts-resource_request_contracts.html" class="nv">Resource Request Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server-api-contracts-resource-and-relation-contracts-relation-request-contracts.html" class="nv">Relation Request Contracts</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-search-request-contracts.html" class="nv">Search Request Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server-api-contracts-session-message-contracts.html" class="nv">Session Message Contracts</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="system_and_usage_contracts.html" class="nv">System And Usage Contracts</a>
+        <button class="nvcaret" data-nav="system_and_usage_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="system_and_usage_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server-api-contracts-system-endpoint-contracts.html" class="nv">System Endpoint Contracts</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="server_api_contracts-system_and_usage_contracts-response_and_usage_models.html" class="nv">Response And Usage Models</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_core_and_runtime_primitives.html" class="nv">Storage Core And Runtime Primitives</a>
+      <button class="nvcaret" data-nav="storage_core_and_runtime_primitives-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="storage_core_and_runtime_primitives-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_schema_and_query_ranges.html" class="nv">Storage Schema And Query Ranges</a>
+        <button class="nvcaret" data-nav="storage_schema_and_query_ranges-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="storage_schema_and_query_ranges-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="openviking-storage-collection_schemas.html" class="nv">Collection Schemas</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-schema-and-query-ranges-expr.html" class="nv">Expr</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-observer_and_queue_processing_primitives.html" class="nv">Observer And Queue Processing Primitives</a>
+        <button class="nvcaret" data-nav="observer_and_queue_processing_primitives-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="observer_and_queue_processing_primitives-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-core-and-runtime-primitives-observer-and-queue-processing-primitives-base-observer.html" class="nv">Base Observer</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-core-and-runtime-primitives-observer-and-queue-processing-primitives-named_queue_and_handlers.html" class="nv">Named Queue And Handlers</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="storage-core-and-runtime-primitives-observer-and-queue-processing-primitives-embedding-msg-converter.html" class="nv">Embedding Msg Converter</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-kv_store_interfaces_and_operation_model.html" class="nv">Kv Store Interfaces And Operation Model</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage-core-and-runtime-primitives-store-value-typing-and-ttl.html" class="nv">Store Value Typing And Ttl</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="storage_core_and_runtime_primitives-runtime_support_utilities.html" class="nv">Runtime Support Utilities</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectordb-domain-models-and-service-schemas.html" class="nv">Vectordb Domain Models And Service Schemas</a>
+      <button class="nvcaret" data-nav="vectordb_domain_models_and_service_schemas-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectordb_domain_models_and_service_schemas-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="domain_models_and_contracts.html" class="nv">Domain Models And Contracts</a>
+        <button class="nvcaret" data-nav="domain_models_and_contracts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="domain_models_and_contracts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service_schemas-collection-contracts-and-results.html" class="nv">Collection Contracts And Results</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service_schemas-domain_models_and_contracts-index_domain_models_and_interfaces.html" class="nv">Index Domain Models And Interfaces</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service-schemas-domain-models-and-contracts-metadata-dictionary-models.html" class="nv">Metadata Dictionary Models</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectordb-domain-models-and-service-schemas-domain-models-and-contracts-project-domain-models-and-interfaces.html" class="nv">Project Domain Models And Interfaces</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-volcengine-data-api-integration.html" class="nv">Volcengine Data Api Integration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-service-api-models-collection-and-index-management.html" class="nv">Service Api Models Collection And Index Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-service-api-models-data-operations.html" class="nv">Service Api Models Data Operations</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="service-api-models-search-requests.html" class="nv">Service Api Models Search Requests</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectordb-domain-models-and-service-schemas-schema-validation-and-constants.html" class="nv">Schema Validation And Constants</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vectorization_and_storage_adapters.html" class="nv">Vectorization And Storage Adapters</a>
+      <button class="nvcaret" data-nav="vectorization_and_storage_adapters-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vectorization_and_storage_adapters-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-vectorization_contracts_and_metadata.html" class="nv">Vectorization Contracts And Metadata</a>
+        <button class="nvcaret" data-nav="vectorization_contracts_and_metadata-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="vectorization_contracts_and_metadata-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectorization-contracts-and-metadata-vectorizer-factory-and-model-typing.html" class="nv">Vectorizer Factory And Model Typing</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization-contracts-and-metadata-vectorizer-factory-and-model-typing.html" class="nv">Vectorizer Factory And Model Typing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vectorization_and_storage_adapters-volcengine_vectorization_provider.html" class="nv">Volcengine Vectorization Provider</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="collection_adapters_abstraction_and_backends.html" class="nv">Collection Adapters Abstraction And Backends</a>
+        <button class="nvcaret" data-nav="collection_adapters_abstraction_and_backends-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="collection_adapters_abstraction_and_backends-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="collection-adapter-abstractions.html" class="nv">Collection Adapter Abstractions</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="local_and_http_collection_backends.html" class="nv">Local And Http Collection Backends</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="provider_specific_managed_collection_backends.html" class="nv">Provider Specific Managed Collection Backends</a>
+          <button class="nvcaret" data-nav="provider_specific_managed_collection_backends-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="provider_specific_managed_collection_backends-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="vikingdb_private_adapter.html" class="nv">Vikingdb Private Adapter</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="vectorization_and_storage_adapters-provider_specific_managed_collection_backends-volcengine_adapter.html" class="nv">Volcengine Adapter</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="native_engine_and_python_bindings.html" class="nv">Native Engine And Python Bindings</a>
+      <button class="nvcaret" data-nav="native_engine_and_python_bindings-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="native_engine_and_python_bindings-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native-engine-and-python-bindings-python-bytes-row-bindings.html" class="nv">Python Bytes Row Bindings</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="native_bytes_row_schema_and_field_layout.html" class="nv">Native Bytes Row Schema And Field Layout</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vector_recall_and_sparse_ann_primitives.html" class="nv">Vector Recall And Sparse Ann Primitives</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="search_context_and_fetch_state_models.html" class="nv">Search Context And Fetch State Models</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="scalar_bitmap_and_field_dictionary_structures.html" class="nv">Scalar Bitmap And Field Dictionary Structures</a>
+        <button class="nvcaret" data-nav="scalar_bitmap_and_field_dictionary_structures-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="scalar_bitmap_and_field_dictionary_structures-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-fields-dict.html" class="nv">Fields Dict</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="src-index-detail-scalar-bitmap-holder-dir_index.html" class="nv">Dir Index</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="native-engine-and-python-bindings-scalar-bitmap-and-field-dictionary-structures-ranged-map.html" class="nv">Ranged Map</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="build_and_packaging.html" class="nv">Build And Packaging</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>session_runtime 模块技术深度解析</h1>
+<h2>概述</h2>
+<p><strong>session_runtime</strong> 是 OpenViking 系统中负责会话生命周期管理的核心模块。如果你把整个系统想象成一座记忆宫殿，那么 Session 就是这座宫殿的&quot;当前展厅&quot;——它管理着用户与 AI 助手正在进行的一场对话的所有上下文信息：用户说了什么、AI 如何回复、调用了哪些工具、引用了哪些记忆和资源。</p>
+<p>这个模块解决的核心问题是：<strong>如何在有限的上下文窗口内，维持一场持续、连贯的多轮对话，同时将重要的交互历史转化为长期记忆</strong>。</p>
+<p>在一个复杂的 AI 助手中，用户可能会进行数十轮对话，引用大量之前存储的记忆（memory）和资源（resource），调用各种技能（skill）。如果把所有信息都塞进 LLM 的上下文窗口， token 成本会急剧膨胀，性能会下降；但如果过早丢弃对话历史，就会失去重要的上下文线索。Session 模块正是在这两难之间找到了平衡点——它维护&quot;活跃对话&quot;、定期将旧消息&quot;归档&quot;为压缩摘要、并从中提取有价值的信息存入长期记忆系统。</p>
+<hr />
+<h2>架构图与组件角色</h2>
+<div class="mermaid">flowchart TB
+    subgraph Session["Session 会话管理器"]
+        direction TB
+        Messages["消息管理<br/>add_message / update_tool_part"]
+        Compression["压缩归档<br/>commit / _write_archive"]
+        Tracking["使用追踪<br/>used / Usage"]
+        Search["上下文检索<br/>get_context_for_search"]
+    end
+    
+    subgraph Storage["存储层 (VikingFS)"]
+        FS["VikingFS 文件系统抽象"]
+        AGFS["AGFS 后端存储"]
+    end
+    
+    subgraph Memory["记忆系统 (可选)"]
+        Compressor["SessionCompressor<br/>记忆提取器"]
+        VikingDB["VikingDB 向量数据库"]
+    end
+    
+    Messages --> FS
+    Compression --> FS
+    Tracking --> VikingDB
+    Search --> FS
+    Compression --"提取长期记忆"--> Compressor
+    Compressor --> VikingDB
+    
+    style Session fill:#e1f5fe,stroke:#01579b
+    style Storage fill:#f3e5f5,stroke:#4a148c
+    style Memory fill:#e8f5e9,stroke:#1b5e20
+</div>
+<h3>核心组件</h3>
+<p><strong>Session 类</strong> 是整个模块的枢纽，它扮演三个关键角色：</p>
+<ol>
+<li><strong>对话状态容器</strong>：内存中维护当前会话的消息列表、统计信息和使用记录</li>
+<li><strong>持久化适配器</strong>：将对话状态同步到 VikingFS（AGFS 后端），支持增量追加和全量覆写</li>
+<li><strong>记忆提取编排器</strong>：在会话提交（commit）时触发长期记忆的提取和存储</li>
+</ol>
+<p><strong>辅助数据结构</strong>：</p>
+<ul>
+<li><strong>SessionCompression</strong>：记录会话压缩（归档）的状态，包括原始消息数、压缩后消息数、归档索引等</li>
+<li><strong>SessionStats</strong>：会话统计信息，包括总轮次、总 token 数、使用的上下文数、使用的技能数、提取的记忆数</li>
+<li><strong>Usage</strong>：单条使用记录，追踪一次交互中引用了哪些上下文或技能</li>
+</ul>
+<hr />
+<h2>核心设计理念与心智模型</h2>
+<h3>会话即&quot;流水账&quot;</h3>
+<p>理解 Session 最好的比喻是把它想象成<strong>一本正在书写的流水账</strong>：</p>
+<ul>
+<li>每当用户说一句话，账本上就增加一行（<code>add_message</code>）</li>
+<li>每当 AI 调用一个工具，账本就记录工具的调用和返回结果（<code>update_tool_part</code>）</li>
+<li>当账本写得差不多了（达到阈值），就把它从头到尾整理一遍，写成一份&quot;摘要&quot;存进历史档案（<code>commit</code> / <code>_write_archive</code>）</li>
+</ul>
+<p>这本&quot;流水账&quot;有两个显著特点：<strong>持续累积</strong>和<strong>定期归档</strong>。</p>
+<h3>消息模型：Part 组合</h3>
+<p>Session 中的消息不是简单的字符串，而是由多个 <strong>Part</strong> 组成的复合结构：</p>
+<ul>
+<li><strong>TextPart</strong>：纯文本内容，用户的问题或 AI 的回答</li>
+<li><strong>ContextPart</strong>：对之前存储的记忆或资源的引用，包含 URI 和摘要（abstract）</li>
+<li><strong>ToolPart</strong>：工具调用的描述和结果，包含工具 ID、名称、输入输出和状态</li>
+</ul>
+<p>这种设计使得对话历史不仅记录了&quot;说了什么&quot;，还记录了&quot;参考了什么&quot;、&quot;用了什么工具&quot;。当这段历史被归档时，这些信息都会成为记忆提取的原材料。</p>
+<h3>压缩与归档机制</h3>
+<p>Session 采用了<strong>主动归档</strong>策略，而非被动驱逐：</p>
+<ol>
+<li>当消息数量累积到一定阈值（<code>auto_commit_threshold</code>，默认 8000 tokens），触发 <code>commit()</code></li>
+<li>当前所有消息被打包写入 <code>history/archive_NNN/</code> 目录</li>
+<li>使用 LLM 生成结构化摘要（<code>.abstract.md</code> 和 <code>.overview.md</code>）</li>
+<li>清空内存中的消息列表，重新开始累积</li>
+</ol>
+<p>这种设计的优势是<strong>可控性</strong>——归档时机由应用层明确触发，而非由底层缓存策略隐式决定。这对于需要精确控制&quot;记忆提取时机&quot;的 AI 助手尤为重要。</p>
+<hr />
+<h2>数据流分析</h2>
+<h3>典型会话生命周期</h3>
+<pre><code>创建会话 → 加载历史 → 添加消息 → 更新工具 → 提交归档 → 提取记忆
+</code></pre>
+<h4>1. 创建与加载</h4>
+<pre><code class="language-python">session = Session(
+    viking_fs=viking_fs,
+    vikingdb_manager=vikingdb_manager,
+    session_compressor=compressor,
+    session_id=&quot;session_123&quot;
+)
+await session.load()  # 从 VikingFS 恢复历史状态
+</code></pre>
+<p>Session 初始化时接受三个核心依赖：</p>
+<ul>
+<li><strong>VikingFS</strong>：文件系统和关系存储的抽象层</li>
+<li><strong>VikingDBManager</strong>（可选）：向量数据库管理器，用于更新 active_count 和记忆索引</li>
+<li><strong>SessionCompressor</strong>（可选）：记忆提取器，负责从归档消息中提取长期记忆</li>
+</ul>
+<p>加载过程会：</p>
+<ol>
+<li>读取 <code>viking://session/{user}/{session_id}/messages.jsonl</code> 恢复内存中的消息</li>
+<li>扫描 <code>history/</code> 目录，恢复 <code>compression_index</code>（归档编号）</li>
+</ol>
+<h4>2. 添加消息</h4>
+<pre><code class="language-python">session.add_message(
+    role=&quot;user&quot;,
+    parts=[TextPart(text=&quot;帮我查找关于 Python 异步编程的资料&quot;)]
+)
+</code></pre>
+<p>消息被添加到内存列表的同时，会<strong>增量追加</strong>到 <code>messages.jsonl</code> 文件中。这里有个关键设计决策：每次 <code>add_message</code> 都同步写盘，而非仅在内存中累积。这确保了即使进程异常退出，对话历史也不会丢失。</p>
+<h4>3. 工具调用追踪</h4>
+<pre><code class="language-python">session.update_tool_part(
+    message_id=&quot;msg_abc123&quot;,
+    tool_id=&quot;tool_search&quot;,
+    output='{&quot;results&quot;: [...]}',
+    status=&quot;completed&quot;
+)
+</code></pre>
+<p>当 AI 调用工具时，Session 会：</p>
+<ol>
+<li>在内存中找到对应的消息和 ToolPart</li>
+<li>更新工具输出和状态</li>
+<li>将工具调用详情写入 <code>tools/{tool_id}/tool.json</code></li>
+<li>同步更新 <code>messages.jsonl</code></li>
+</ol>
+<h4>4. 提交与归档</h4>
+<pre><code class="language-python">result = session.commit()
+</code></pre>
+<p><code>commit()</code> 是 Session 最重要、最复杂的操作，它执行以下步骤：</p>
+<div class="mermaid">sequenceDiagram
+    participant App as 应用层
+    participant Session as Session
+    participant VikingFS as VikingFS
+    participant Compressor as SessionCompressor
+    participant VikingDB as VikingDB
+
+    App->>Session: commit()
+    Note over Session: 1. 归档当前消息
+    Session->>VikingFS: write_file(history/archive_001/messages.jsonl)
+    Session->>VikingFS: write_file(history/archive_001/.abstract.md)
+    Session->>VikingFS: write_file(history/archive_001/.overview.md)
+    
+    Note over Session: 2. 提取长期记忆（可选）
+    Session->>Compressor: extract_long_term_memories()
+    Compressor->>VikingFS: 写入新记忆文件
+    Compressor->>VikingDB: 入队向量化和索引
+    
+    Note over Session: 3. 写入 AGFS
+    Session->>VikingFS: write_file(messages.jsonl)
+    Session->>VikingFS: write_file(.abstract.md, .overview.md)
+    
+    Note over Session: 4. 创建关系
+    Session->>VikingFS: link(session_uri → usage_uri)
+    
+    Note over Session: 5. 更新统计
+    Session->>VikingDB: increment_active_count(uris)
+    
+    Session-->>App: result (stats)
+</div>
+<h4>5. 上下文检索</h4>
+<pre><code class="language-python">context = await session.get_context_for_search(
+    query=&quot;Python 异步&quot;,
+    max_archives=3,
+    max_messages=20
+)
+</code></pre>
+<p>当需要为意图分析或检索增强生成（RAG）准备上下文时，Session 会：</p>
+<ol>
+<li>取出最近 N 条消息（<code>max_messages</code>）</li>
+<li>扫描历史归档，用查询关键词计算相关性分数</li>
+<li>返回最相关且最新的归档摘要列表</li>
+</ol>
+<hr />
+<h2>依赖分析与契约</h2>
+<h3>上游依赖（Session 依赖什么）</h3>
+<table>
+<thead>
+<tr>
+<th>依赖组件</th>
+<th>作用</th>
+<th>关键方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>VikingFS</strong></td>
+<td>文件系统抽象，持久化消息、归档、关系</td>
+<td><code>read_file</code>, <code>write_file</code>, <code>append_file</code>, <code>ls</code>, <code>mkdir</code>, <code>link</code>, <code>stat</code></td>
+</tr>
+<tr>
+<td><strong>VikingDBManager</strong></td>
+<td>向量数据库，管理记忆索引和活跃度统计</td>
+<td><code>increment_active_count</code>, <code>enqueue_embedding_msg</code>, <code>delete_uris</code></td>
+</tr>
+<tr>
+<td><strong>SessionCompressor</strong></td>
+<td>记忆提取器，从归档消息中提取长期记忆</td>
+<td><code>extract_long_term_memories</code></td>
+</tr>
+<tr>
+<td><strong>Message / Part</strong></td>
+<td>消息数据结构</td>
+<td><code>Message.from_dict</code>, <code>Message.to_jsonl</code></td>
+</tr>
+<tr>
+<td><strong>RequestContext</strong></td>
+<td>请求上下文，携带用户身份和权限</td>
+<td>用户身份验证、角色控制</td>
+</tr>
+</tbody>
+</table>
+<h3>下游依赖（什么组件调用 Session）</h3>
+<ul>
+<li><strong>CLI / TUI</strong>：命令行界面创建和管理会话</li>
+<li><strong>HTTP API</strong>：REST API 暴露会话操作</li>
+<li><strong>检索模块</strong>：调用 <code>get_context_for_search</code> 获取对话上下文</li>
+</ul>
+<h3>数据契约</h3>
+<p><strong>输入契约</strong>：</p>
+<ul>
+<li><code>add_message(role, parts)</code>：role 必须是 &quot;user&quot; 或 &quot;assistant&quot;，parts 是非空列表</li>
+<li><code>used(contexts, skill)</code>：contexts 是 URI 列表，skill 是包含 uri 字段的字典</li>
+</ul>
+<p><strong>输出契约</strong>：</p>
+<ul>
+<li><code>commit()</code> 返回包含 <code>session_id</code>, <code>status</code>, <code>memories_extracted</code>, <code>stats</code> 的字典</li>
+<li><code>get_context_for_search()</code> 返回包含 <code>summaries</code>（归档摘要列表）和 <code>recent_messages</code>（最近消息列表）的字典</li>
+</ul>
+<hr />
+<h2>设计决策与权衡</h2>
+<h3>1. 同步写盘 vs 异步缓冲</h3>
+<p><strong>决策</strong>：每次 <code>add_message</code> 都同步调用 <code>run_async</code> 写盘，而非在内存中缓冲后批量写入。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li><strong>优点</strong>：极高的可靠性——即使进程崩溃或机器断电，已添加的消息也不会丢失</li>
+<li><strong>缺点</strong>：每次添加消息都有一次 I/O 开销，在高频场景下可能影响性能</li>
+<li><strong>适用场景</strong>：对于 AI 助手这类&quot;对话&quot;场景，可靠性远比极致性能重要。一次对话每秒可能只产生几条消息，I/O 开销可以接受。但如果用于高频日志采集，则需要重新考虑。</li>
+</ul>
+<h3>2. 主动归档 vs 被动驱逐</h3>
+<p><strong>决策</strong>：使用显式的 <code>auto_commit_threshold</code> 触发归档，而非 LRU 等被动策略。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li><strong>优点</strong>：精确控制归档时机，便于在恰好需要提取记忆的时刻执行；归档内容完整，不会被&quot;意外驱逐&quot;</li>
+<li><strong>缺点</strong>：需要应用层主动调用 <code>commit()</code>，如果忘记调用，内存会持续增长</li>
+<li><strong>设计意图</strong>：这是有意为之的设计——AI 助手需要在&quot;一轮对话结束后&quot;提取记忆，而不是在任何随意的时刻</li>
+</ul>
+<h3>3. 可选依赖注入</h3>
+<p><strong>决策</strong>：VikingDBManager 和 SessionCompressor 都是可选依赖，没有时 Session 降级为纯会话管理（不涉及记忆提取）。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li><strong>优点</strong>：Session 可以独立工作，不需要记忆系统；便于单元测试</li>
+<li><strong>缺点</strong>：调用方需要知道哪些方法在未注入依赖时是空操作</li>
+<li><strong>设计意图</strong>：这是一个经典的&quot;依赖倒置&quot;实践——Session 不关心记忆系统如何实现，只关心&quot;能否提取记忆&quot;</li>
+</ul>
+<h3>4. 关系创建的副作用</h3>
+<p><strong>决策</strong>：<code>commit()</code> 会为每个 Usage 记录创建 <code>link</code> 关系。</p>
+<p><strong>权衡分析</strong>：</p>
+<ul>
+<li><strong>优点</strong>：自动建立会话与引用的上下文/技能之间的关系图，支持后续的&quot;血缘分析&quot;</li>
+<li><strong>缺点</strong>：如果 Usage 列表很大（比如引用了几十个资源），会触发几十次 <code>link</code> 调用，增加延迟</li>
+<li><strong>改进空间</strong>：可以改为批量 link，或者在后台异步执行</li>
+</ul>
+<hr />
+<h2>使用指南与最佳实践</h2>
+<h3>初始化 Session</h3>
+<pre><code class="language-python">from openviking.session.session import Session
+from openviking.storage.viking_fs import get_viking_fs
+
+viking_fs = get_viking_fs()
+session = Session(
+    viking_fs=viking_fs,
+    vikingdb_manager=vikingdb_manager,  # 可选
+    session_compressor=session_compressor,  # 可选
+    user=user_identifier,
+    auto_commit_threshold=8000  # 可自定义
+)
+await session.load()
+</code></pre>
+<h3>常规交互流程</h3>
+<pre><code class="language-python"># 用户发送消息
+session.add_message(
+    role=&quot;user&quot;,
+    parts=[TextPart(text=&quot;帮我写一个快速排序&quot;)]
+)
+
+# AI 响应
+session.add_message(
+    role=&quot;assistant&quot;,
+    parts=[
+        TextPart(text=&quot;好的，这里是快速排序的实现...&quot;),
+        ToolPart(tool_id=&quot;tool_code&quot;, tool_name=&quot;write_file&quot;, tool_input={&quot;path&quot;: &quot;quicksort.py&quot;})
+    ]
+)
+
+# 追踪引用的上下文
+session.used(contexts=[&quot;viking://memory/user/001&quot;, &quot;viking://resource/github/002&quot;])
+</code></pre>
+<h3>定期提交</h3>
+<pre><code class="language-python"># 在对话阶段结束时调用
+result = session.commit()
+print(f&quot;归档了 {result['archived']} 条消息，提取了 {result['memories_extracted']} 条记忆&quot;)
+</code></pre>
+<hr />
+<h2>边缘情况与陷阱</h2>
+<h3>1. 重复加载</h3>
+<p><code>load()</code> 方法有内置的 <code>_loaded</code> 标志，防止重复加载。但如果你手动修改了 <code>_messages</code> 列表并希望从磁盘恢复，需要先设置 <code>_loaded = False</code>。</p>
+<h3>2. 空会话提交</h3>
+<p>如果会话没有任何消息，<code>commit()</code> 会直接返回，不会执行归档或记忆提取。调用方需要注意处理这种&quot;空提交&quot;的情况。</p>
+<h3>3. 压缩索引不连续</h3>
+<p>如果历史目录中的归档文件被手动删除或重命名，<code>get_context_for_search</code> 在扫描时可能跳过这些归档。这是&quot;尽力而为&quot;的设计，不保证强一致性。</p>
+<h3>4. LLM 摘要失败</h3>
+<p><code>_generate_archive_summary</code> 在 LLM 不可用时会回退到简单的统计摘要：&quot;N turns, M messages&quot;。这确保了归档不会因为 LLM 调用失败而中断，但摘要的信息量会大打折扣。</p>
+<h3>5. 关系创建的异常吞噬</h3>
+<p><code>_write_relations</code> 中的 <code>link</code> 调用失败时只会记录警告，不会抛出异常。这意味着如果某些关系创建失败，会话提交仍然会&quot;成功&quot;，但关系图可能不完整。调用方如果需要强一致的关系创建，需要在 <code>commit()</code> 返回后自行检查。</p>
+<h3>6. 向量索引的最终一致性</h3>
+<p><code>SessionCompressor.extract_long_term_memories</code> 会将记忆入队到向量量化队列，但索引的更新是异步的。这意味着刚提取的记忆无法立即被语义搜索检索到，需要等待后台处理。</p>
+<hr />
+<h2>相关模块参考</h2>
+<ul>
+<li><strong><a href="./core-context-prompts-and-sessions-session-runtime-and-skill-discovery-session-compressor.html">session_compressor</a></strong>：记忆提取器，负责从归档消息中识别和提取长期记忆</li>
+<li><strong><a href="./storage-viking-fs.html">viking_fs</a></strong>：VikingFS 文件系统抽象层，Session 的大部分持久化操作都通过它完成</li>
+<li><strong><a href="./message-message.html">message</a></strong>：Message 和 Part 的数据结构定义</li>
+<li><strong><a href="./core-context-prompts-and-sessions-context-typing-and-levels.html">context_typing_and_levels</a></strong>：L0/L1/L2 上下文级别的定义，帮助理解会话在上下文系统中的位置</li>
+</ul>
+<hr />
+<h2>总结</h2>
+<p>Session 模块是 OpenViking 系统中连接&quot;即时对话&quot;与&quot;长期记忆&quot;的关键枢纽。它通过精心设计的状态机和持久化策略，在保证对话历史不丢失的同时，定期将累积的交互转化为可供检索的长期记忆。理解这个模块的关键在于把握它的&quot;双重角色&quot;：<strong>既是活跃对话的容器，又是历史归档的触发器</strong>。</p>
+<p>对于新加入的开发者，建议从 <code>commit()</code> 方法入手，理解一次完整的&quot;提交-归档-记忆提取&quot;流程，然后关注 <code>add_message</code> 的增量写盘逻辑——这是可靠性与性能权衡的最直接体现。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

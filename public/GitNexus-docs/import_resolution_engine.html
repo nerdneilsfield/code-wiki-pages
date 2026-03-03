@@ -1,0 +1,1399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>导入解析引擎 (Import Resolution Engine)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; GitNexus</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-gpt-5.3-codex<br>
+    <b>Generated:</b> 2026-02-27T19:25<br>
+    <b>Components:</b> 791<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/abhigyanpatwari/GitNexus" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/abhigyanpatwari/GitNexus" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_graph_types.html" class="nv">Core Graph Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_ingestion_parsing.html" class="nv">Core Ingestion Parsing</a>
+      <button class="nvcaret" data-nav="core_ingestion_parsing-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_ingestion_parsing-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="workers_parsing.html" class="nv">Workers Parsing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="parsing_processor_orchestration.html" class="nv">Parsing Processor Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ast_cache_management.html" class="nv">Ast Cache Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="filesystem_scanning_and_loading.html" class="nv">Filesystem Scanning And Loading</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_ingestion_resolution.html" class="nv">Core Ingestion Resolution</a>
+      <button class="nvcaret" data-nav="core_ingestion_resolution-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_ingestion_resolution-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="symbol_indexing.html" class="nv">Symbol Indexing</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="import_resolution.html" class="nv">Import Resolution</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="call_resolution.html" class="nv">Call Resolution</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="entry_point_intelligence.html" class="nv">Entry Point Intelligence</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_ingestion_community_and_process.html" class="nv">Core Ingestion Community And Process</a>
+      <button class="nvcaret" data-nav="core_ingestion_community_and_process-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_ingestion_community_and_process-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="community_detection.html" class="nv">Community Detection</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cluster_enrichment.html" class="nv">Cluster Enrichment</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="process_detection.html" class="nv">Process Detection</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_pipeline_types.html" class="nv">Core Pipeline Types</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_kuzu_storage.html" class="nv">Core Kuzu Storage</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_embeddings_and_search.html" class="nv">Core Embeddings And Search</a>
+      <button class="nvcaret" data-nav="core_embeddings_and_search-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_embeddings_and_search-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embeddings_types.html" class="nv">Embeddings Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="bm25_fulltext_search.html" class="nv">Bm25 Fulltext Search</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hybrid_rrf_search.html" class="nv">Hybrid Rrf Search</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="core_wiki_generator.html" class="nv">Core Wiki Generator</a>
+      <button class="nvcaret" data-nav="core_wiki_generator-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="core_wiki_generator-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="wiki_generation_orchestrator.html" class="nv">Wiki Generation Orchestrator</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_query_layer.html" class="nv">Graph Query Layer</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="llm_client_and_config.html" class="nv">Llm Client And Config</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="offline_html_viewer.html" class="nv">Offline Html Viewer</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+      <button class="nvcaret" data-nav="mcp_server-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="mcp_server-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="kuzu_connection_pool.html" class="nv">Kuzu Connection Pool</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="local_backend.html" class="nv">Local Backend</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="resource_system.html" class="nv">Resource System</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="staleness_detection.html" class="nv">Staleness Detection</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tool_definitions.html" class="nv">Tool Definitions</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="http_server.html" class="nv">Http Server</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="cli.html" class="nv">Cli</a>
+      <button class="nvcaret" data-nav="cli-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="cli-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="analyze_command.html" class="nv">Analyze Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ai_context_generation.html" class="nv">Ai Context Generation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="eval_server.html" class="nv">Eval Server</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="setup_command.html" class="nv">Setup Command</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="wiki_generation.html" class="nv">Wiki Generation</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="storage_repo_manager.html" class="nv">Storage Repo Manager</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_graph_types_and_rendering.html" class="nv">Web Graph Types And Rendering</a>
+      <button class="nvcaret" data-nav="web_graph_types_and_rendering-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_graph_types_and_rendering-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_domain_types.html" class="nv">Graph Domain Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graphology_sigma_adapter.html" class="nv">Graphology Sigma Adapter</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="sigma_runtime_hook.html" class="nv">Sigma Runtime Hook</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_canvas_interaction_layer.html" class="nv">Graph Canvas Interaction Layer</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_ingestion_pipeline.html" class="nv">Web Ingestion Pipeline</a>
+      <button class="nvcaret" data-nav="web_ingestion_pipeline-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_ingestion_pipeline-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="ast_cache_management.html" class="nv">Ast Cache Management</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="symbol_indexing_and_call_resolution.html" class="nv">Symbol Indexing And Call Resolution</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="community_detection.html" class="nv">Community Detection</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="cluster_enrichment.html" class="nv">Cluster Enrichment</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="process_detection_and_entry_scoring.html" class="nv">Process Detection And Entry Scoring</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_pipeline_and_storage.html" class="nv">Web Pipeline And Storage</a>
+      <button class="nvcaret" data-nav="web_pipeline_and_storage-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_pipeline_and_storage-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="pipeline_result_transport.html" class="nv">Pipeline Result Transport</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="kuzu_csv_generation.html" class="nv">Kuzu Csv Generation</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="kuzu_wasm_type_bindings.html" class="nv">Kuzu Wasm Type Bindings</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_embeddings_and_search.html" class="nv">Web Embeddings And Search</a>
+      <button class="nvcaret" data-nav="web_embeddings_and_search-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_embeddings_and_search-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="embeddings_types.html" class="nv">Embeddings Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="bm25_fulltext_search.html" class="nv">Bm25 Fulltext Search</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hybrid_rrf_search.html" class="nv">Hybrid Rrf Search</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_llm_agent.html" class="nv">Web Llm Agent</a>
+      <button class="nvcaret" data-nav="web_llm_agent-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_llm_agent-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="llm_provider_and_message_types.html" class="nv">Llm Provider And Message Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_factory_and_streaming.html" class="nv">Agent Factory And Streaming</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="dynamic_context_builder.html" class="nv">Dynamic Context Builder</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_app_state_and_ui.html" class="nv">Web App State And Ui</a>
+      <button class="nvcaret" data-nav="web_app_state_and_ui-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_app_state_and_ui-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="app_state_orchestration.html" class="nv">App State Orchestration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_connectivity_hook.html" class="nv">Backend Connectivity Hook</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="code_references_ui_panel.html" class="nv">Code References Ui Panel</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mermaid_rendering_component.html" class="nv">Mermaid Rendering Component</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mermaid_process_modeling.html" class="nv">Mermaid Process Modeling</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="web_backend_services.html" class="nv">Web Backend Services</a>
+      <button class="nvcaret" data-nav="web_backend_services-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="web_backend_services-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="backend_http_client.html" class="nv">Backend Http Client</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="server_connection_workflow.html" class="nv">Server Connection Workflow</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="zip_archive_extraction.html" class="nv">Zip Archive Extraction</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="eval_framework.html" class="nv">Eval Framework</a>
+      <button class="nvcaret" data-nav="eval_framework-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="eval_framework-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="agent_runtime_and_metrics.html" class="nv">Agent Runtime And Metrics</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="mcp_bridge_and_cli.html" class="nv">Mcp Bridge And Cli</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="docker_environment_and_tooling.html" class="nv">Docker Environment And Tooling</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>导入解析引擎 (Import Resolution Engine)</h1>
+<h2>概述</h2>
+<p>导入解析引擎是 GitNexus 代码知识图谱构建流程中的核心组件，负责将源代码中的导入语句（import statements）解析并转换为图谱中的文件依赖关系。该模块位于 <code>core_ingestion_resolution</code> 子系统中，与 <a href="symbol_table_management.html">符号表管理</a> 和 <a href="call_resolution_engine.html">调用解析引擎</a> 共同构成了代码静态分析的三大支柱。</p>
+<p>在现代软件项目中，文件之间的导入关系构成了代码库的骨架结构。准确解析这些关系对于理解代码架构、识别模块边界、追踪依赖传播以及进行影响分析至关重要。然而，不同编程语言有着截然不同的导入语法和解析规则——TypeScript 使用路径别名、Go 使用模块路径、PHP 使用 PSR-4 命名空间、Rust 使用模块路径语法、Java 支持通配符导入等。导入解析引擎的设计目标就是统一处理这些语言差异，提供高效、准确的跨语言导入解析能力。</p>
+<p>该模块的核心设计理念是<strong>预构建查找结构、语言特定预处理、通用解析回退</strong>。通过在所有文件解析前构建后缀索引（Suffix Index）和解析缓存（Resolve Cache），将每次导入查找的时间复杂度从 O(n) 降低到 O(1)，使得在大型代码库（数十万文件）中的导入解析依然保持高效。同时，模块针对每种支持的语言实现了特定的解析逻辑，确保能够正确处理语言特有的导入模式。</p>
+<h2>架构设计</h2>
+<h3>组件关系图</h3>
+<div class="mermaid">graph TB
+    subgraph "导入解析引擎核心"
+        IRC[ImportResolutionContext<br/>解析上下文]
+        SI[SuffixIndex<br/>后缀索引]
+        RC[ResolveCache<br/>解析缓存]
+    end
+    
+    subgraph "语言配置加载器"
+        TSC[TsconfigPaths<br/>TS 路径别名]
+        GMC[GoModuleConfig<br/>Go 模块路径]
+        CC[ComposerConfig<br/>PHP PSR-4]
+    end
+    
+    subgraph "解析策略"
+        RR[resolveImportPath<br/>通用解析]
+        RJ[resolveJavaWildcard<br/>Java 通配符]
+        RG[resolveGoPackage<br/>Go 包解析]
+        RP[resolvePhpImport<br/>PHP 命名空间]
+        RUST[resolveRustImport<br/>Rust 模块]
+    end
+    
+    subgraph "外部依赖"
+        KG[KnowledgeGraph<br/>知识图谱]
+        AST[ASTCache<br/>AST 缓存]
+        IM[ImportMap<br/>导入映射]
+        PQ[LANGUAGE_QUERIES<br/>Tree-sitter 查询]
+    end
+    
+    IRC --> SI
+    IRC --> RC
+    TSC --> RR
+    GMC --> RG
+    CC --> RP
+    
+    RR --> KG
+    RJ --> KG
+    RG --> KG
+    RP --> KG
+    RUST --> KG
+    
+    AST --> PQ
+    PQ --> RR
+    KG --> IM
+    
+    style IRC fill:#e1f5fe
+    style SI fill:#fff3e0
+    style RC fill:#fff3e0
+    style KG fill:#e8f5e9
+</div>
+<h3>数据流图</h3>
+<div class="mermaid">sequenceDiagram
+    participant Client as 调用方
+    participant Engine as processImports
+    participant Config as 配置加载器
+    participant Index as 后缀索引
+    participant Resolver as 路径解析器
+    participant Graph as KnowledgeGraph
+    
+    Client->>Engine: 文件列表 + ASTCache
+    Engine->>Config: 加载 tsconfig.json
+    Engine->>Config: 加载 go.mod
+    Engine->>Config: 加载 composer.json
+    Config-->>Engine: 语言特定配置
+    Engine->>Index: 构建后缀索引
+    Index-->>Engine: SuffixIndex 实例
+    
+    loop 每个文件
+        Engine->>Engine: 获取 Tree-sitter 查询
+        Engine->>Engine: 匹配 import 捕获
+        loop 每个导入语句
+            Engine->>Resolver: resolveImportPath
+            alt TypeScript/JavaScript
+                Resolver->>Resolver: 应用 tsconfig 路径别名
+            else Rust
+                Resolver->>Resolver: 转换 crate::/super::/self::
+            else Java 通配符
+                Resolver->>Resolver: resolveJavaWildcard
+            else Go 包导入
+                Resolver->>Resolver: resolveGoPackage
+            else PHP 命名空间
+                Resolver->>Resolver: resolvePhpImport
+            end
+            Resolver->>Index: 后缀匹配查找
+            Index-->>Resolver: 解析结果或 null
+            Resolver-->>Engine: 解析后的文件路径
+            Engine->>Graph: 添加 IMPORTS 关系
+            Engine->>Engine: 更新 ImportMap
+        end
+    end
+    
+    Engine-->>Client: 填充后的 KnowledgeGraph
+</div>
+<h3>核心接口定义</h3>
+<pre><code class="language-typescript">// 导入解析上下文 - 预构建的查找结构
+export interface ImportResolutionContext {
+  allFilePaths: Set&lt;string&gt;;        // 所有文件路径集合
+  allFileList: string[];            // 所有文件路径列表
+  normalizedFileList: string[];     // 标准化路径列表（正斜杠）
+  suffixIndex: SuffixIndex;         // 后缀索引用于 O(1) 查找
+  resolveCache: Map&lt;string, string | null&gt;;  // 解析结果缓存
+}
+
+// 后缀索引接口
+export interface SuffixIndex {
+  get(suffix: string): string | undefined;           // 精确后缀查找
+  getInsensitive(suffix: string): string | undefined; // 不区分大小写查找
+  getFilesInDir(dirSuffix: string, extension: string): string[]; // 获取目录下文件
+}
+
+// TypeScript 路径别名配置
+interface TsconfigPaths {
+  aliases: Map&lt;string, string&gt;;  // 别名前缀 -&gt; 目标前缀
+  baseUrl: string;               // 路径解析基准目录
+}
+
+// Go 模块配置
+interface GoModuleConfig {
+  modulePath: string;  // 模块路径如 &quot;github.com/user/repo&quot;
+}
+
+// PHP Composer PSR-4 配置
+interface ComposerConfig {
+  psr4: Map&lt;string, string&gt;;  // 命名空间前缀 -&gt; 目录
+}
+</code></pre>
+<h2>核心组件详解</h2>
+<h3>ImportResolutionContext（导入解析上下文）</h3>
+<p><code>ImportResolutionContext</code> 是导入解析引擎的核心数据结构，它在解析开始前一次性构建所有必要的查找结构，供后续所有导入解析操作复用。这种设计避免了在每个文件解析时重复构建相同的数据结构，显著提升了大规模代码库的处理效率。</p>
+<p><strong>构建过程</strong>通过 <code>buildImportResolutionContext</code> 函数完成，该函数接收仓库中所有文件的路径列表，执行以下操作：</p>
+<ol>
+<li><strong>路径标准化</strong>：将所有文件路径中的反斜杠（Windows 风格）转换为正斜杠，确保后续比较的一致性</li>
+<li><strong>集合构建</strong>：创建 <code>Set</code> 用于 O(1) 的成员检查</li>
+<li><strong>后缀索引构建</strong>：调用 <code>buildSuffixIndex</code> 创建高效的_suffix 查找结构_</li>
+<li><strong>缓存初始化</strong>：创建空的解析缓存 <code>Map</code></li>
+</ol>
+<p><strong>内存管理策略</strong>：解析缓存设置了 100,000 条目的上限（约 15MB 内存）。当达到上限时，系统会驱逐最旧的 20% 条目而非清空整个缓存，这种渐进式驱逐策略保持了热点数据的缓存命中率，同时防止内存无限增长。</p>
+<pre><code class="language-typescript">const RESOLVE_CACHE_CAP = 100_000;
+
+export function buildImportResolutionContext(allPaths: string[]): ImportResolutionContext {
+  const allFileList = allPaths;
+  const normalizedFileList = allFileList.map(p =&gt; p.replace(/\\/g, '/'));
+  const allFilePaths = new Set(allFileList);
+  const suffixIndex = buildSuffixIndex(normalizedFileList, allFileList);
+  return { allFilePaths, allFileList, normalizedFileList, suffixIndex, resolveCache: new Map() };
+}
+</code></pre>
+<h3>SuffixIndex（后缀索引）</h3>
+<p><code>SuffixIndex</code> 是导入解析引擎的性能关键组件，它通过预计算所有可能的路径后缀来实现 O(1) 时间复杂度的导入路径查找。</p>
+<p><strong>索引构建原理</strong>：对于每个文件路径，索引会生成所有可能的后缀变体。例如，对于文件 <code>src/com/example/Foo.java</code>，会创建以下索引条目：</p>
+<table>
+<thead>
+<tr>
+<th>后缀键</th>
+<th>映射到</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Foo.java</code></td>
+<td><code>src/com/example/Foo.java</code></td>
+</tr>
+<tr>
+<td><code>example/Foo.java</code></td>
+<td><code>src/com/example/Foo.java</code></td>
+</tr>
+<tr>
+<td><code>com/example/Foo.java</code></td>
+<td><code>src/com/example/Foo.java</code></td>
+</tr>
+<tr>
+<td><code>src/com/example/Foo.java</code></td>
+<td><code>src/com/example/Foo.java</code></td>
+</tr>
+</tbody>
+</table>
+<p>这种设计使得无论导入语句使用何种路径深度（<code>import Foo</code>、<code>import example.Foo</code> 或 <code>import com.example.Foo</code>），都能快速定位到目标文件。</p>
+<p><strong>目录成员索引</strong>：除了单文件后缀索引，<code>SuffixIndex</code> 还维护了目录到文件的映射，键格式为 <code>目录后缀：扩展名</code>。这对于 Java 通配符导入（<code>import com.example.*</code>）和 Go 包导入特别有用，可以快速获取某个包目录下的所有源文件。</p>
+<pre><code class="language-typescript">function buildSuffixIndex(normalizedFileList: string[], allFileList: string[]): SuffixIndex {
+  const exactMap = new Map&lt;string, string&gt;();
+  const lowerMap = new Map&lt;string, string&gt;();
+  const dirMap = new Map&lt;string, string[]&gt;();
+
+  for (let i = 0; i &lt; normalizedFileList.length; i++) {
+    const normalized = normalizedFileList[i];
+    const original = allFileList[i];
+    const parts = normalized.split('/');
+
+    // 索引所有后缀
+    for (let j = parts.length - 1; j &gt;= 0; j--) {
+      const suffix = parts.slice(j).join('/');
+      if (!exactMap.has(suffix)) {
+        exactMap.set(suffix, original);
+      }
+      const lower = suffix.toLowerCase();
+      if (!lowerMap.has(lower)) {
+        lowerMap.set(lower, original);
+      }
+    }
+
+    // 索引目录成员
+    const lastSlash = normalized.lastIndexOf('/');
+    if (lastSlash &gt;= 0) {
+      const dirParts = parts.slice(0, -1);
+      const fileName = parts[parts.length - 1];
+      const ext = fileName.substring(fileName.lastIndexOf('.'));
+
+      for (let j = dirParts.length - 1; j &gt;= 0; j--) {
+        const dirSuffix = dirParts.slice(j).join('/');
+        const key = `${dirSuffix}:${ext}`;
+        let list = dirMap.get(key);
+        if (!list) {
+          list = [];
+          dirMap.set(key, list);
+        }
+        list.push(original);
+      }
+    }
+  }
+
+  return {
+    get: (suffix: string) =&gt; exactMap.get(suffix),
+    getInsensitive: (suffix: string) =&gt; lowerMap.get(suffix.toLowerCase()),
+    getFilesInDir: (dirSuffix: string, extension: string) =&gt; {
+      return dirMap.get(`${dirSuffix}:${extension}`) || [];
+    },
+  };
+}
+</code></pre>
+<p><strong>性能对比</strong>：在没有后缀索引的情况下，解析一个导入需要遍历所有文件进行后缀匹配，时间复杂度为 O(n)。使用后缀索引后，查找时间降为 O(1)。对于包含 100,000 个文件的代码库，假设每个文件平均有 20 个导入，总导入数为 2,000,000，使用索引可将查找操作从 2000 亿次比较减少到 200 万次，性能提升约 100,000 倍。</p>
+<h3>resolveImportPath（通用路径解析）</h3>
+<p><code>resolveImportPath</code> 函数是导入解析的核心逻辑，它处理大多数语言的通用导入解析流程。该函数采用多层解析策略，按优先级依次尝试：</p>
+<p><strong>第一层：语言特定预处理</strong></p>
+<ul>
+<li><strong>TypeScript/JavaScript</strong>：检查 <code>tsconfig.json</code> 中的路径别名配置，将 <code>@/utils/helper</code> 重写为 <code>src/utils/helper</code></li>
+<li><strong>Rust</strong>：将 <code>crate::</code>、<code>super::</code>、<code>self::</code> 模块路径转换为文件系统路径</li>
+</ul>
+<p><strong>第二层：相对路径解析</strong></p>
+<p>对于以 <code>.</code> 或 <code>..</code> 开头的导入，函数基于当前文件目录解析相对路径，然后尝试添加各种文件扩展名进行匹配。</p>
+<p><strong>第三层：包/绝对路径解析</strong></p>
+<p>对于不带相对前缀的导入（如 <code>lodash</code>、<code>com.example.Service</code>），函数将点号转换为斜杠，然后使用后缀索引进行查找。</p>
+<p><strong>扩展名尝试列表</strong>：</p>
+<pre><code class="language-typescript">const EXTENSIONS = [
+  '',
+  // TypeScript/JavaScript
+  '.tsx', '.ts', '.jsx', '.js', '/index.tsx', '/index.ts', '/index.jsx', '/index.js',
+  // Python
+  '.py', '/__init__.py',
+  // Java
+  '.java',
+  // C/C++
+  '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.hxx', '.hh',
+  // C#
+  '.cs',
+  // Go
+  '.go',
+  // Rust
+  '.rs', '/mod.rs',
+  // PHP
+  '.php', '.phtml',
+];
+</code></pre>
+<p><strong>缓存机制</strong>：每个解析请求都使用 <code>currentFile::importPath</code> 作为缓存键。缓存命中时直接返回结果，避免重复解析。缓存驱逐采用 LRU 策略的简化版本——当达到容量上限时，移除最旧的 20% 条目。</p>
+<h3>语言特定解析器</h3>
+<h4>TsconfigPaths（TypeScript 路径别名）</h4>
+<p>TypeScript 项目通常在 <code>tsconfig.json</code> 中配置路径别名，如：</p>
+<pre><code class="language-json">{
+  &quot;compilerOptions&quot;: {
+    &quot;baseUrl&quot;: &quot;.&quot;,
+    &quot;paths&quot;: {
+      &quot;@/*&quot;: [&quot;src/*&quot;],
+      &quot;@utils/*&quot;: [&quot;src/utils/*&quot;],
+      &quot;@components/*&quot;: [&quot;src/components/*&quot;]
+    }
+  }
+}
+</code></pre>
+<p><code>loadTsconfigPaths</code> 函数按顺序尝试加载 <code>tsconfig.json</code>、<code>tsconfig.app.json</code>、<code>tsconfig.base.json</code>，解析其中的 <code>paths</code> 配置并转换为 <code>Map&lt;string, string&gt;</code> 格式。解析时会处理通配符模式，将 <code>@/*</code> 转换为 <code>@/</code> 前缀映射到 <code>src/</code> 前缀。</p>
+<p><strong>解析示例</strong>：</p>
+<pre><code class="language-typescript">// 导入语句
+import { helper } from '@/utils/helper';
+
+// tsconfig 配置
+aliases: { '@/' -&gt; 'src/' }
+
+// 解析过程
+1. 检测到 '@' 前缀匹配
+2. 提取剩余部分：'/utils/helper'
+3. 重写路径：'src/' + '/utils/helper' = 'src/utils/helper'
+4. 尝试扩展名：src/utils/helper.ts ✓
+</code></pre>
+<h4>GoModuleConfig（Go 模块路径）</h4>
+<p>Go 使用模块路径来标识内部包，如 <code>github.com/user/repo/internal/auth</code>。<code>loadGoModulePath</code> 函数解析 <code>go.mod</code> 文件提取模块路径：</p>
+<pre><code class="language-go">// go.mod
+module github.com/user/repo
+
+go 1.21
+</code></pre>
+<p><code>resolveGoPackage</code> 函数处理 Go 包导入时，会：</p>
+<ol>
+<li>验证导入路径是否以模块路径开头</li>
+<li>提取相对包路径（如 <code>internal/auth</code>）</li>
+<li>使用目录索引获取该包目录下所有 <code>.go</code> 文件（排除 <code>_test.go</code> 测试文件）</li>
+<li>为每个文件创建 <code>IMPORTS</code> 关系</li>
+</ol>
+<p><strong>重要特性</strong>：Go 包导入解析返回<strong>多个文件</strong>而非单个文件，因为一个包由多个源文件组成。</p>
+<h4>ComposerConfig（PHP PSR-4）</h4>
+<p>PHP 的 PSR-4 自动加载规范将命名空间映射到目录结构。<code>loadComposerConfig</code> 函数解析 <code>composer.json</code> 中的 <code>autoload.psr-4</code> 和 <code>autoload-dev.psr-4</code> 配置：</p>
+<pre><code class="language-json">{
+  &quot;autoload&quot;: {
+    &quot;psr-4&quot;: {
+      &quot;App\\&quot;: &quot;app/&quot;,
+      &quot;Database\\&quot;: &quot;database/&quot;
+    }
+  },
+  &quot;autoload-dev&quot;: {
+    &quot;psr-4&quot;: {
+      &quot;Tests\\&quot;: &quot;tests/&quot;
+    }
+  }
+}
+</code></pre>
+<p><code>resolvePhpImport</code> 函数按命名空间长度降序排序（最长匹配优先），将 <code>App\Http\Controllers\UserController</code> 转换为 <code>app/Http/Controllers/UserController.php</code>。</p>
+<h4>resolveRustImport（Rust 模块路径）</h4>
+<p>Rust 使用独特的模块路径语法：</p>
+<table>
+<thead>
+<tr>
+<th>前缀</th>
+<th>含义</th>
+<th>解析策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>crate::</code></td>
+<td>从 crate 根目录</td>
+<td>从 <code>src/</code> 开始解析</td>
+</tr>
+<tr>
+<td><code>super::</code></td>
+<td>父模块</td>
+<td>当前文件目录的父目录</td>
+</tr>
+<tr>
+<td><code>self::</code></td>
+<td>当前模块</td>
+<td>当前文件所在目录</td>
+</tr>
+<tr>
+<td>无前缀</td>
+<td>相对路径</td>
+<td>直接转换 <code>::</code> 为 <code>/</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>tryRustModulePath</code> 函数尝试多种 Rust 模块文件命名约定：</p>
+<ol>
+<li><code>path.rs</code> - 单文件模块</li>
+<li><code>path/mod.rs</code> - 目录模块</li>
+<li><code>path/lib.rs</code> - crate 根模块</li>
+<li>移除最后一段后重试（最后一段可能是符号名而非模块名）</li>
+</ol>
+<h4>resolveJavaWildcard（Java 通配符导入）</h4>
+<p>Java 支持通配符导入（<code>import com.example.*</code>）和静态导入（<code>import static com.example.Constants.VALUE</code>）。这些导入需要特殊处理：</p>
+<p><strong>通配符导入</strong>：<code>resolveJavaWildcard</code> 函数将 <code>com.example.*</code> 转换为目录路径 <code>com/example/</code>，然后使用 <code>SuffixIndex.getFilesInDir</code> 获取该目录下所有 <code>.java</code> 文件。函数会过滤掉子目录中的文件，只保留直接子文件。</p>
+<p><strong>静态导入</strong>：<code>resolveJavaStaticImport</code> 函数识别静态导入模式（最后一段为小写或全大写常量名），移除成员名后解析类文件。例如 <code>com.example.Constants.VALUE</code> 被解析为 <code>com/example/Constants.java</code>。</p>
+<h2>主处理流程</h2>
+<h3>processImports 函数</h3>
+<p><code>processImports</code> 是导入解析引擎的主要入口函数，它处理文件内容并提取导入关系。</p>
+<p><strong>函数签名</strong>：</p>
+<pre><code class="language-typescript">export const processImports = async (
+  graph: KnowledgeGraph,
+  files: { path: string; content: string }[],
+  astCache: ASTCache,
+  importMap: ImportMap,
+  onProgress?: (current: number, total: number) =&gt; void,
+  repoRoot?: string,
+  allPaths?: string[],
+) =&gt; Promise&lt;void&gt;
+</code></pre>
+<p><strong>参数说明</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>graph</code></td>
+<td><code>KnowledgeGraph</code></td>
+<td>目标知识图谱，导入关系将添加到此图谱</td>
+</tr>
+<tr>
+<td><code>files</code></td>
+<td><code>Array&lt;{path, content}&gt;</code></td>
+<td>待处理的文件列表（当前批次）</td>
+</tr>
+<tr>
+<td><code>astCache</code></td>
+<td><code>ASTCache</code></td>
+<td>AST 缓存，避免重复解析同一文件</td>
+</tr>
+<tr>
+<td><code>importMap</code></td>
+<td><code>ImportMap</code></td>
+<td>导入映射表，记录每个文件的导入目标</td>
+</tr>
+<tr>
+<td><code>onProgress</code></td>
+<td><code>Function</code></td>
+<td>进度回调函数</td>
+</tr>
+<tr>
+<td><code>repoRoot</code></td>
+<td><code>string</code></td>
+<td>仓库根目录，用于加载语言配置文件</td>
+</tr>
+<tr>
+<td><code>allPaths</code></td>
+<td><code>string[]</code></td>
+<td>完整仓库文件列表，用于跨批次解析</td>
+</tr>
+</tbody>
+</table>
+<p><strong>处理流程</strong>：</p>
+<div class="mermaid">flowchart TD
+    Start[开始] --> Init[初始化配置]
+    Init --> LoadTS[加载 tsconfig.json]
+    Init --> LoadGo[加载 go.mod]
+    Init --> LoadComposer[加载 composer.json]
+    
+    LoadTS --> BuildIndex[构建后缀索引]
+    LoadGo --> BuildIndex
+    LoadComposer --> BuildIndex
+    
+    BuildIndex --> LoopFiles{遍历文件}
+    LoopFiles -->|下一个文件 | GetLang[获取语言类型]
+    GetLang --> CheckLang{语言支持？}
+    CheckLang -->|否 | LoopFiles
+    CheckLang -->|是 | LoadLang[加载语言]
+    
+    LoadLang --> GetAST[获取 AST<br/>缓存或解析]
+    GetAST --> Query[执行 Tree-sitter 查询]
+    Query --> Match{有匹配？}
+    Match -->|否 | LoopFiles
+    Match -->|是 | ExtractImport[提取导入路径]
+    
+    ExtractImport --> LangCheck{语言类型}
+    LangCheck -->|Java 通配符 | ResolveJava[resolveJavaWildcard]
+    LangCheck -->|Go 包导入 | ResolveGo[resolveGoPackage]
+    LangCheck -->|PHP 命名空间 | ResolvePhp[resolvePhpImport]
+    LangCheck -->|其他 | ResolveGeneric[resolveImportPath]
+    
+    ResolveJava --> AddEdge[添加 IMPORTS 关系]
+    ResolveGo --> AddEdge
+    ResolvePhp --> AddEdge
+    ResolveGeneric --> AddEdge
+    
+    AddEdge --> UpdateMap[更新 ImportMap]
+    UpdateMap --> LoopFiles
+    
+    LoopFiles -->|完成 | End[结束]
+</div>
+<p><strong>关键实现细节</strong>：</p>
+<ol>
+<li>
+<p><strong>AST 缓存复用</strong>：函数首先检查 <code>astCache</code> 中是否已有该文件的 AST。如果有则直接使用，否则解析并缓存。这确保了后续的调用解析和继承关系解析阶段可以复用已解析的 AST。</p>
+</li>
+<li>
+<p><strong>Tree-sitter 查询</strong>：使用 <code>LANGUAGE_QUERIES</code> 中预定义的查询字符串匹配导入语句。查询会捕获 <code>import</code> 节点和 <code>import.source</code> 节点。</p>
+</li>
+<li>
+<p><strong>错误处理</strong>：解析和查询错误会被捕获并记录（开发模式下），但不会中断整体处理流程。</p>
+</li>
+<li>
+<p><strong>事件循环让出</strong>：每处理 20 个文件调用一次 <code>yieldToEventLoop()</code>，防止阻塞主线程。</p>
+</li>
+</ol>
+<h3>processImportsFromExtracted 函数</h3>
+<p><code>processImportsFromExtracted</code> 是快速路径处理函数，它直接处理预提取的导入信息，无需重新解析文件内容。这在分布式处理或增量更新场景中非常有用。</p>
+<p><strong>函数签名</strong>：</p>
+<pre><code class="language-typescript">export const processImportsFromExtracted = async (
+  graph: KnowledgeGraph,
+  files: { path: string }[],
+  extractedImports: ExtractedImport[],
+  importMap: ImportMap,
+  onProgress?: (current: number, total: number) =&gt; void,
+  repoRoot?: string,
+  prebuiltCtx?: ImportResolutionContext,
+) =&gt; Promise&lt;void&gt;
+</code></pre>
+<p><strong>与 processImports 的区别</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>processImports</th>
+<th>processImportsFromExtracted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>输入</td>
+<td>文件内容</td>
+<td>预提取的导入列表</td>
+</tr>
+<tr>
+<td>AST 解析</td>
+<td>需要</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>Tree-sitter 查询</td>
+<td>需要</td>
+<td>不需要</td>
+</tr>
+<tr>
+<td>性能</td>
+<td>较慢（需解析）</td>
+<td>较快（直接使用）</td>
+</tr>
+<tr>
+<td>使用场景</td>
+<td>首次完整处理</td>
+<td>增量更新/分布式处理</td>
+</tr>
+</tbody>
+</table>
+<p><strong>预构建上下文</strong>：该函数支持传入预构建的 <code>ImportResolutionContext</code>，允许在多个处理批次间复用查找结构，进一步提升效率。</p>
+<h2>使用示例</h2>
+<h3>基本使用</h3>
+<pre><code class="language-typescript">import { KnowledgeGraph } from '../graph/types.js';
+import { ASTCache } from './ast-cache.js';
+import { processImports, createImportMap, buildImportResolutionContext } from './import-processor.js';
+
+// 创建图谱和缓存
+const graph = new KnowledgeGraph();
+const astCache = new ASTCache();
+const importMap = createImportMap();
+
+// 准备文件列表
+const files = [
+  { path: 'src/main.ts', content: 'import { helper } from &quot;@/utils&quot;; ...' },
+  { path: 'src/utils/index.ts', content: 'export * from &quot;./helper&quot;; ...' },
+  { path: 'src/utils/helper.ts', content: 'export function helper() {}' },
+];
+
+// 构建解析上下文（可选，用于跨批次复用）
+const allPaths = files.map(f =&gt; f.path);
+const ctx = buildImportResolutionContext(allPaths);
+
+// 执行导入解析
+await processImports(
+  graph,
+  files,
+  astCache,
+  importMap,
+  (current, total) =&gt; console.log(`进度：${current}/${total}`),
+  '/path/to/repo',  // 仓库根目录
+  allPaths          // 完整文件列表
+);
+
+// 查看结果
+console.log('导入关系数量:', graph.relationships.length);
+console.log('导入映射:', importMap);
+</code></pre>
+<h3>使用预提取导入</h3>
+<pre><code class="language-typescript">import { processImportsFromExtracted } from './import-processor.js';
+import type { ExtractedImport } from './workers/parse-worker.js';
+
+// 预提取的导入（来自之前的解析或远程处理）
+const extractedImports: ExtractedImport[] = [
+  { filePath: 'src/main.ts', rawImportPath: '@/utils', language: 'typescript' },
+  { filePath: 'src/main.ts', rawImportPath: 'lodash', language: 'typescript' },
+];
+
+// 预构建解析上下文
+const ctx = buildImportResolutionContext(allPaths);
+
+// 快速处理
+await processImportsFromExtracted(
+  graph,
+  files,
+  extractedImports,
+  importMap,
+  undefined,
+  '/path/to/repo',
+  ctx  // 复用预构建的上下文
+);
+</code></pre>
+<h3>自定义语言配置</h3>
+<pre><code class="language-typescript">// 加载自定义 tsconfig 路径
+const tsconfigPaths = await loadTsconfigPaths('/custom/path');
+
+// 手动构建解析上下文
+const ctx: ImportResolutionContext = {
+  allFilePaths: new Set(allPaths),
+  allFileList: allPaths,
+  normalizedFileList: allPaths.map(p =&gt; p.replace(/\\/g, '/')),
+  suffixIndex: buildSuffixIndex(normalizedFileList, allPaths),
+  resolveCache: new Map(),
+};
+
+// 使用自定义配置进行解析
+// ... 调用 processImports 或 processImportsFromExtracted
+</code></pre>
+<h2>配置选项</h2>
+<h3>仓库根目录 (repoRoot)</h3>
+<p><code>repoRoot</code> 参数指定仓库的根目录路径，用于加载语言特定的配置文件：</p>
+<table>
+<thead>
+<tr>
+<th>语言</th>
+<th>配置文件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TypeScript/JavaScript</td>
+<td><code>tsconfig.json</code></td>
+<td>路径别名解析</td>
+</tr>
+<tr>
+<td>Go</td>
+<td><code>go.mod</code></td>
+<td>模块路径解析</td>
+</tr>
+<tr>
+<td>PHP</td>
+<td><code>composer.json</code></td>
+<td>PSR-4 命名空间映射</td>
+</tr>
+</tbody>
+</table>
+<p>如果未提供 <code>repoRoot</code>，函数将使用空字符串，导致无法加载这些配置文件，但基本的路径解析仍然可用。</p>
+<h3>完整文件列表 (allPaths)</h3>
+<p><code>allPaths</code> 参数提供仓库中所有文件的路径列表。当处理分批次文件时，此参数确保导入解析可以跨批次进行——即当前批次的文件可以解析到之前或之后批次中的文件。</p>
+<p><strong>推荐用法</strong>：始终传入完整的仓库文件列表，即使当前只处理部分文件。</p>
+<h3>进度回调 (onProgress)</h3>
+<p><code>onProgress</code> 回调函数用于报告处理进度，签名如下：</p>
+<pre><code class="language-typescript">type ProgressCallback = (current: number, total: number) =&gt; void;
+</code></pre>
+<p><strong>注意</strong>：在 <code>processImports</code> 中，进度基于文件数量；在 <code>processImportsFromExtracted</code> 中，进度也基于文件数量（而非导入数量），这样用户看到的是更直观的文件处理进度。</p>
+<h2>与其他模块的集成</h2>
+<h3>与知识图谱的集成</h3>
+<p>导入解析引擎通过 <code>KnowledgeGraph.addRelationship</code> 方法将解析结果添加到图谱中。每个导入关系包含：</p>
+<pre><code class="language-typescript">{
+  id: 'IMPORTS:src/main.ts-&gt;src/utils/helper.ts',
+  sourceId: 'File:src/main.ts',
+  targetId: 'File:src/utils/helper.ts',
+  type: 'IMPORTS',
+  confidence: 1.0,
+  reason: ''
+}
+</code></pre>
+<p>这些关系可以被后续的图谱查询、可视化和分析功能使用。参考 <a href="core_graph_types.html">core_graph_types</a> 了解图谱数据结构的详细信息。</p>
+<h3>与 AST 缓存的集成</h3>
+<p>导入解析引擎与 <a href="core_ingestion_parsing.html">core_ingestion_parsing</a> 中的 <code>ASTCache</code> 紧密集成：</p>
+<ol>
+<li><strong>缓存检查</strong>：首先检查 AST 缓存中是否已有该文件的 AST</li>
+<li><strong>按需解析</strong>：如果缓存未命中，使用 Tree-sitter 解析并缓存</li>
+<li><strong>缓存复用</strong>：解析后的 AST 保留在缓存中，供调用解析和继承关系解析使用</li>
+</ol>
+<p>这种设计避免了同一文件的重复解析，显著提升了整体处理效率。</p>
+<h3>与符号表的集成</h3>
+<p>导入解析完成后，<a href="symbol_table_management.html">符号表管理</a> 模块使用导入映射来解析跨文件的符号引用。当文件 A 导入文件 B 时，文件 A 中的符号可以引用文件 B 中导出的符号。</p>
+<h3>与调用解析的集成</h3>
+<p><a href="call_resolution_engine.html">调用解析引擎</a> 使用导入映射来确定跨文件调用的目标。当文件 A 中的函数调用文件 B 中的函数时，导入关系提供了必要的上下文来解析调用目标。</p>
+<h2>边缘情况与限制</h2>
+<h3>外部依赖处理</h3>
+<p>导入解析引擎<strong>仅解析仓库内部的文件导入</strong>。外部依赖（如 npm 包、Go 模块、Maven 依赖）不会被解析为图谱关系。这些导入的解析结果为 <code>null</code>，不会添加到图谱中。</p>
+<p><strong>影响</strong>：图谱中的导入关系仅反映内部代码结构，不包含第三方依赖。如需分析外部依赖，需要集成包管理器元数据。</p>
+<h3>循环导入</h3>
+<p>循环导入（A 导入 B，B 导入 A）在技术上是允许的，不会导致解析错误。图谱中会创建双向的 <code>IMPORTS</code> 关系。</p>
+<p><strong>注意</strong>：循环导入可能表示代码设计问题，但解析引擎不会检测或报告此类问题。</p>
+<h3>模糊路径匹配</h3>
+<p>当多个文件具有相同的后缀时，后缀索引只保留第一个匹配（最长路径优先）。例如：</p>
+<pre><code>src/utils/helper.ts
+src/components/utils/helper.ts
+</code></pre>
+<p>导入 <code>utils/helper</code> 会匹配到 <code>src/utils/helper.ts</code>，因为它的后缀先被索引。</p>
+<p><strong>缓解策略</strong>：使用更具体的导入路径（包含更多目录层级）可以减少歧义。</p>
+<h3>大小写敏感性</h3>
+<p>后缀索引同时维护精确匹配和不区分大小写匹配。解析时优先尝试精确匹配，失败后尝试不区分大小写匹配。</p>
+<p><strong>平台差异</strong>：在大小写不敏感的文件系统（如 Windows、macOS 默认）上，这种行为是合理的。在大小写敏感的文件系统（如 Linux）上，不区分大小写的匹配可能导致意外结果。</p>
+<h3>动态导入</h3>
+<p>动态导入（如 <code>import()</code> 函数调用、<code>require()</code> 调用）不会被 Tree-sitter 查询捕获，因为查询只匹配静态导入语句。</p>
+<p><strong>影响</strong>：使用动态导入的代码可能缺少部分导入关系。</p>
+<h3>条件导入</h3>
+<p>基于运行时条件的导入（如 <code>if (process.env.X) import ...</code>）不会被特殊处理，只要导入语句在语法上存在就会被解析。</p>
+<h3>解析缓存限制</h3>
+<p>解析缓存的 100,000 条目上限对于大多数项目足够，但对于超大型代码库（如 monorepo 包含数十万文件），可能导致频繁的缓存驱逐。</p>
+<p><strong>监控建议</strong>：在开发模式下，观察日志中的导入解析统计信息，如果解析命中率过低，可能需要调整缓存策略。</p>
+<h3>语言支持范围</h3>
+<p>当前支持的语言包括：TypeScript、JavaScript、Python、Java、Go、Rust、PHP、C、C++、C#。其他语言的导入语句不会被解析。</p>
+<p><strong>扩展方法</strong>：在 <code>LANGUAGE_QUERIES</code> 中添加新语言的 Tree-sitter 查询，并在 <code>resolveImportPath</code> 中添加语言特定逻辑。</p>
+<h2>性能优化建议</h2>
+<h3>预构建解析上下文</h3>
+<p>在分批次处理文件时，预构建 <code>ImportResolutionContext</code> 并在所有批次间复用：</p>
+<pre><code class="language-typescript">// 一次性构建
+const ctx = buildImportResolutionContext(allRepoPaths);
+
+// 每个批次复用
+for (const batch of fileBatches) {
+  await processImportsFromExtracted(
+    graph, batch, extractedImports, importMap,
+    undefined, repoRoot, ctx  // 传入预构建的上下文
+  );
+}
+</code></pre>
+<h3>使用快速路径</h3>
+<p>如果导入信息已经通过其他方式提取（如之前的解析运行、远程处理），使用 <code>processImportsFromExtracted</code> 而非 <code>processImports</code>，避免重复的 AST 解析。</p>
+<h3>批量加载配置文件</h3>
+<p>语言配置文件（tsconfig.json、go.mod、composer.json）在处理开始时一次性加载，避免在每个文件处理时重复读取文件系统。</p>
+<h3>事件循环让出</h3>
+<p>处理大量文件时，定期调用 <code>yieldToEventLoop()</code> 防止阻塞主线程。当前实现每 20 个文件让出一次，可根据实际需求调整。</p>
+<h2>调试与监控</h2>
+<h3>开发模式日志</h3>
+<p>在 <code>NODE_ENV=development</code> 环境下，模块会输出详细的日志信息：</p>
+<pre><code>📦 Loaded 5 path aliases from tsconfig.json
+📦 Loaded Go module path: github.com/user/repo
+📦 Loaded 12 PSR-4 mappings from composer.json
+📊 Import processing complete: 1523/1680 imports resolved to graph edges
+</code></pre>
+<h3>错误诊断</h3>
+<p>当 Tree-sitter 查询失败时，开发模式下会输出详细的诊断信息：</p>
+<pre><code>🔴 Query Error: src/problematic.ts
+Language: typescript
+Query (first 200 chars): (import_statement ...)
+Error: Query error at row 5, column 3
+File content (first 300 chars): import { x } from ...
+AST root type: program
+AST has errors: true
+</code></pre>
+<h3>统计信息</h3>
+<p>处理完成后，日志显示导入解析的统计信息：</p>
+<ul>
+<li><strong>totalImportsFound</strong>：检测到的导入语句总数</li>
+<li><strong>totalImportsResolved</strong>：成功解析到内部文件的导入数量</li>
+</ul>
+<p>解析率（resolved/found）可以帮助识别配置问题或外部依赖比例。</p>
+<h2>相关模块</h2>
+<ul>
+<li><a href="symbol_table_management.html">符号表管理</a> - 使用导入映射解析跨文件符号引用</li>
+<li><a href="call_resolution_engine.html">调用解析引擎</a> - 使用导入关系解析跨文件调用</li>
+<li><a href="core_ingestion_parsing.html">core_ingestion_parsing</a> - 提供 AST 缓存和解析工作器</li>
+<li><a href="core_graph_types.html">core_graph_types</a> - 定义知识图谱数据结构</li>
+<li><a href="entry_intelligence.html">entry_intelligence</a> - 使用导入关系进行入口点评分</li>
+</ul>
+<h2>总结</h2>
+<p>导入解析引擎是 GitNexus 代码分析流水线的关键组件，它负责将源代码中的导入语句转换为知识图谱中的文件依赖关系。通过预构建的后缀索引和解析缓存，该模块实现了高效的跨语言导入解析，支持 TypeScript、JavaScript、Python、Java、Go、Rust、PHP 等多种编程语言。</p>
+<p>核心设计原则包括：</p>
+<ol>
+<li><strong>预构建查找结构</strong>：一次性构建后缀索引，实现 O(1) 查找</li>
+<li><strong>语言特定预处理</strong>：针对每种语言的导入语法进行专门处理</li>
+<li><strong>通用解析回退</strong>：当语言特定解析失败时，使用通用的后缀匹配</li>
+<li><strong>缓存优化</strong>：使用 LRU 风格的解析缓存减少重复计算</li>
+<li><strong>渐进式处理</strong>：支持分批次处理和预提取导入的快速路径</li>
+</ol>
+<p>理解导入解析引擎的工作原理对于扩展语言支持、优化处理性能以及诊断解析问题至关重要。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+</script>
+</body>
+</html>

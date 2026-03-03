@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第五章：让它飞起来——并行性与优化技术</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-claude-sonnet-4-6<br>
+    <b>Generated:</b> 2026-03-03T15:04<br>
+    <b>Components:</b> 666<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis-HLS-Introductory-Examples" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-advanced-coding-patterns-for-synthesis.html" class="nv">Advanced Coding Patterns For Synthesis</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-coding-patterns-that-synthesize-well.html" class="nv">Coding Patterns That Synthesize Well</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-at-the-kernel-boundary.html" class="nv">Data Flow At The Kernel Boundary</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow-inside-the-kernel.html" class="nv">Data Flow Inside The Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-extracting-parallelism-and-performance.html" class="nv">Extracting Parallelism And Performance</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-from-cpp-to-fpga-what-this-project-is.html" class="nv">From Cpp To Fpga What This Project Is</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-data-moves-through-an-hls-kernel.html" class="nv">How Data Moves Through An Hls Kernel</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-collection-is-structured.html" class="nv">How The Example Collection Is Structured</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-example-library-is-organized.html" class="nv">How The Example Library Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-interface-design-bridging-software-and-hardware.html" class="nv">Interface Design Bridging Software And Hardware</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-maintaining-build-flows.html" class="nv">Migrating And Maintaining Build Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-migrating-and-running-across-hls-flows.html" class="nv">Migrating And Running Across Hls Flows</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-parallelism-and-optimization.html" class="nv on">Parallelism And Optimization</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-project-structure-and-mental-model.html" class="nv">Project Structure And Mental Model</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-software-to-hardware-coding-patterns.html" class="nv">Software To Hardware Coding Patterns</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-toolchain-migration-and-workflow.html" class="nv">Toolchain Migration And Workflow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-is-vitis-hls.html" class="nv">What Is Vitis Hls</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-this-project-is-and-why-it-exists.html" class="nv">What This Project Is And Why It Exists</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-digital-up-conversion-pipeline.html" class="nv">Digital Up Conversion Pipeline</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-matrix-multiplication-with-array-partitioning.html" class="nv">Matrix Multiplication With Array Partitioning</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-stencil-2d-convolution-filter.html" class="nv">Stencil 2D Convolution Filter</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-systolic-architecture.html" class="nv">Streaming Fir Systolic Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-streaming-fir-transposed-architecture.html" class="nv">Streaming Fir Transposed Architecture</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-task-channel-merge-split-scheduling.html" class="nv">Task Channel Merge Split Scheduling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism.html" class="nv">Optimization Parallelism</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="optimization_parallelism-interface_design.html" class="nv">Interface Design</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="coding_modeling.html" class="nv">Coding Modeling</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="libraries_migration.html" class="nv">Libraries Migration</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第五章：让它飞起来——并行性与优化技术</h1>
+<blockquote>
+<p><strong>学习目标：</strong> 探索硬件并行性的四个维度——流水线（Pipelining）、数据流（Dataflow）、数组分区（Array Partitioning）和任务级并行（Task-level Parallelism）——并了解 HLS pragma 如何引导编译器生成高吞吐量的 RTL 电路。</p>
+</blockquote>
+<hr />
+<h2>5.1 从单车道到立交桥：为什么需要并行？</h2>
+<p>想象一条只有一个收费站的高速公路入口。无论有多少辆车在排队，每次只能通过一辆。这就是 CPU 的工作方式——指令一条接一条地执行，像是永远只开着一个收费窗口。</p>
+<p>FPGA 的使命，就是把这个收费站变成一座拥有几十个并行车道、甚至多层立交桥的现代交通枢纽。数据不再需要排队等待，而是在不同的&quot;车道&quot;上同时流动。</p>
+<p><code>optimization_parallelism</code> 模块，就是这座&quot;交通枢纽设计手册&quot;。它展示了从串行思维到硬件并行思维的完整转换路径。</p>
+<hr />
+<h2>5.2 四个并行维度的全景地图</h2>
+<p>在深入每种技术之前，先看看整体架构：</p>
+<div class="mermaid">graph TD
+    ROOT[optimization_parallelism<br/>并行优化模式库]
+    
+    ROOT --> ARR[Array<br/>空间并行]
+    ROOT --> PIPE[Pipelining<br/>时间并行]
+    ROOT --> TLP[Task-level Parallelism<br/>任务并行]
+
+    ARR --> ARR1[array_partition_complete<br/>完全分区]
+    ARR --> ARR2[array_partition_block_cyclic<br/>块循环分区]
+
+    PIPE --> PF[Functions 函数级]
+    PIPE --> PL[Loops 循环级]
+    PL --> PL1[perfect_loop<br/>完美循环]
+    PL --> PL2[imperfect_loop<br/>不完美循环]
+    PL --> PL3[free_running_pipeline<br/>自由运行流水线]
+
+    TLP --> CD[Control-driven<br/>控制驱动]
+    TLP --> DD[Data-driven<br/>数据驱动]
+    CD --> CD1[simple_fifos<br/>FIFO 菱形拓扑]
+    DD --> DD1[simple_data_driven<br/>hls::task 任务]
+    DD --> DD2[handling_deadlock<br/>死锁处理]
+</div>
+<p>这张地图展示了三个正交（互相独立）的并行维度：</p>
+<ul>
+<li><strong>Array（空间并行）</strong>：把数据分散到多个存储单元，让读写可以同时进行。就像把一个大书架拆成很多个小书架，多人可以同时取书。</li>
+<li><strong>Pipelining（时间并行）</strong>：让操作在时间上重叠执行。就像工厂流水线，每个工位同时在处理不同的零件。</li>
+<li><strong>Task-level Parallelism（任务并行）</strong>：让多个独立的功能模块同时运行。就像一个车间里，焊接组、喷漆组、装配组同时工作。</li>
+</ul>
+<p>这三个维度可以<strong>叠加组合</strong>，共同实现极致的硬件吞吐量。</p>
+<hr />
+<h2>5.3 第一维度：数组分区——打破内存墙</h2>
+<h3>5.3.1 什么是&quot;内存墙&quot;？</h3>
+<p>想象一个矩阵乘法计算器。CPU 可以每个时钟周期执行一次乘法，但矩阵里的数据全都挤在一个&quot;单门储物间&quot;（单端口 BRAM）里——每次只能开门拿一个数。即使计算速度再快，也只能干等着数据一个个送过来。</p>
+<p>这就是<strong>内存墙</strong>（Memory Wall）——计算单元的速度远超内存带宽，导致大部分时间在空等。</p>
+<p><strong>数组分区（Array Partitioning）</strong> 的解法，就是把这个&quot;单门储物间&quot;拆成若干个&quot;多门储物柜&quot;，让多个数据可以同时被取出来。</p>
+<h3>5.3.2 三种分区策略</h3>
+<div class="mermaid">graph TD
+    subgraph Complete[完全分区 Complete]
+        C0[元素 0] & C1[元素 1] & C2[元素 2] & C3[元素 3]
+    end
+    subgraph Block[块分区 Block factor=2]
+        B0[元素 0 和 1] & B1[元素 2 和 3]
+    end
+    subgraph Cyclic[循环分区 Cyclic factor=2]
+        Y0[元素 0 和 2] & Y1[元素 1 和 3]
+    end
+</div>
+<ul>
+<li><strong>Complete（完全分区）</strong>：每个元素都有自己独立的寄存器，任意元素可在同一时钟周期被并行访问。适合<strong>小数组</strong>（通常 32 个元素以内），性能最高但资源消耗也最大。</li>
+<li><strong>Block（块分区）</strong>：把数组按连续块切分，适合按块顺序访问的算法（如分块矩阵乘法）。</li>
+<li><strong>Cyclic（循环分区）</strong>：元素轮流分配到不同存储体，适合跨步访问（如 FFT 蝶形运算）。</li>
+</ul>
+<h3>5.3.3 矩阵乘法中的实战决策</h3>
+<p>来看 <code>matmul_partition</code> 的核心代码：</p>
+<pre><code class="language-cpp">void matmul_partition(int* in1, int* in2, int* out_r, int size) {
+    int A[MAX_SIZE][MAX_SIZE];
+    int B[MAX_SIZE][MAX_SIZE];
+    int C[MAX_SIZE][MAX_SIZE];
+
+    // 关键：只分区矩阵 B 的第二维（列方向）
+    #pragma HLS ARRAY_PARTITION variable=B dim=2 complete
+    #pragma HLS ARRAY_PARTITION variable=C dim=2 complete
+}
+</code></pre>
+<p><strong>为什么分区矩阵 B 的第 2 维，而不是第 1 维？</strong></p>
+<p>矩阵乘法的核心操作是：</p>
+<div class="math-block">\[C[i][j] = \sum_{k} A[i][k] \times B[k][j]\]</div>
+<p>对于固定的 <code>j</code>，我们需要同时读取 <code>B[0][j]</code>, <code>B[1][j]</code>, ..., <code>B[N-1][j]</code>——这是<strong>列访问</strong>。但 C/C++ 二维数组默认按行存储，列访问意味着每个元素都在不同的行，单端口 BRAM 每周期只能给一个。</p>
+<p>通过 <code>dim=2 complete</code>（第二维完全分区），矩阵 B 的每一列被展开到独立的寄存器。这样，一个时钟周期内就能并行读取整列所有元素。</p>
+<div class="mermaid">flowchart LR
+    subgraph Before[分区前：单端口 BRAM]
+        direction TB
+        B00["B[0][0]"]
+        B01["B[0][1]"]
+        B10["B[1][0]"]
+        B11["B[1][1]"]
+        PORT1[单一读取端口]
+        PORT1 --> B00
+    end
+
+    subgraph After[分区后：独立寄存器]
+        direction TB
+        R00["B[0][0]<br/>寄存器 0"]
+        R01["B[0][1]<br/>寄存器 1"]
+        R10["B[1][0]<br/>寄存器 2"]
+        R11["B[1][1]<br/>寄存器 3"]
+        P0[端口 0] --> R00
+        P1[端口 1] --> R01
+        P2[端口 2] --> R10
+        P3[端口 3] --> R11
+    end
+
+    Before -->|ARRAY_PARTITION complete| After
+</div>
+<p>分区前，读取一列需要 N 个周期；分区后，只需 1 个周期。这就是空间并行的威力。</p>
+<p><strong>而矩阵 A 为什么不分区？</strong></p>
+<p>对于固定的 <code>i</code> 和变化的 <code>k</code>，访问 <code>A[i][0]</code>, <code>A[i][1]</code>, ..., <code>A[i][N-1]</code> 是<strong>行访问</strong>——元素在内存中连续排列，单端口 BRAM 可以流水线式顺序读取，不存在带宽瓶颈。分区 A 不会带来收益，反而浪费资源。</p>
+<blockquote>
+<p>💡 <strong>核心原则</strong>：分区策略必须匹配访问模式。列访问→分区列维度；行访问→不需要分区。</p>
+</blockquote>
+<hr />
+<h3>5.3.4 分区陷阱：资源爆炸</h3>
+<p>数组分区是把双刃剑。看这个例子：</p>
+<pre><code class="language-cpp">int BigMatrix[1024][1024];
+#pragma HLS ARRAY_PARTITION variable=BigMatrix dim=2 complete
+// 危险！这会创建 1024 个独立存储体，每个 1024 个整数
+// 总计 1,048,576 个寄存器 ← 大概率耗尽 FPGA 全部资源
+</code></pre>
+<p><strong>安全使用准则：</strong></p>
+<table>
+<thead>
+<tr>
+<th>数组大小</th>
+<th>推荐策略</th>
+<th>原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小于 32 元素</td>
+<td><code>complete</code></td>
+<td>资源可控，访问最灵活</td>
+</tr>
+<tr>
+<td>32 ~ 256 元素</td>
+<td><code>cyclic/block factor=4~8</code></td>
+<td>平衡带宽与资源</td>
+</tr>
+<tr>
+<td>超过 256 元素</td>
+<td><code>block</code> 小 factor，或保持默认</td>
+<td>避免资源爆炸</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>5.4 第二维度：流水线——让时间重叠起来</h2>
+<h3>5.4.1 工厂流水线类比</h3>
+<p>想象一个汽车工厂，完整组装一辆车需要 4 个步骤：车身焊接（2小时）→ 喷漆（1小时）→ 安装内饰（1小时）→ 质检（1小时），总共 5 小时。</p>
+<p><strong>没有流水线</strong>：完成第一辆车需要 5 小时，然后才开始第二辆。每辆车 5 小时。</p>
+<p><strong>有流水线</strong>：第一辆车焊接完毕进入喷漆时，第二辆车<strong>同时</strong>开始焊接。达到稳态后，每隔 2 小时（最长步骤的时间）就能完成一辆车。</p>
+<p>这个&quot;每隔多久启动下一次迭代&quot;的时间，在 HLS 里叫做 <strong>II（Initiation Interval，启动间隔）</strong>。我们的目标通常是 <strong>II = 1</strong>，即每个时钟周期都启动一次新的迭代处理。</p>
+<h3>5.4.2 循环流水线：最常见的优化</h3>
+<pre><code class="language-cpp">void dot_product(int A[N], int B[N], int* result) {
+    int sum = 0;
+    
+LOOP_DP:
+    for (int i = 0; i &lt; N; i++) {
+        #pragma HLS PIPELINE II=1   // 告诉编译器：每周期启动一次迭代
+        sum += A[i] * B[i];
+    }
+    *result = sum;
+}
+</code></pre>
+<p>加了 <code>#pragma HLS PIPELINE II=1</code> 之后，编译器会自动在循环的不同阶段之间插入寄存器，让多次迭代的不同阶段在时间上重叠。</p>
+<div class="mermaid">sequenceDiagram
+    participant I0 as 迭代 0
+    participant I1 as 迭代 1
+    participant I2 as 迭代 2
+    participant I3 as 迭代 3
+
+    Note over I0: 周期1: 读A[0],B[0]
+    Note over I0: 周期2: 乘法
+    Note over I1: 周期2: 读A[1],B[1]
+    Note over I0: 周期3: 累加
+    Note over I1: 周期3: 乘法
+    Note over I2: 周期3: 读A[2],B[2]
+    Note over I0: 周期4: 完成
+    Note over I1: 周期4: 累加
+    Note over I2: 周期4: 乘法
+    Note over I3: 周期4: 读A[3],B[3]
+</div>
+<p>可以看到，从第 3 个周期开始，同一时刻有 3 个迭代在不同阶段同时运行——这就是时间并行。</p>
+<h3>5.4.3 完美循环 vs 不完美循环</h3>
+<p><strong>完美循环（Perfect Loop）</strong>：内层循环边界固定，循环体内没有打破嵌套的条件分支。</p>
+<pre><code class="language-cpp">// 完美嵌套循环 — HLS 可以将其展平再流水
+for (int i = 0; i &lt; N; i++) {
+    for (int j = 0; j &lt; N; j++) {
+        B[j] = A[j];        // 纯粹的循环体，无条件分支
+    }
+}
+</code></pre>
+<p><strong>不完美循环（Imperfect Loop）</strong>：存在打破嵌套的条件分支。</p>
+<pre><code class="language-cpp">// 不完美循环 — 条件分支破坏了完美嵌套
+for (int i = 0; i &lt; N; i++) {
+    for (int j = 0; j &lt; N; j++) {
+        B[j] = A[j];
+    }
+    // 这里的条件操作让循环&quot;不完美&quot;
+    if (i % 2 == 0)
+        C[i] = B[i];
+    else
+        C[i] = B[i] + 1;
+}
+</code></pre>
+<div class="mermaid">flowchart TD
+    Q{循环是否完美嵌套?}
+    Q -->|是| FLAT[编译器自动展平 Loop Flattening]
+    Q -->|否| OPT{编译器策略}
+    FLAT --> PIPE[应用统一流水线 II=1 更容易达到]
+    OPT --> SPEC[推测执行 Speculation]
+    OPT --> BRANCH[分支流水线]
+    OPT --> SEQ[序列化 保守但安全]
+    PIPE --> GOOD[高吞吐量]
+    SPEC & BRANCH --> MED[中等吞吐量]
+    SEQ --> LOW[较低吞吐量]
+</div>
+<p>对于完美循环，HLS 编译器会把多层嵌套<strong>展平</strong>为单层循环，再应用流水线，更容易达到 II=1。</p>
+<blockquote>
+<p>💡 <strong>实战建议</strong>：尽量把循环体内的条件操作移到循环外，或者重构成完美嵌套，可以显著提升流水线效率。</p>
+</blockquote>
+<hr />
+<h3>5.4.4 进阶模式：自由运行流水线（Free-Running Pipeline）</h3>
+<p>传统流水线有一个&quot;全局指挥官&quot;——集中式的有限状态机（FSM）控制每个迭代何时启动。就像工厂里有一个调度员，要亲自通知每个工位开工。</p>
+<p><strong>自由运行流水线（FRP, Free-Running Pipeline）</strong> 更像是&quot;每个工位自己决定&quot;：只要上游的输入 FIFO 不空、下游的输出 FIFO 不满，就自动处理数据。没有全局指挥，只有局部握手信号。</p>
+<div class="mermaid">graph LR
+    subgraph Classic[传统流水线: 集中控制]
+        FSM[全局 FSM 控制器] -->|控制信号| S1[阶段 1]
+        FSM -->|控制信号| S2[阶段 2]
+        FSM -->|控制信号| S3[阶段 3]
+        S1 --> S2 --> S3
+    end
+
+    subgraph FRP[自由运行流水线: 分布握手]
+        F1[阶段 1] -->|FIFO + valid/ready| F2[阶段 2]
+        F2 -->|FIFO + valid/ready| F3[阶段 3]
+    end
+</div>
+<p>启用 FRP 只需在配置文件里加一行：</p>
+<pre><code class="language-ini"># hls_config.cfg
+syn.compile.pipeline_style=frp
+syn.dataflow.default_channel=fifo
+syn.dataflow.fifo_depth=16
+</code></pre>
+<p><strong>FRP 的优势：</strong></p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>传统流水线</th>
+<th>自由运行流水线</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>控制方式</td>
+<td>集中式 FSM</td>
+<td>分布式握手</td>
+</tr>
+<tr>
+<td>时序友好度</td>
+<td>全局控制信号扇出大</td>
+<td>局部连接，时序更好</td>
+</tr>
+<tr>
+<td>适用场景</td>
+<td>规则循环，固定数据率</td>
+<td>高速流式处理</td>
+</tr>
+<tr>
+<td>时钟频率潜力</td>
+<td>中等</td>
+<td>更高（更容易 200MHz+）</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>💡 <code>fifo_depth=16</code> 是个&quot;甜点值&quot;：深度太浅（如 2）则频繁堵车；太深（如 64）则浪费 BRAM 且增加延迟。16 可以吸收大多数场景的突发速率差异。</p>
+</blockquote>
+<hr />
+<h2>5.5 第三维度：数据流（Dataflow）——让任务并肩而行</h2>
+<h3>5.5.1 控制驱动模式：菱形并行拓扑</h3>
+<p>在讲任务级并行之前，先认识一个经典的数据流拓扑——<strong>菱形（Diamond）模式</strong>：</p>
+<div class="mermaid">graph TD
+    IN[vecIn 输入] --> FA[funcA<br/>分叉：产生两路数据]
+    FA -->|FIFO c1| FB[funcB<br/>处理路径 1]
+    FA -->|FIFO c2| FC[funcC<br/>处理路径 2]
+    FB -->|FIFO c3| FD[funcD<br/>合并：汇集两路结果]
+    FC -->|FIFO c4| FD
+    FD --> OUT[vecOut 输出]
+</div>
+<p>这个结构的关键代码：</p>
+<pre><code class="language-cpp">void diamond(data_t vecIn[N], data_t vecOut[N]) {
+    data_t c1[N], c2[N], c3[N], c4[N];
+    
+    #pragma HLS DATAFLOW   // 告诉编译器：把这些函数并行化
+    
+    funcA(vecIn, c1, c2);  // 分叉：产生两路
+    funcB(c1, c3);          // 路径 1（与 funcC 并行！）
+    funcC(c2, c4);          // 路径 2（与 funcB 并行！）
+    funcD(c3, c4, vecOut);  // 合并：消费两路
+}
+</code></pre>
+<p><code>#pragma HLS DATAFLOW</code> 这一行的魔力在于：它告诉 HLS 编译器，把函数调用之间的数组变量（<code>c1</code>、<code>c2</code>、<code>c3</code>、<code>c4</code>）变成 <strong>FIFO 通道</strong>，让 <code>funcB</code> 和 <code>funcC</code> 可以<strong>真正并行运行</strong>，而不是像顺序代码那样一个接一个地执行。</p>
+<blockquote>
+<p>思考：如果不加 <code>#pragma HLS DATAFLOW</code>，这四个函数会串行执行，总延迟是 funcA + funcB + funcC + funcD。加上之后，总延迟变成 funcA + max(funcB, funcC) + funcD——大幅缩短！</p>
+</blockquote>
+<h3>5.5.2 数据在菱形拓扑中如何流动</h3>
+<p>让我们追踪一个数据元素从输入到输出的完整旅程：</p>
+<div class="mermaid">sequenceDiagram
+    participant IN as vecIn
+    participant A as funcA
+    participant B as funcB
+    participant C as funcC
+    participant D as funcD
+    participant OUT as vecOut
+
+    IN->>A: 读取元素 vecIn[0]
+    A->>B: 写入 c1[0] (FIFO)
+    A->>C: 写入 c2[0] (FIFO)
+    Note over B,C: funcB 和 funcC 同时处理！
+    B->>D: 写入 c3[0] (FIFO)
+    C->>D: 写入 c4[0] (FIFO)
+    D->>OUT: 写入 vecOut[0]
+
+    Note over A,D: 稳态后，每个周期所有节点都在同时工作
+</div>
+<h3>5.5.3 反压机制：FIFO 的自我保护</h3>
+<p>当下游（如 funcD）处理慢于上游（如 funcC）时，FIFO 会填满。这时 funcC 的写操作会<strong>自动阻塞</strong>，等 funcD 消费了数据腾出空间。这个机制叫做<strong>反压（Back-pressure）</strong>。</p>
+<div class="mermaid">flowchart LR
+    FC[funcC 生产快] -->|写入| FIFO_C4[c4 FIFO]
+    FIFO_C4 -->|读取| FD[funcD 消费慢]
+    
+    FIFO_C4 -->|FIFO 满时| BLOCK[funcC 写操作阻塞]
+    FD -->|消费后腾出空间| UNBLOCK[funcC 恢复写入]
+
+    style BLOCK fill:#f66,color:#fff
+    style UNBLOCK fill:#6a6,color:#fff
+</div>
+<p>反压是数据流系统的自限流机制——它自动把&quot;快&quot;节点减速到&quot;慢&quot;节点的速率，保证系统不会崩溃，只是吞吐量受制于最慢的那一级（即<strong>瓶颈节点</strong>）。</p>
+<hr />
+<h2>5.6 第四维度：hls::task——从任务调用到常驻任务</h2>
+<h3>5.6.1 两种执行哲学</h3>
+<p>到目前为止，<code>#pragma HLS DATAFLOW</code> 使用的是<strong>控制驱动</strong>模式——有一个隐式的&quot;指挥官&quot;决定何时调用哪个函数，处理完一批数据后函数退出，等待下次调用。</p>
+<p>Vitis HLS 2021.2 引入了 <code>hls::task</code>，代表完全不同的<strong>数据驱动</strong>哲学：任务永不退出，只要数据可用就一直运行。</p>
+<p>用餐厅来类比：</p>
+<ul>
+<li><strong>控制驱动（DATAFLOW）</strong>：服务员接到一桌订单，叫厨师做完这桌的菜，上完菜，然后等下一桌。</li>
+<li><strong>数据驱动（hls::task）</strong>：厨师是一台永不停机的机器，只要食材送来就立刻加工，加工完就送出去，从不等待&quot;开桌&quot;指令。</li>
+</ul>
+<div class="mermaid">graph LR
+    subgraph ControlDriven[控制驱动 DATAFLOW]
+        direction TB
+        CTL[控制器 FSM] -->|调用| F1[funcA]
+        CTL -->|调用| F2[funcB]
+        CTL -->|调用| F3[funcC]
+        F1 & F2 & F3 -->|完成后返回| CTL
+    end
+
+    subgraph DataDriven[数据驱动 hls::task]
+        direction TB
+        T1[task t1<br/>永远运行] -->|FIFO| T2[task t2<br/>永远运行]
+        T1 -->|FIFO| T3[task t3<br/>永远运行]
+    end
+</div>
+<h3>5.6.2 hls::task 实战：奇偶分流器</h3>
+<pre><code class="language-cpp">void odds_and_evens(hls::stream&lt;int&gt;&amp; in,
+                    hls::stream&lt;int&gt;&amp; out1,
+                    hls::stream&lt;int&gt;&amp; out2) {
+    
+    // 内部 FIFO 通道，深度 = N/2
+    hls_thread_local hls::stream&lt;int, N/2&gt; s1;
+    hls_thread_local hls::stream&lt;int, N/2&gt; s2;
+
+    // 三个常驻任务，并行永续运行
+    hls_thread_local hls::task t1(splitter, in, s1, s2);  // 分流
+    hls_thread_local hls::task t2(odds,    s1, out1);     // 处理奇数
+    hls_thread_local hls::task t3(evens,   s2, out2);     // 处理偶数
+}
+</code></pre>
+<p>这段代码的硬件拓扑：</p>
+<div class="mermaid">graph LR
+    IN[输入流 in] --> T1[task t1<br/>splitter<br/>奇偶分流]
+    T1 -->|s1: 奇数流| T2[task t2<br/>odds<br/>奇数处理]
+    T1 -->|s2: 偶数流| T3[task t3<br/>evens<br/>偶数处理]
+    T2 --> OUT1[out1<br/>奇数结果]
+    T3 --> OUT2[out2<br/>偶数结果]
+
+    style T1 fill:#4a9,color:#fff
+    style T2 fill:#49a,color:#fff
+    style T3 fill:#49a,color:#fff
+</div>
+<p><strong>关键细节解读：</strong></p>
+<ul>
+<li><strong><code>hls_thread_local</code></strong>：这个存储类关键字告诉编译器&quot;这些对象是线程局部的&quot;，每个实例化上下文都有独立的副本，避免多实例之间的状态冲突。</li>
+<li><strong><code>hls::stream&lt;int, N/2&gt;</code></strong>：固定深度 N/2 的 FIFO。因为 <code>splitter</code> 产生的奇数和偶数各占一半，N/2 的深度足以吸收短暂的速率差异。</li>
+<li><strong>三个任务真正并行</strong>：<code>t1</code>、<code>t2</code>、<code>t3</code> 在硬件里是三个独立的有限状态机，同时运行，通过 FIFO 传递数据。</li>
+</ul>
+<h3>5.6.3 控制驱动 vs 数据驱动：如何选择？</h3>
+<div class="mermaid">classDiagram
+    class ControlDriven {
+        +调度粒度: 函数调用级
+        +执行模型: 响应式 被调用执行
+        +使用方式: pragma HLS DATAFLOW
+        +适合场景: 块处理 批处理
+        +FIFO 语义: 可用 PIPO 或 FIFO
+    }
+
+    class DataDriven {
+        +调度粒度: 数据令牌级
+        +执行模型: 常驻式 无限循环
+        +使用方式: hls::task
+        +适合场景: 流处理 实时管道
+        +FIFO 语义: 显式 hls::stream
+    }
+
+    ControlDriven --|> DataDriven : 进阶演进
+</div>
+<p><strong>简单选择原则：</strong></p>
+<ul>
+<li>处理固定大小的数据块？→ <code>#pragma HLS DATAFLOW</code></li>
+<li>处理持续到来的数据流（如视频像素、网络包）？→ <code>hls::task</code></li>
+<li>需要更细粒度的并行控制？→ <code>hls::task</code></li>
+</ul>
+<hr />
+<h2>5.7 把它们组合起来：综合优化策略</h2>
+<p>真正的高性能设计往往同时使用多个维度的优化。下面以矩阵乘法为例，展示三种优化的协同效果：</p>
+<div class="mermaid">flowchart TD
+    INPUT[输入矩阵 A 和 B<br/>通过 m_axi 接口读入]
+    INPUT --> LOAD[加载阶段<br/>Load Stage]
+    LOAD -->|FIFO| COMPUTE[计算阶段<br/>Compute Stage]
+    COMPUTE -->|FIFO| STORE[存储阶段<br/>Store Stage]
+    STORE --> OUTPUT[结果矩阵 C<br/>写回内存]
+
+    subgraph DATAFLOW[DATAFLOW 区域: 三阶段并行]
+        LOAD
+        COMPUTE
+        STORE
+    end
+
+    subgraph PIPELINE[循环内部: 流水线]
+        COMPUTE --> INNER[内层循环<br/>pragma HLS PIPELINE II=1]
+    end
+
+    subgraph PARTITION[数组分区: 空间并行]
+        INNER --> READ[并行读取 B 的整列<br/>ARRAY_PARTITION dim=2 complete]
+    end
+</div>
+<p>三层优化的作用层次：</p>
+<ol>
+<li><strong>DATAFLOW（任务层）</strong>：加载、计算、存储三个阶段<strong>同时进行</strong>。在计算第 N 批数据时，加载第 N+1 批，存储第 N-1 批。</li>
+<li><strong>PIPELINE（循环层）</strong>：每个时钟周期启动一次内积迭代，让乘法和累加重叠执行。</li>
+<li><strong>ARRAY_PARTITION（存储层）</strong>：一个周期内并行读取矩阵 B 的整列，消除内存带宽瓶颈。</li>
+</ol>
+<hr />
+<h2>5.8 死锁陷阱：数据流设计最危险的问题</h2>
+<p>数据流设计中最隐蔽的 Bug 就是<strong>死锁（Deadlock）</strong>。</p>
+<p>想象两个任务：</p>
+<ul>
+<li>任务 A 在等任务 B 的输出才能继续</li>
+<li>任务 B 在等任务 A 的输出才能继续</li>
+</ul>
+<p>两个都在等，没有一个能动——这就是死锁。就像两辆车在单车道窄桥上头对头相遇，谁都不肯退。</p>
+<div class="mermaid">flowchart LR
+    A[Task A] -->|需要 B 的数据才能运行| FIFO_AB[FIFO]
+    FIFO_AB --> B[Task B]
+    B -->|需要 A 的数据才能运行| FIFO_BA[FIFO]
+    FIFO_BA --> A
+    
+    style A fill:#f66,color:#fff
+    style B fill:#f66,color:#fff
+</div>
+<p><strong>避免死锁的三条铁律：</strong></p>
+<ol>
+<li><strong>通道方向性</strong>：每个 <code>hls::stream</code> 必须有<strong>唯一的生产者</strong>和<strong>唯一的消费者</strong>，不能多写多读。</li>
+<li><strong>任务图无环</strong>：任务之间的数据依赖必须构成一个<strong>有向无环图（DAG）</strong>，不能有循环依赖。</li>
+<li><strong>调试工具</strong>：发生疑似死锁时，使用 <code>cosim.trace_level=all</code> 配置开启波形追踪，观察各 FIFO 的填充深度，找到永远满（或永远空）的那个 FIFO，它就是死锁节点。</li>
+</ol>
+<hr />
+<h2>5.9 配置文件详解：优化的开关板</h2>
+<p>所有这些优化，除了在 C++ 代码里用 pragma 声明，还可以通过 <code>.cfg</code> 配置文件集中控制：</p>
+<pre><code class="language-ini"># hls_config.cfg — 优化控制中心
+
+# 目标芯片和时钟
+part=xcvu9p-flga2104-2-i
+[hls]
+clock=10                        # 10ns = 100MHz，越小越激进
+
+# 综合目标
+flow_target=vivado              # 使用 Vivado 流程（生成 IP 核）
+                                # 或 vitis（生成 .xo 内核对象）
+
+# 数据流通道配置
+syn.dataflow.default_channel=fifo   # 通道类型：fifo 或 pipo
+syn.dataflow.fifo_depth=16          # FIFO 缓冲深度
+
+# 流水线风格
+syn.compile.pipeline_style=frp      # frp=自由运行，classic=传统
+
+# 输出格式
+package.output.format=ip_catalog    # 打包为 Vivado IP 目录格式
+</code></pre>
+<p><strong>关键参数的权衡：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>较小值</th>
+<th>较大值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>clock</code></td>
+<td>时序约束更严格，挑战高频</td>
+<td>约束宽松，更容易综合</td>
+</tr>
+<tr>
+<td><code>fifo_depth</code></td>
+<td>节省 BRAM，但容易堵塞</td>
+<td>容忍速率差异，但耗 BRAM</td>
+</tr>
+<tr>
+<td><code>pipeline_style</code></td>
+<td><code>classic</code>：简单，调试容易</td>
+<td><code>frp</code>：高性能，适合流式</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>5.10 本章知识地图</h2>
+<div class="mermaid">graph TD
+    GOAL[目标: 高吞吐量 FPGA 设计]
+
+    GOAL --> DIM1[空间并行<br/>Array Partition]
+    GOAL --> DIM2[时间并行<br/>Loop Pipeline]
+    GOAL --> DIM3[任务并行<br/>DATAFLOW]
+    GOAL --> DIM4[常驻任务<br/>hls::task]
+
+    DIM1 --> T1[pragma ARRAY_PARTITION<br/>complete / block / cyclic]
+    DIM2 --> T2[pragma PIPELINE<br/>II=1 为目标]
+    DIM3 --> T3[pragma DATAFLOW<br/>函数间 FIFO 通道]
+    DIM4 --> T4[hls::task<br/>hls_thread_local]
+
+    T1 --> W1[权衡: 资源 vs 带宽]
+    T2 --> W2[权衡: 完美循环 vs 不完美循环]
+    T3 --> W3[权衡: FIFO 深度 vs 资源]
+    T4 --> W4[权衡: 调度粒度 vs 复杂度]
+
+    W1 & W2 & W3 & W4 --> TRAP[常见陷阱]
+    TRAP --> TR1[资源爆炸]
+    TRAP --> TR2[II 无法达到 1]
+    TRAP --> TR3[死锁]
+</div>
+<hr />
+<h2>5.11 快速参考手册</h2>
+<h3>Pragma 速查表</h3>
+<table>
+<thead>
+<tr>
+<th>Pragma</th>
+<th>作用</th>
+<th>典型用法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>#pragma HLS ARRAY_PARTITION variable=X dim=N complete</code></td>
+<td>把数组第 N 维完全展开为寄存器</td>
+<td>小数组，需并行访问</td>
+</tr>
+<tr>
+<td><code>#pragma HLS ARRAY_PARTITION variable=X cyclic factor=K</code></td>
+<td>轮询分区为 K 个存储体</td>
+<td>FFT，跨步访问</td>
+</tr>
+<tr>
+<td><code>#pragma HLS PIPELINE II=1</code></td>
+<td>循环/函数流水线，目标 II=1</td>
+<td>内层循环加速</td>
+</tr>
+<tr>
+<td><code>#pragma HLS DATAFLOW</code></td>
+<td>函数间任务级流水线</td>
+<td>多阶段并行处理</td>
+</tr>
+<tr>
+<td><code>#pragma HLS UNROLL</code></td>
+<td>完全展开循环体，复制硬件</td>
+<td>小循环，追求极致并行</td>
+</tr>
+</tbody>
+</table>
+<h3>调试决策树</h3>
+<div class="mermaid">flowchart TD
+    SLOW[设计性能不达标]
+    SLOW --> CHECK_II{流水线 II 是否 = 1?}
+    CHECK_II -->|否| CAUSE{II 大于 1 的原因}
+    CAUSE --> MEM[内存端口冲突] --> FIX_MEM[增加 ARRAY_PARTITION]
+    CAUSE --> DEP[循环依赖] --> FIX_DEP[加 pragma HLS DEPENDENCE]
+    CAUSE --> LONG[长组合路径] --> FIX_LONG[调整代码结构或降低时钟频率]
+    CHECK_II -->|是| CHECK_DF{是否有多阶段处理?}
+    CHECK_DF -->|是| ADD_DF[添加 DATAFLOW 或 hls::task]
+    CHECK_DF -->|否| CHECK_MEM2{内存带宽是否足够?}
+    CHECK_MEM2 -->|否| PART[增加数组分区或提高突发传输]
+    CHECK_MEM2 -->|是| DONE[性能已优化]
+</div>
+<hr />
+<h2>5.12 章节总结</h2>
+<p>我们在这一章探索了硬件并行性的四个维度：</p>
+<ol>
+<li>
+<p><strong>数组分区（Array Partitioning）</strong>：把&quot;单门储物间&quot;变成&quot;多门储物柜&quot;，解决内存带宽瓶颈。关键是匹配分区策略与访问模式（列访问→分区列维度）。</p>
+</li>
+<li>
+<p><strong>循环流水线（Loop Pipelining）</strong>：让循环的不同迭代在时间上重叠，目标是 II=1（每周期处理一个新数据）。完美嵌套循环更容易流水。</p>
+</li>
+<li>
+<p><strong>数据流（Dataflow）</strong>：用 <code>#pragma HLS DATAFLOW</code> 把多个函数变成并行的流水线阶段，通过 FIFO 通道连接。菱形拓扑是经典的分叉-合并模式。</p>
+</li>
+<li>
+<p><strong>常驻任务（hls::task）</strong>：用 <code>hls::task</code> 创建永不退出的并行任务，适合处理持续流式数据。是 DATAFLOW 的进化版本，调度粒度更细。</p>
+</li>
+</ol>
+<p>这四个维度可以自由组合，形成多层次的并行体系。掌握它们，你就掌握了把 FPGA 变成真正高性能计算引擎的核心武器。</p>
+<hr />
+<blockquote>
+<p><strong>下一章预告</strong>：第六章将探讨工具链迁移——如何把现有的 TCL 脚本、INI 配置文件，乃至整个 HLS 项目平滑迁移到 Vitis Unified 统一平台，无需从零重写。</p>
+</blockquote>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

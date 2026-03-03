@@ -1,0 +1,2393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>hash_semi_join 模块深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CLI-claude-sonnet-4-6<br>
+    <b>Generated:</b> 2026-03-03T16:45<br>
+    <b>Components:</b> 20752<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/Xilinx/Vitis_Libraries" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/Xilinx/Vitis_Libraries" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-benchmarking-and-profiling.html" class="nv">Benchmarking And Profiling</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-benchmarking-and-validation-patterns.html" class="nv">Benchmarking And Validation Patterns</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-contributing-and-extending.html" class="nv">Contributing And Extending</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-domain-deep-dive-codecs-and-finance.html" class="nv">Domain Deep Dive Codecs And Finance</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-domain-deep-dive-data-and-ml.html" class="nv">Domain Deep Dive Data And Ml</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-domain-deep-dive-databases-and-graphs.html" class="nv">Domain Deep Dive Databases And Graphs</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-domain-deep-dive-graph-analytics.html" class="nv">Domain Deep Dive Graph Analytics</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-hardware-connectivity-and-memory-mapping.html" class="nv">Hardware Connectivity And Memory Mapping</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-hardware-connectivity-configs.html" class="nv">Hardware Connectivity Configs</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-host-device-data-flow.html" class="nv">Host Device Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-host-kernel-data-flow.html" class="nv">Host Kernel Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-library-is-organized.html" class="nv">How The Library Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-how-the-project-is-organized.html" class="nv">How The Project Is Organized</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-is-vitis-libraries.html" class="nv">What Is Vitis Libraries</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="blas_python_api.html" class="nv">Blas Python Api</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="codec_acceleration_and_demos.html" class="nv">Codec Acceleration And Demos</a>
+      <button class="nvcaret" data-nav="codec_acceleration_and_demos-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="codec_acceleration_and_demos-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="jpeg_and_resize_demos.html" class="nv">Jpeg And Resize Demos</a>
+        <button class="nvcaret" data-nav="jpeg_and_resize_demos-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="jpeg_and_resize_demos-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jpeg_and_resize_demos-jpeg_decoder_kernel_connectivity_profiles.html" class="nv">Jpeg Decoder Kernel Connectivity Profiles</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jpeg_and_resize_demos-jpeg_decoder_host_timing_support.html" class="nv">Jpeg Decoder Host Timing Support</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jpeg_and_resize_demos-resize_demo_kernel_and_host_timing.html" class="nv">Resize Demo Kernel And Host Timing</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration.html" class="nv">Jxl And Pik Encoder Acceleration</a>
+        <button class="nvcaret" data-nav="jxl_and_pik_encoder_acceleration-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="jxl_and_pik_encoder_acceleration-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling.html" class="nv">Host Acceleration Timing And Phase Profiling</a>
+          <button class="nvcaret" data-nav="host_acceleration_timing_and_phase_profiling-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="host_acceleration_timing_and_phase_profiling-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling-histogram_acceleration_host_timing.html" class="nv">Histogram Acceleration Host Timing</a>
+            <button class="nvcaret" data-nav="histogram_acceleration_host_timing-d3" aria-label="Toggle">›</button>
+          </div>
+          <div class="nvsub" data-nav-sub="histogram_acceleration_host_timing-d3">
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling-phase3_histogram_host_timing-host_acc_cluster_histogram.html" class="nv">Acc Cluster Histogram</a>
+            </div>
+          </div>
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="host_acc_tokInit_histogram.html" class="nv">Acc Tokinit Histogram</a>
+            </div>
+          </div>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling-lossy_encode_compute_host_timing.html" class="nv">Lossy Encode Compute Host Timing</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling-phase3_histogram_host_timing.html" class="nv">Phase3 Histogram Host Timing</a>
+            <button class="nvcaret" data-nav="phase3_histogram_host_timing-d3" aria-label="Toggle">›</button>
+          </div>
+          <div class="nvsub" data-nav-sub="phase3_histogram_host_timing-d3">
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling-phase3_histogram_host_timing-host_acc_cluster_histogram.html" class="nv">Host Acc Cluster Histogram</a>
+            </div>
+          </div>
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="host_acc_tokInit_histogram.html" class="nv">Host Acc Tokinit Histogram</a>
+            </div>
+          </div>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-host_acceleration_timing_and_phase_profiling-ac_strategy_and_dct_transform_selection.html" class="nv">Ac Strategy And Dct Transform Selection</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-chroma_from_luma_modeling.html" class="nv">Chroma From Luma Modeling</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jxl_and_pik_encoder_acceleration-histogram_cluster_pair_structures.html" class="nv">Histogram Cluster Pair Structures</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="lepton_encoder_demo.html" class="nv">Lepton Encoder Demo</a>
+        <button class="nvcaret" data-nav="lepton_encoder_demo-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="lepton_encoder_demo-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-lepton_encoder_demo-platform_connectivity.html" class="nv">Platform Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-lepton_encoder_demo-edge_encoding_core.html" class="nv">Edge Encoding Core</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="codec-L2-demos-webpEnc-host-webp_encoder_host_pipeline.html" class="nv">Webp Encoder Host Pipeline</a>
+        <button class="nvcaret" data-nav="webp_encoder_host_pipeline-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="webp_encoder_host_pipeline-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec-L2-demos-webpEnc-host-kernel_encoding_parameter_models.html" class="nv">Kernel Encoding Parameter Models</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec-L2-demos-webpEnc-host-animation_and_gif_frame_handling.html" class="nv">Animation And Gif Frame Handling</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-webp_encoder_host_pipeline-jpeg_decode_and_icc_context.html" class="nv">Jpeg Decode And Icc Context</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="other_image_decode_backends.html" class="nv">Other Image Decode Backends</a>
+          <button class="nvcaret" data-nav="other_image_decode_backends-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="other_image_decode_backends-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="other_image_decode_backends-png_decode_backend_types.html" class="nv">Png Decode Backend Types</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="codec-L2-demos-webpEnc-host-other_image_decode_backends-tiff_decode_backend_types.html" class="nv">Tiff Decode Backend Types</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="codec_acceleration_and_demos-webp_encoder_host_pipeline-other_image_decode_backends-wic_decode_backend_types.html" class="nv">Wic Decode Backend Types</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="codec-L2-demos-webpEnc-host-other_image_decode_backends-webp_decode_picture_types.html" class="nv">Webp Decode Picture Types</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="container_mux_and_feature_selection.html" class="nv">Container Mux And Feature Selection</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-jpeg_and_resize_demos-webp_encoder_host_pipeline-shared_metadata_and_timing_utilities.html" class="nv">Shared Metadata And Timing Utilities</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="codec_acceleration_and_demos-webp_encoder_host_pipeline-webp_hardware_kernel_types.html" class="nv">Webp Hardware Kernel Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="data_analytics_text_geo_and_ml.html" class="nv">Data Analytics Text Geo And Ml</a>
+      <button class="nvcaret" data-nav="data_analytics_text_geo_and_ml-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="data_analytics_text_geo_and_ml-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_analytics-text-regex_compilation_core_l1.html" class="nv">Regex Compilation Core L1</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_analytics_text_geo_and_ml-naive_bayes_benchmark_pipeline_l2.html" class="nv">Naive Bayes Benchmark Pipeline L2</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_analytics_text_geo_and_ml-duplicate_text_match_demo_l2.html" class="nv">Duplicate Text Match Demo L2</a>
+        <button class="nvcaret" data-nav="duplicate_text_match_demo_l2-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="duplicate_text_match_demo_l2-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_analytics_text_geo_and_ml-duplicate_text_match_demo_l2-kernel_connectivity.html" class="nv">Kernel Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_analytics_text_geo_and_ml-duplicate_text_match_demo_l2-host_predicate_logic.html" class="nv">Host Predicate Logic</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_analytics_text_geo_and_ml-duplicate_text_match_demo_l2-host_application.html" class="nv">Host Application</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_analytics-L2-demos-text-log_analyzer_demo_acceleration_and_host_runtime_l2.html" class="nv">Log Analyzer Demo Acceleration And Host Runtime L2</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="tree_based_ml_quantized_models_l2.html" class="nv">Tree Based Ml Quantized Models L2</a>
+        <button class="nvcaret" data-nav="tree_based_ml_quantized_models_l2-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="tree_based_ml_quantized_models_l2-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="classification_decision_tree_quantize.html" class="nv">Classification Decision Tree Quantize</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_analytics-L2-src-classification-rf_trees_quantize.html" class="nv">Classification Rf Trees Quantize</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_analytics_text_geo_and_ml-tree_based_ml_quantized_models_l2-regression_rf_trees_quantize.html" class="nv">Regression Rf Trees Quantize</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_analytics_text_geo_and_ml-gunzip_csv_sssd_api_types_l3.html" class="nv">Gunzip Csv Sssd Api Types L3</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_analytics_text_geo_and_ml-software_text_and_geospatial_runtime_l3.html" class="nv">Software Text And Geospatial Runtime L3</a>
+        <button class="nvcaret" data-nav="software_text_and_geospatial_runtime_l3-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="software_text_and_geospatial_runtime_l3-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_analytics_text_geo_and_ml-software_text_and_geospatial_runtime_l3-geospatial.html" class="nv">Geospatial</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="codec_acceleration_and_demos-webp_encoder_host_pipeline-jpeg_decode_and_icc_context.html" class="nv">Text</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="data_compression_gzip_system.html" class="nv">Data Compression Gzip System</a>
+      <button class="nvcaret" data-nav="data_compression_gzip_system-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="data_compression_gzip_system-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_compression_gzip_system-gzip_app_kernel_connectivity.html" class="nv">Gzip App Kernel Connectivity</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_compression_gzip_system-gzip_hbm_kernel_connectivity.html" class="nv">Gzip Hbm Kernel Connectivity</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="data_compression_gzip_system-gzip_host_library_core.html" class="nv">Gzip Host Library Core</a>
+        <button class="nvcaret" data-nav="gzip_host_library_core-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="gzip_host_library_core-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_compression_gzip_system-gzip_host_library_core-gzip_base.html" class="nv">Gzip Base</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="data_compression-gzip_system-gzip_host_library_core-gzip_ocl_host.html" class="nv">Gzip Ocl Host</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="data_mover_runtime.html" class="nv">Data Mover Runtime</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="database_query_and_gqe.html" class="nv">Database Query And Gqe</a>
+      <button class="nvcaret" data-nav="database_query_and_gqe-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="database_query_and_gqe-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="database_query_and_gqe-l1_compound_sort_kernels.html" class="nv">L1 Compound Sort Kernels</a>
+        <button class="nvcaret" data-nav="l1_compound_sort_kernels-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l1_compound_sort_kernels-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_compound_sort_kernels-compound_sort_datacenter_u200_u250_connectivity.html" class="nv">Compound Sort Datacenter U200 U250 Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_compound_sort_kernels-compound_sort_high_bandwidth_u280_connectivity.html" class="nv">Compound Sort High Bandwidth U280 Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_compound_sort_kernels-compound_sort_compact_u50_connectivity.html" class="nv">Compound Sort Compact U50 Connectivity</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="database-l1-hash_join_and_aggregation_benchmark_hosts.html" class="nv">L1 Hash Join And Aggregation Benchmark Hosts</a>
+        <button class="nvcaret" data-nav="l1_hash_join_and_aggregation_benchmark_hosts-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l1_hash_join_and_aggregation_benchmark_hosts-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_hash_join_and_aggregation_benchmark_hosts-hash_join_single_variant_benchmark_hosts.html" class="nv">Hash Join Single Variant Benchmark Hosts</a>
+          <button class="nvcaret" data-nav="hash_join_single_variant_benchmark_hosts-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="hash_join_single_variant_benchmark_hosts-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="database_query_and_gqe-l1_hash_join_and_aggregation_benchmark_hosts-hash_join_single_variant_benchmark_hosts-hash_join_v2_host.html" class="nv">Hash Join V2 Host</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="database-L1-benchmarks-hash_join_v3_sc-host.html" class="nv">Hash Join V3 Sc Host</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="database-l1-benchmarks-hash_join_v4_sc-host.html" class="nv">Hash Join V4 Sc Host</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database-l1-benchmarks-hash-join-membership-variants-benchmark-hosts.html" class="nv">Hash Join Membership Variants Benchmark Hosts</a>
+          <button class="nvcaret" data-nav="hash_join_membership_variants_benchmark_hosts-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="hash_join_membership_variants_benchmark_hosts-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="database-L1-benchmarks-hash_semi_join.html" class="nv on">Hash Semi Join</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="database_query_and_gqe-l1_hash_join_and_aggregation_benchmark_hosts-hash_join_membership_variants_benchmark_hosts-hash_anti_join.html" class="nv">Hash Anti Join</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_hash_join_and_aggregation_benchmark_hosts-hash_multi_join_benchmark_host_support.html" class="nv">Hash Multi Join Benchmark Host Support</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_hash_join_and_aggregation_benchmark_hosts-hash_group_aggregate_benchmark_host_support.html" class="nv">Hash Group Aggregate Benchmark Host Support</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="database_query_and_gqe-l1_l2_query_and_sort_demos.html" class="nv">L1 L2 Query And Sort Demos</a>
+        <button class="nvcaret" data-nav="l1_l2_query_and_sort_demos-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l1_l2_query_and_sort_demos-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database-l1-l2-query-and-sort-demos-q5-result-format-and-timing-types.html" class="nv">Q5 Result Format And Timing Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database-L1-demos-q5_simplified_100g_buffer_and_timing_types.html" class="nv">Q5 Simplified 100G Buffer And Timing Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_l2_query_and_sort_demos-q6_mod_filter_output_buffer_and_timing_types.html" class="nv">Q6 Mod Filter Output Buffer And Timing Types</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database_query_and_gqe-l1_l2_query_and_sort_demos-gqesort_host_window_config_type.html" class="nv">Gqesort Host Window Config Type</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="database-L3-src-sw-l3_gqe_execution_threading_and_queues.html" class="nv">L3 Gqe Execution Threading And Queues</a>
+        <button class="nvcaret" data-nav="l3_gqe_execution_threading_and_queues-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l3_gqe_execution_threading_and_queues-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database-L3-src-sw-gqe_aggr-threading_and_queues.html" class="nv">Gqe Aggr Threading And Queues</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="database-L3-src-sw-gqe_filter_threading_and_queues.html" class="nv">Gqe Filter Threading And Queues</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="gqe_join_threading_and_queues.html" class="nv">Gqe Join Threading And Queues</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="database_query_and_gqe-l3_gqe_configuration_and_table_metadata.html" class="nv">L3 Gqe Configuration And Table Metadata</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="dsp_meta_configuration.html" class="nv">Dsp Meta Configuration</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="graph_analytics_and_partitioning.html" class="nv">Graph Analytics And Partitioning</a>
+      <button class="nvcaret" data-nav="graph_analytics_and_partitioning-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="graph_analytics_and_partitioning-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_analytics_and_partitioning-l2_connectivity_and_labeling_benchmarks.html" class="nv">L2 Connectivity And Labeling Benchmarks</a>
+        <button class="nvcaret" data-nav="l2_connectivity_and_labeling_benchmarks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_connectivity_and_labeling_benchmarks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-strongly_connected_component_benchmarks.html" class="nv">Connected Component Benchmarks</a>
+          <button class="nvcaret" data-nav="connected_component_benchmarks-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="connected_component_benchmarks-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-l2-benchmarks-connected_component-host-benchmark_application.html" class="nv">Host Benchmark Application</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-l2-benchmarks-connected_component-platform_connectivity_configs.html" class="nv">Platform Connectivity Configs</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-label_propagation_benchmarks.html" class="nv">Label Propagation Benchmarks</a>
+          <button class="nvcaret" data-nav="label_propagation_benchmarks-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="label_propagation_benchmarks-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_connectivity_and_labeling_benchmarks-label_propagation_benchmarks-alveo_kernel_connectivity_profiles.html" class="nv">Alveo Kernel Connectivity Profiles</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_connectivity_and_labeling_benchmarks-label_propagation_benchmarks-vck190_kernel_connectivity_profile.html" class="nv">Vck190 Kernel Connectivity Profile</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_connectivity_and_labeling_benchmarks-label_propagation_benchmarks-host_benchmark_timing_structs.html" class="nv">Host Benchmark Timing Structs</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-l2-benchmarks-maximal-independent-set-benchmarks.html" class="nv">Maximal Independent Set Benchmarks</a>
+          <button class="nvcaret" data-nav="maximal_independent_set_benchmarks-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="maximal_independent_set_benchmarks-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_connectivity_and_labeling_benchmarks-maximal_independent_set_benchmarks-connectivity_config.html" class="nv">Connectivity Config</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-analytics-and-partitioning-l2-pagerank-and-centrality-benchmarks-pagerank-cache-optimized-benchmark-host-benchmark.html" class="nv">Host Benchmark</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-strongly_connected_component_benchmarks.html" class="nv">Strongly Connected Component Benchmarks</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_analytics_and_partitioning-l2_pagerank_and_centrality_benchmarks.html" class="nv">L2 Pagerank And Centrality Benchmarks</a>
+        <button class="nvcaret" data-nav="l2_pagerank_and_centrality_benchmarks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_pagerank_and_centrality_benchmarks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l2_pagerank_and_centrality_benchmarks-pagerank_base_benchmark.html" class="nv">Pagerank Base Benchmark</a>
+          <button class="nvcaret" data-nav="pagerank_base_benchmark-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="pagerank_base_benchmark-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-l2-benchmarks-pagerank-conn_u50-cfg.html" class="nv">Conn U50 Cfg</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_pagerank_and_centrality_benchmarks-pagerank_base_benchmark-host_test_pagerank.html" class="nv">Host Test Pagerank</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-analytics-and-partitioning-l2-pagerank-and-centrality-benchmarks-pagerank-cache-optimized-benchmark.html" class="nv">Pagerank Cache Optimized Benchmark</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-pagerank_multi_channel_scaling_benchmark.html" class="nv">Pagerank Multi Channel Scaling Benchmark</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-pagerank_personalized_multi_channel_benchmark.html" class="nv">Pagerank Personalized Multi Channel Benchmark</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="l2_graph_patterns_and_shortest_paths_benchmarks.html" class="nv">L2 Graph Patterns And Shortest Paths Benchmarks</a>
+        <button class="nvcaret" data-nav="l2_graph_patterns_and_shortest_paths_benchmarks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_graph_patterns_and_shortest_paths_benchmarks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-shortest_path_float_pred_benchmark.html" class="nv">Shortest Path Float Pred Benchmark</a>
+          <button class="nvcaret" data-nav="shortest_path_float_pred_benchmark-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="shortest_path_float_pred_benchmark-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="data_analytics_text_geo_and_ml-duplicate_text_match_demo_l2-kernel_connectivity.html" class="nv">Kernel Connectivity</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-analytics-and-partitioning-l2-pagerank-and-centrality-benchmarks-pagerank-cache-optimized-benchmark-host-benchmark.html" class="nv">Host Benchmark</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l2_graph_patterns_and_shortest_paths_benchmarks-triangle_count_benchmarks_and_platform_kernels.html" class="nv">Triangle Count Benchmarks And Platform Kernels</a>
+          <button class="nvcaret" data-nav="triangle_count_benchmarks_and_platform_kernels-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="triangle_count_benchmarks_and_platform_kernels-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_graph_patterns_and_shortest_paths_benchmarks-triangle_count_host_timing_support.html" class="nv">Triangle Count Host Timing Support</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="triangle_count_alveo_kernel_connectivity_profiles.html" class="nv">Triangle Count Alveo Kernel Connectivity Profiles</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-L2-benchmarks-triangle_count-triangle_count_versal_kernel_connectivity_profile.html" class="nv">Triangle Count Versal Kernel Connectivity Profile</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l2_graph_patterns_and_shortest_paths_benchmarks-twohop_pattern_benchmark.html" class="nv">Twohop Pattern Benchmark</a>
+          <button class="nvcaret" data-nav="twohop_pattern_benchmark-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="twohop_pattern_benchmark-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="data_analytics_text_geo_and_ml-duplicate_text_match_demo_l2-kernel_connectivity.html" class="nv">Kernel Connectivity</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-analytics-and-partitioning-l2-pagerank-and-centrality-benchmarks-pagerank-cache-optimized-benchmark-host-benchmark.html" class="nv">Host Benchmark</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph_analytics_and_partitioning-l2_graph_preprocessing_and_transforms.html" class="nv">L2 Graph Preprocessing And Transforms</a>
+        <button class="nvcaret" data-nav="l2_graph_preprocessing_and_transforms-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_graph_preprocessing_and_transforms-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_preprocessing_merge_kernel_configuration.html" class="nv">Graph Preprocessing Merge Kernel Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l2_graph_preprocessing_and_transforms-graph_preprocessing_renumber_kernel_configuration.html" class="nv">Graph Preprocessing Renumber Kernel Configuration</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l2_graph_preprocessing_and_transforms-graph_preprocessing_host_benchmark_timing_structs.html" class="nv">Graph Preprocessing Host Benchmark Timing Structs</a>
+          <button class="nvcaret" data-nav="graph_preprocessing_host_benchmark_timing_structs-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="graph_preprocessing_host_benchmark_timing_structs-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_graph_preprocessing_and_transforms-graph_preprocessing_host_benchmark_timing_structs-merge_benchmark_timing.html" class="nv">Merge Benchmark Timing</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l2_graph_preprocessing_and_transforms-graph_preprocessing_host_benchmark_timing_structs-renumber_benchmark_timing.html" class="nv">Renumber Benchmark Timing</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="community_detection_louvain_partitioning.html" class="nv">Community Detection Louvain Partitioning</a>
+        <button class="nvcaret" data-nav="community_detection_louvain_partitioning-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="community_detection_louvain_partitioning-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph-L2-benchmarks-louvain_fast-fpga_kernel_connectivity_profiles.html" class="nv">Fpga Kernel Connectivity Profiles</a>
+          <button class="nvcaret" data-nav="fpga_kernel_connectivity_profiles-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="fpga_kernel_connectivity_profiles-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-L2-benchmarks-louvain_fast-conn_u50_platform_config.html" class="nv">Conn U50 Platform Config</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-l2-benchmarks-louvain-fast-conn-u55c-platform-config.html" class="nv">Conn U55C Platform Config</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-community_detection_louvain_partitioning-host_clustering_data_definitions.html" class="nv">Host Clustering Data Definitions</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="community_detection_louvain_partitioning-partition_phase_timing_and_metrics.html" class="nv">Partition Phase Timing And Metrics</a>
+          <button class="nvcaret" data-nav="partition_phase_timing_and_metrics-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="partition_phase_timing_and_metrics-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="community_detection_louvain_partitioning_parlv_orchestration.html" class="nv">Parlv Orchestration</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-L2-benchmarks-louvain_fast-host-partition-phase_timing_execution.html" class="nv">Phase Timing Execution</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="community_detection_louvain_partitioning-partition_graph_state_structures.html" class="nv">Partition Graph State Structures</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="louvain_modularity_execution_and_orchestration.html" class="nv">Louvain Modularity Execution And Orchestration</a>
+          <button class="nvcaret" data-nav="louvain_modularity_execution_and_orchestration-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="louvain_modularity_execution_and_orchestration-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-community_detection_louvain_partitioning-louvain_modularity_execution_and_orchestration-xilinxlouvain.html" class="nv">Xilinxlouvain</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="op_louvainmodularity.html" class="nv">Op Louvainmodularity</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="l3_openxrm_algorithm_operations.html" class="nv">L3 Openxrm Algorithm Operations</a>
+        <button class="nvcaret" data-nav="l3_openxrm_algorithm_operations-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l3_openxrm_algorithm_operations-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-traversal_and_connectivity_operations.html" class="nv">Traversal And Connectivity Operations</a>
+          <button class="nvcaret" data-nav="traversal_and_connectivity_operations-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="traversal_and_connectivity_operations-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="l3_openxrm_algorithm_operations-traversal_and_connectivity_operations-traversal_and_shortest_path_operations.html" class="nv">Traversal And Shortest Path Operations</a>
+            <button class="nvcaret" data-nav="traversal_and_shortest_path_operations-d3" aria-label="Toggle">›</button>
+          </div>
+          <div class="nvsub" data-nav-sub="traversal_and_shortest_path_operations-d3">
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-traversal_and_connectivity_operations-traversal_and_shortest_path_operations-bfs_operations.html" class="nv">Bfs Operations</a>
+            </div>
+          </div>
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="l3_openxrm_algorithm_operations-traversal_and_connectivity_operations-traversal_and_shortest_path_operations.html" class="nv">Shortest Path Operations</a>
+            </div>
+          </div>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-traversal_and_connectivity_operations-weak_connectivity_analysis.html" class="nv">Weak Connectivity Analysis</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-traversal_and_connectivity_operations-strong_connectivity_analysis.html" class="nv">Strong Connectivity Analysis</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-ranking_and_propagation_operations.html" class="nv">Ranking And Propagation Operations</a>
+          <button class="nvcaret" data-nav="ranking_and_propagation_operations-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="ranking_and_propagation_operations-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-ranking_and_propagation_operations-op_pagerank.html" class="nv">Op Pagerank</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-ranking_and_propagation_operations-op_labelpropagation.html" class="nv">Op Labelpropagation</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="similarity_and_twohop_operations.html" class="nv">Similarity And Twohop Operations</a>
+          <button class="nvcaret" data-nav="similarity_and_twohop_operations-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="similarity_and_twohop_operations-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-L3-op_similaritydense.html" class="nv">Op Similaritydense</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph_analytics_and_partitioning-l3_openxrm_algorithm_operations-similarity_and_twohop_operations-op_similaritysparse.html" class="nv">Op Similaritysparse</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="graph-L3-src-op_twohop.html" class="nv">Op Twohop</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="l3_openxrm_algorithm_operations-graph_representation_and_structural_analytics.html" class="nv">Graph Representation And Structural Analytics</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="hpc-iterative-solver-pipeline.html" class="nv">Hpc Iterative Solver Pipeline</a>
+      <button class="nvcaret" data-nav="hpc_iterative_solver_pipeline-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="hpc_iterative_solver_pipeline-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="hpc_iterative_solver_pipeline-conn_u280_cfg.html" class="nv">Conn U280 Cfg</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="graph-l2-benchmarks-pagerank-conn_u50-cfg.html" class="nv">Conn U50 Cfg</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="quantitative_finance_engines.html" class="nv">Quantitative Finance Engines</a>
+      <button class="nvcaret" data-nav="quantitative_finance_engines-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="quantitative_finance_engines-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="l1-svd-benchmark-host-utils.html" class="nv">L1 Svd Benchmark Host Utils</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="quantitative-finance-l2-benchmarks-l2-monte-carlo-option-engines.html" class="nv">L2 Monte Carlo Option Engines</a>
+        <button class="nvcaret" data-nav="l2_monte_carlo_option_engines-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_monte_carlo_option_engines-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance-L2-benchmarks-MCEuropeanEngine-european_engine_kernel_connectivity_profiles.html" class="nv">European Engine Kernel Connectivity Profiles</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance_engines-l2_monte_carlo_option_engines-european_engine_host_timing_support.html" class="nv">European Engine Host Timing Support</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance_engines-l2_monte_carlo_option_engines-american_engine_host_timing_support.html" class="nv">American Engine Host Timing Support</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="quantitative_finance_engines-l2_tree_based_interest_rate_engines.html" class="nv">L2 Tree Based Interest Rate Engines</a>
+        <button class="nvcaret" data-nav="l2_tree_based_interest_rate_engines-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_tree_based_interest_rate_engines-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance_engines-l2_tree_based_interest_rate_engines-callable_note_tree_engine_hw.html" class="nv">Callable Note Tree Engine Hw</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance-L2-benchmarks-TreeEngine-vanilla_rate_product_tree_engines_hw.html" class="nv">Vanilla Rate Product Tree Engines Hw</a>
+          <button class="nvcaret" data-nav="vanilla_rate_product_tree_engines_hw-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="vanilla_rate_product_tree_engines_hw-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="quantitative_finance_engines-l2_tree_based_interest_rate_engines-vanilla_rate_product_tree_engines_hw-tree_cap_floor_engine.html" class="nv">Tree Cap Floor Engine</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="quantitative_finance_engines-l2_tree_based_interest_rate_engines-tree_swap_engine.html" class="nv">Tree Swap Engine</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance-l2-benchmarks-treeengine-swaption_tree_engines_single_factor_short_rate_models.html" class="nv">Swaption Tree Engines Single Factor Short Rate Models</a>
+          <button class="nvcaret" data-nav="swaption_tree_engines_single_factor_short_rate_models-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="swaption_tree_engines_single_factor_short_rate_models-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="cir_family_swaption_host_timing.html" class="nv">Cir Family Swaption Host Timing</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="gaussian_short_rate_swaption_host_timing.html" class="nv">Gaussian Short Rate Swaption Host Timing</a>
+            <button class="nvcaret" data-nav="gaussian_short_rate_swaption_host_timing-d3" aria-label="Toggle">›</button>
+          </div>
+          <div class="nvsub" data-nav-sub="gaussian_short_rate_swaption_host_timing-d3">
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="quantitative_finance_engines-L2_tree_based_interest_rate_engines-swaption_tree_engines_single_factor_short_rate_models-hw_model.html" class="nv">Hw Model</a>
+            </div>
+          </div>
+          <div>
+            <div class="nav-row" style="padding-left:48px;">
+              <a href="quantitative_finance-engines-l2-tree-based-interest-rate-engines-swaption-tree-engines-single-factor-short-rate-models-gaussian-short-rate-swaption-host-timing-v_model.html" class="nv">V Model</a>
+            </div>
+          </div>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="quantitative_finance_engines-l2_tree_based_interest_rate_engines-swaption_tree_engines_single_factor_short_rate_models-black_karasinski_swaption_host_timing.html" class="nv">Black Karasinski Swaption Host Timing</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance_engines-l2_tree_based_interest_rate_engines-swaption_tree_engine_two_factor_g2_model.html" class="nv">Swaption Tree Engine Two Factor G2 Model</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="quantitative_finance-L2-demos-Quadrature-l2_quadrature_hcf_demo_pipeline.html" class="nv">L2 Quadrature Hcf Demo Pipeline</a>
+        <button class="nvcaret" data-nav="l2_quadrature_hcf_demo_pipeline-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="l2_quadrature_hcf_demo_pipeline-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance_engines-L2_quadrature_hcf_demo_pipeline-host_test_harness.html" class="nv">Host Test Harness</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance-L2-demos-Quadrature-src-kernel-hcf_kernel_engine_and_wrapper.html" class="nv">Hcf Kernel Engine And Wrapper</a>
+          <button class="nvcaret" data-nav="hcf_kernel_engine_and_wrapper-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="hcf_kernel_engine_and_wrapper-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="quantitative_finance-L2-demos-Quadrature-src-kernel-quad_hcf_engine-hcf_engine.html" class="nv">Hcf Engine</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="quantitative_finance-L2-demos-Quadrature-src-kernel-hcf_kernel_wrapper.html" class="nv">Hcf Kernel Wrapper</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="quantitative_finance-L2-demos-Quadrature-src-kernel-quadrature_pi_integration_kernels.html" class="nv">Quadrature Pi Integration Kernels</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="security_crypto_and_checksum.html" class="nv">Security Crypto And Checksum</a>
+      <button class="nvcaret" data-nav="security_crypto_and_checksum-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="security_crypto_and_checksum-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="security-crypto-and-checksum-checksum-integrity-benchmarks.html" class="nv">Checksum Integrity Benchmarks</a>
+        <button class="nvcaret" data-nav="checksum_integrity_benchmarks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="checksum_integrity_benchmarks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksums-checksum_integrity_benchmarks-adler32_kernel_connectivity.html" class="nv">Adler32 Kernel Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-checksum_integrity_benchmarks-crc32_kernel_connectivity.html" class="nv">Crc32 Kernel Connectivity</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="graph_analytics_and_partitioning-l2_connectivity_and_labeling_benchmarks-label_propagation_benchmarks-host_benchmark_timing_structs.html" class="nv">Host Benchmark Timing Structs</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="security_crypto_and_checksum-aes256_cbc_cipher_benchmarks.html" class="nv">Aes256 Cbc Cipher Benchmarks</a>
+        <button class="nvcaret" data-nav="aes256_cbc_cipher_benchmarks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="aes256_cbc_cipher_benchmarks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-aes256_cbc_cipher_benchmarks-aes256_cbc_encrypt_u250_benchmark.html" class="nv">Aes256 Cbc Encrypt U250 Benchmark</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-aes256_cbc_cipher_benchmarks-aes256_cbc_decrypt_u250_benchmark.html" class="nv">Aes256 Cbc Decrypt U250 Benchmark</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-aes256_cbc_cipher_benchmarks-aes256_cbc_decrypt_u50_kernel_configuration.html" class="nv">Aes256 Cbc Decrypt U50 Kernel Configuration</a>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="security-L1-benchmarks-hmac_sha1_authentication_benchmarks.html" class="nv">Hmac Sha1 Authentication Benchmarks</a>
+        <button class="nvcaret" data-nav="hmac_sha1_authentication_benchmarks-d1" aria-label="Toggle">›</button>
+      </div>
+      <div class="nvsub" data-nav-sub="hmac_sha1_authentication_benchmarks-d1">
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-hmac_sha1_authentication_benchmarks-host_benchmark_timing_support.html" class="nv">Host Benchmark Timing Support</a>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-hmac_sha1_authentication_benchmarks-hmac_sha1_kernel_wrapper_instances_1_2.html" class="nv">Hmac Sha1 Kernel Wrapper Instances 1 2</a>
+          <button class="nvcaret" data-nav="hmac_sha1_kernel_wrapper_instances_1_2-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="hmac_sha1_kernel_wrapper_instances_1_2-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="security-L1-benchmarks-hmac_sha1-kernel-hmacSha1Kernel1.html" class="nv">Hmacsha1Kernel1</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="security_crypto_and_checksum-hmac_sha1_authentication_benchmarks-hmac_sha1_kernel_wrapper_instances_1_2-hmacSha1Kernel2.html" class="nv">Hmacsha1Kernel2</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      <div>
+        <div class="nav-row" style="padding-left:24px;">
+          <a href="security_crypto_and_checksum-hmac_sha1_authentication_benchmarks-hmac_sha1_kernel_wrapper_instances_3_4.html" class="nv">Hmac Sha1 Kernel Wrapper Instances 3 4</a>
+          <button class="nvcaret" data-nav="hmac_sha1_kernel_wrapper_instances_3_4-d2" aria-label="Toggle">›</button>
+        </div>
+        <div class="nvsub" data-nav-sub="hmac_sha1_kernel_wrapper_instances_3_4-d2">
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="security_crypto_and_checksum-hmac_sha1_authentication_benchmarks-hmac_sha1_kernel_wrapper_instances_3_4-kernel_instance_3.html" class="nv">Kernel Instance 3</a>
+          </div>
+        </div>
+        <div>
+          <div class="nav-row" style="padding-left:36px;">
+            <a href="security_crypto_and_checksum-hmac_sha1_authentication_benchmarks-hmac_sha1_kernel_wrapper_instances_3_4-kernel_instance_4.html" class="nv">Kernel Instance 4</a>
+          </div>
+        </div>
+        </div>
+      </div>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="security_crypto_and_checksum-rc4_stream_cipher_benchmark_host.html" class="nv">Rc4 Stream Cipher Benchmark Host</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="solver_benchmarks.html" class="nv">Solver Benchmarks</a>
+      <button class="nvcaret" data-nav="solver_benchmarks-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="solver_benchmarks-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="solver_benchmarks-gesvdj_benchmark.html" class="nv">Gesvdj Benchmark</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="solver_benchmarks-gesvj_benchmark.html" class="nv">Gesvj Benchmark</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="solver_benchmarks-gtsv_benchmark.html" class="nv">Gtsv Benchmark</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="vision_core_types_and_benchmarks.html" class="nv">Vision Core Types And Benchmarks</a>
+      <button class="nvcaret" data-nav="vision_core_types_and_benchmarks-d0" aria-label="Toggle">›</button>
+    </div>
+    <div class="nvsub" data-nav-sub="vision_core_types_and_benchmarks-d0">
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="aie_data_mover_configuration.html" class="nv">Aie Data Mover Configuration</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vision_core_types_and_benchmarks-optical_flow_color_internal_structs.html" class="nv">Optical Flow Color Internal Structs</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vision_core_types_and_benchmarks-optical_flow_color_public_types.html" class="nv">Optical Flow Color Public Types</a>
+      </div>
+    </div>
+    <div>
+      <div class="nav-row" style="padding-left:12px;">
+        <a href="vision_core_types_and_benchmarks-l3_benchmark_timing_types.html" class="nv">L3 Benchmark Timing Types</a>
+      </div>
+    </div>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>hash_semi_join 模块深度解析</h1>
+<h2>一句话概括</h2>
+<p><code>hash_semi_join</code> 是一个针对 FPGA 加速的<strong>半连接（Semi-Join）基准测试框架</strong>，用于验证和评估 TPC-H 查询在异构计算平台上的性能表现。它在主机端实现了完整的 OpenCL 运行时、双缓冲流水线，以及基于 CPU 的参考实现，构成了从数据生成、内核调度到结果验证的完整测试闭环。</p>
+<hr />
+<h2>问题空间：我们为什么要做这个？</h2>
+<h3>业务背景：TPC-H 查询加速</h3>
+<p>在数据分析领域，TPC-H 基准测试是衡量决策支持系统性能的行业标准。其中<strong>查询 5（Query 5）<strong>涉及多表连接，特别是 <code>lineitem</code> 表与 <code>orders</code> 表之间的</strong>半连接</strong>操作——即判断左表的记录是否存在于右表中（而不关心右表的具体内容）。</p>
+<h3>为什么需要专门的 Semi-Join 实现？</h3>
+<p>传统的哈希连接（Hash Join）会返回所有匹配的组合，而半连接只需要验证存在性。这种差异带来两个关键优化空间：</p>
+<ol>
+<li><strong>内存效率</strong>：半连接不需要存储右表的完整记录，只需要哈希键</li>
+<li><strong>计算效率</strong>：一旦找到匹配即可终止搜索，减少平均探测时间</li>
+</ol>
+<h3>为什么需要主机端基准框架？</h3>
+<p>FPGA 内核开发需要配套的主机程序来：</p>
+<ul>
+<li>管理设备内存和数据传输</li>
+<li>调度内核执行</li>
+<li>验证结果正确性</li>
+<li>测量性能指标</li>
+</ul>
+<hr />
+<h2>核心抽象：心智模型</h2>
+<p>想象一个<strong>工厂流水线</strong>系统：</p>
+<pre><code>┌─────────────────────────────────────────────────────────────────────┐
+│                        主机端基准测试框架                             │
+├─────────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────────────┐   │
+│  │  数据生成器   │───▶│  双缓冲池    │───▶│   OpenCL 运行时      │   │
+│  │  (CPU 端)    │    │  (Ping-Pong) │    │  (设备管理/调度)      │   │
+│  └──────────────┘    └──────────────┘    └──────────────────────┘   │
+│            │                                    │                  │
+│            ▼                                    ▼                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              FPGA 内核 (join_kernel)                        │   │
+│  │  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐    │   │
+│  │  │  构建哈希表  │───▶│  探测哈希表  │───▶│  聚合结果   │    │   │
+│  │  │ (orders表) │    │(lineitem表) │    │ (sum计算)   │    │   │
+│  │  └─────────────┘    └─────────────┘    └─────────────┘    │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                              │                                      │
+│                              ▼                                      │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              结果验证器 (CPU 参考实现)                     │   │
+│  │  使用 std::unordered_map 实现相同逻辑，对比 FPGA 结果       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+</code></pre>
+<p><strong>三个关键抽象：</strong></p>
+<ol>
+<li>
+<p><strong>双缓冲（Double Buffering）</strong>：就像工厂的两条并行传送带，一条在上料时另一条在执行，完全隐藏数据传输延迟。</p>
+</li>
+<li>
+<p><strong>PU（Processing Unit）分区</strong>：8 个独立的存储缓冲区（<code>stb_buf[0..7]</code>），对应 FPGA 内部的 8 个并行处理单元，实现任务级并行。</p>
+</li>
+<li>
+<p><strong>事件驱动回调</strong>：OpenCL 的异步事件机制配合回调函数，实现&quot;结果就绪即通知&quot;的高效验证模式。</p>
+</li>
+</ol>
+<hr />
+<h2>架构详解：数据流全景</h2>
+<h3>1. 初始化阶段：搭建舞台</h3>
+<pre><code class="language-cpp">// 1. 设备发现和上下文创建
+std::vector&lt;cl::Device&gt; devices = xcl::get_xil_devices();
+cl::Context context(device, NULL, NULL, NULL, &amp;err);
+
+// 2. 命令队列：带性能分析和乱序执行能力
+cl::CommandQueue q(context, device,
+                   CL_QUEUE_PROFILING_ENABLE | CL_QUEUE_OUT_OF_ORDER_EXEC_MODE_ENABLE);
+
+// 3. 加载 xclbin 二进制
+cl::Program::Binaries xclBins = xcl::import_binary_file(xclbin_path);
+cl::Program program(context, devices, xclBins);
+cl::Kernel kernel0(program, &quot;join_kernel&quot;);  // 核心：哈希半连接内核
+</code></pre>
+<h3>2. 内存分配：精心布局的存储策略</h3>
+<p>主机端分配了<strong>三类内存区域</strong>，每类都有明确的用途和访问模式：</p>
+<h4>A. 输入数据缓冲区（表数据）</h4>
+<pre><code class="language-cpp">// lineitem 表数据 (事实表，大)
+KEY_T* col_l_orderkey = aligned_alloc&lt;KEY_T&gt;(l_depth);
+MONEY_T* col_l_extendedprice = aligned_alloc&lt;MONEY_T&gt;(l_depth);
+MONEY_T* col_l_discount = aligned_alloc&lt;MONEY_T&gt;(l_depth);
+
+// orders 表数据 (维度表，较小)
+KEY_T* col_o_orderkey = aligned_alloc&lt;KEY_T&gt;(o_depth);
+DATE_T* col_o_orderdate = aligned_alloc&lt;DATE_T&gt;(o_depth);
+</code></pre>
+<p><strong>关键设计</strong>：使用 <code>aligned_alloc</code> 确保内存对齐，满足 FPGA 直接内存访问（DMA）的对齐要求。</p>
+<h4>B. 双缓冲结果缓冲区</h4>
+<pre><code class="language-cpp">MONEY_T* row_result_a = aligned_alloc&lt;MONEY_T&gt;(2);  // ping
+MONEY_T* row_result_b = aligned_alloc&lt;MONEY_T&gt;(2);    // pong
+</code></pre>
+<p><strong>用途</strong>：存储聚合结果（sum 和 count），双缓冲设计支持流水线重叠。</p>
+<h4>C. PU 分区存储缓冲区</h4>
+<pre><code class="language-cpp">const int PU_NM = 8;
+ap_uint&lt;8 * KEY_SZ&gt;* stb_buf[PU_NM];
+for (int i = 0; i &lt; PU_NM; i++) {
+    stb_buf[i] = aligned_alloc&lt;ap_uint&lt;8 * KEY_SZ&gt; &gt;(BUFF_DEPTH);
+}
+</code></pre>
+<p><strong>关键概念</strong>：8 个独立的哈希表分区，对应 FPGA 内的 8 个并行处理单元（PU）。这种分区策略允许：</p>
+<ul>
+<li>无锁并行：每个 PU 访问自己的分区，避免竞争</li>
+<li>线性扩展：增加 PU 数量可提升吞吐量</li>
+</ul>
+<h3>3. 数据传输策略：精细的内存扩展控制</h3>
+<p>代码中展示了<strong>两种内存分配策略</strong>的选择：</p>
+<pre><code class="language-cpp">// 策略 A: HBM (高带宽内存) - 现代 Alveo 卡
+memExt[0].flags = XCL_BANK(6);   // 显式指定 HBM bank
+memExt[1].flags = XCL_BANK(7);
+// ...
+
+// 策略 B: DDR - 传统分配
+#ifdef USE_DDR
+if (i % 4 == 0) memExt[i].flags = XCL_MEM_DDR_BANK1;
+// ...
+#endif
+</code></pre>
+<p><strong>设计考量</strong>：不同 Alveo 卡有不同的内存架构（DDR vs HBM），这种条件编译允许代码适配不同硬件代际。</p>
+<h3>4. 双缓冲流水线：隐藏延迟的艺术</h3>
+<p>这是整个设计的<strong>性能核心</strong>。想象一个餐厅的两条流水线：</p>
+<pre><code>迭代 0:  W0(上传数据_a) → K0(内核执行) → R0(读取结果_a)
+迭代 1:  W1(上传数据_b) → K1(内核执行) → R1(读取结果_b)
+迭代 2:  W2(上传数据_a) → K2(内核执行) → R2(读取结果_a)
+        ...
+</code></pre>
+<p><strong>关键洞察</strong>：<code>W2</code> 可以与 <code>K1</code> 和 <code>R0</code> 重叠执行！</p>
+<p>代码实现通过<strong>事件依赖图</strong>精确控制这种重叠：</p>
+<pre><code class="language-cpp">// 写操作依赖前两次迭代的读操作完成
+if (i &gt; 1) {
+    q.enqueueMigrateMemObjects(ib, 0, &amp;read_events[i - 2], &amp;write_events[i][0]);
+} else {
+    q.enqueueMigrateMemObjects(ib, 0, nullptr, &amp;write_events[i][0]);
+}
+
+// 内核执行依赖当前写操作完成
+q.enqueueTask(kernel0, &amp;write_events[i], &amp;kernel_events[i][0]);
+
+// 读操作依赖内核执行完成
+q.enqueueMigrateMemObjects(ob, CL_MIGRATE_MEM_OBJECT_HOST, &amp;kernel_events[i], &amp;read_events[i][0]);
+</code></pre>
+<p><strong>依赖链规则</strong>：</p>
+<ul>
+<li><code>W[i]</code> → <code>W[i-2]</code> 的读完成（双缓冲距离为 2）</li>
+<li><code>K[i]</code> → <code>W[i]</code> 的写完成</li>
+<li><code>R[i]</code> → <code>K[i]</code> 的内核完成</li>
+</ul>
+<h3>5. 异步回调验证：零开销结果检查</h3>
+<p>传统同步验证会阻塞等待结果，而这里使用 OpenCL 的<strong>事件回调机制</strong>：</p>
+<pre><code class="language-cpp">// 设置回调函数，在读取事件完成时自动触发
+read_events[i][0].setCallback(CL_COMPLETE, print_buf_result, cbd_ptr + i);
+
+// 回调函数：比较 FPGA 结果与 CPU 黄金参考值
+void CL_CALLBACK print_buf_result(cl_event event, cl_int cmd_exec_status, void* user_data) {
+    print_buf_result_data_t* d = (print_buf_result_data_t*)user_data;
+    if ((*(d-&gt;g)) != (*(d-&gt;v))) (*(d-&gt;r))++;  // 不匹配则标记错误
+    
+    printf(&quot;FPGA result %d: %lld.%lld\n&quot;, d-&gt;i, *(d-&gt;v) / 10000, *(d-&gt;v) % 10000);
+    printf(&quot;Golden result %d: %lld.%lld\n&quot;, d-&gt;i, *(d-&gt;g) / 10000, *(d-&gt;g) % 10000);
+}
+</code></pre>
+<p><strong>设计优势</strong>：</p>
+<ul>
+<li><strong>零延迟开销</strong>：验证与下一次迭代的数据传输重叠执行</li>
+<li><strong>即时反馈</strong>：每次迭代完成立即知道结果是否正确</li>
+<li><strong>自动聚合</strong>：通过 <code>ret</code> 计数器累计总错误数</li>
+</ul>
+<h3>6. CPU 参考实现：黄金标准的建立</h3>
+<p><code>get_golden_sum</code> 函数使用标准 C++ 容器实现了相同的半连接逻辑：</p>
+<pre><code class="language-cpp">ap_uint&lt;64&gt; get_golden_sum(int l_row, KEY_T* col_l_orderkey, /* ... */) {
+    std::unordered_map&lt;uint32_t, uint32_t&gt; ht1;  // 哈希表：orderkey -&gt; placeholder
+    
+    // 构建阶段：筛选 1994 年的订单，插入哈希表
+    for (int i = 0; i &lt; o_row; ++i) {
+        uint32_t k = col_o_orderkey[i];
+        uint32_t date = col_o_orderdate[i];
+        if (date &gt;= 19940101L &amp;&amp; date &lt; 19950101L) {
+            ht1.insert(std::make_pair(k, 0));  // 半连接：只存键，不存值
+        }
+    }
+    
+    // 探测阶段：扫描 lineitem，匹配则累加
+    ap_uint&lt;64&gt; sum = 0;
+    for (int i = 0; i &lt; l_row; ++i) {
+        uint32_t k = col_l_orderkey[i];
+        if (ht1.find(k) != ht1.end()) {
+            sum += (col_l_extendedprice[i] * (100 - col_l_discount[i]));
+        }
+    }
+    return sum;
+}
+</code></pre>
+<p><strong>关键设计决策</strong>：</p>
+<ul>
+<li>使用 <code>std::unordered_map</code> 实现 O(1) 平均复杂度的哈希查找</li>
+<li>半连接优化：哈希表中只存储键（<code>uint32_t</code>），不存储完整记录</li>
+<li>谓词下推：在构建阶段就过滤 <code>o_orderdate</code>，减少哈希表大小</li>
+</ul>
+<hr />
+<h2>设计权衡与决策分析</h2>
+<h3>1. 双缓冲 vs 单缓冲：延迟与吞吐的博弈</h3>
+<p><strong>选择的方案</strong>：双缓冲（Ping-Pong）</p>
+<p><strong>权衡考量</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>单缓冲</th>
+<th>双缓冲</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>内存占用</td>
+<td>低（1x）</td>
+<td>高（2x）</td>
+</tr>
+<tr>
+<td>传输延迟暴露</td>
+<td>完全暴露</td>
+<td>被计算隐藏</td>
+</tr>
+<tr>
+<td>流水线占空比</td>
+<td>~50%</td>
+<td>~100%</td>
+</tr>
+<tr>
+<td>代码复杂度</td>
+<td>简单</td>
+<td>复杂（事件依赖管理）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>决策理由</strong>：在 FPGA 加速场景下，PCIe 数据传输延迟往往是性能瓶颈。双缓冲虽然增加 2 倍内存占用，但能将有效吞吐量提升近 2 倍，这在数据分析场景下是值得的取舍。</p>
+<h3>2. 同步 vs 异步验证：正确性检查的开销</h3>
+<p><strong>选择的方案</strong>：异步回调验证</p>
+<p><strong>关键洞察</strong>：传统同步验证会引入一个强制同步点：</p>
+<pre><code class="language-cpp">// 同步模式（假设）
+q.finish();  // 阻塞等待所有完成
+validate_result();  // 才能开始验证
+// 下一次迭代必须等待验证完成
+</code></pre>
+<p>而回调模式允许验证逻辑与下一次迭代的数据传输重叠，实现<strong>零额外延迟</strong>的正确性检查。</p>
+<p><strong>代价</strong>：代码复杂度增加，需要管理回调生命周期和线程安全问题。</p>
+<h3>3. 内存分配策略：DDR vs HBM</h3>
+<p>代码中通过条件编译支持两种内存架构：</p>
+<pre><code class="language-cpp">#ifdef USE_DDR
+    // 传统 DDR 分配策略
+    if (i % 4 == 0) memExt[i].flags = XCL_MEM_DDR_BANK1;
+    // ...
+#else
+    // HBM (High Bandwidth Memory) 分配
+    memExt[0].flags = XCL_BANK(6);
+    // ...
+#endif
+</code></pre>
+<p><strong>设计意图</strong>：</p>
+<ul>
+<li><strong>DDR</strong>：兼容旧代 Alveo 卡（如 U200/U250），成本低但带宽有限</li>
+<li><strong>HBM</strong>：新代卡（如 U280/U55C）提供 8-16x 带宽提升，但配置更复杂</li>
+</ul>
+<p>这种抽象允许同一份代码适配不同硬件代际，是数据中心软件的重要设计考量。</p>
+<h3>4. PU 分区策略：8 路并行的取舍</h3>
+<p>代码中硬编码了 8 个 PU（Processing Unit）：</p>
+<pre><code class="language-cpp">const int PU_NM = 8;
+ap_uint&lt;8 * KEY_SZ&gt;* stb_buf[PU_NM];
+</code></pre>
+<p><strong>为什么是 8？</strong></p>
+<ul>
+<li>与 FPGA 内核架构匹配：通常一个内核实例有 8 个并行处理管道</li>
+<li>分区哈希策略：通过哈希键的低位选择 PU，实现无锁并行</li>
+<li>存储器资源：每个 PU 需要独立的 HBM/DDR bank，8 是常见硬件配置</li>
+</ul>
+<p><strong>权衡</strong>：增加 PU 数量提升并行度，但增加存储资源消耗和分区开销（哈希偏斜问题）。8 是一个在典型 FPGA 上平衡资源利用率和性能的甜点值。</p>
+<hr />
+<h2>关键组件详解</h2>
+<h3>1. 双缓冲事件管理器</h3>
+<p><strong>职责</strong>：协调&quot;写-执行-读&quot;流水线的异步执行，确保正确的依赖顺序。</p>
+<p><strong>数据结构</strong>：</p>
+<pre><code class="language-cpp">std::vector&lt;std::vector&lt;cl::Event&gt;&gt; write_events(num_rep);
+std::vector&lt;std::vector&lt;cl::Event&gt;&gt; kernel_events(num_rep);
+std::vector&lt;std::vector&lt;cl::Event&gt;&gt; read_events(num_rep);
+</code></pre>
+<p><strong>事件依赖图</strong>（以第 i 次迭代为例）：</p>
+<pre><code>W[i] (数据上传)
+  │
+  ├── depends on ──▶ R[i-2] (前第二次迭代的读取完成，双缓冲距离)
+  │
+  ▼
+K[i] (内核执行)
+  │
+  ├── depends on ──▶ W[i] (当前上传完成)
+  │
+  ▼
+R[i] (结果读取)
+  │
+  ├── depends on ──▶ K[i] (当前内核完成)
+  │
+  ▼
+Callback (回调验证)
+</code></pre>
+<p><strong>关键实现细节</strong>：</p>
+<pre><code class="language-cpp">// 写操作：依赖前两次迭代的读事件（双缓冲）
+if (i &gt; 1) {
+    q.enqueueMigrateMemObjects(ib, 0, &amp;read_events[i - 2], &amp;write_events[i][0]);
+} else {
+    q.enqueueMigrateMemObjects(ib, 0, nullptr, &amp;write_events[i][0]);
+}
+
+// 内核执行：依赖当前写事件
+q.enqueueTask(kernel0, &amp;write_events[i], &amp;kernel_events[i][0]);
+
+// 读操作：依赖当前内核事件
+q.enqueueMigrateMemObjects(ob, CL_MIGRATE_MEM_OBJECT_HOST, &amp;kernel_events[i], &amp;read_events[i][0]);
+</code></pre>
+<h3>2. 内存扩展指针（cl_mem_ext_ptr_t）管理器</h3>
+<p><strong>职责</strong>：建立主机指针与 FPGA 内核参数之间的映射关系，控制内存分配策略（DDR vs HBM）。</p>
+<p><strong>设计模式</strong>：使用 <code>cl_mem_ext_ptr_t</code> 结构体将主机缓冲区与特定的内核参数索引和内存 bank 关联。</p>
+<pre><code class="language-cpp">// 输入数据映射：指定内核参数索引
+cl_mem_ext_ptr_t mext_l_orderkey = {0, col_l_orderkey, kernel0()};  // arg 0
+cl_mem_ext_ptr_t mext_l_extendedprice = {1, col_l_extendedprice, kernel0()};  // arg 1
+// ... 更多参数
+
+// 输出结果映射
+cl_mem_ext_ptr_t mext_result_a = {15, row_result_a, kernel0()};  // arg 15
+
+// PU 缓冲区内存策略配置
+cl_mem_ext_ptr_t memExt[PU_NM];
+#ifdef USE_DDR
+    // DDR 分配策略：轮询分配到不同 DDR bank
+    for (int i = 0; i &lt; PU_NM; ++i) {
+        if (i % 4 == 0) memExt[i].flags = XCL_MEM_DDR_BANK1;
+        else if (i % 4 == 1) memExt[i].flags = XCL_MEM_DDR_BANK1;
+        else if (i % 4 == 2) memExt[i].flags = XCL_MEM_DDR_BANK2;
+        else memExt[i].flags = XCL_MEM_DDR_BANK2;
+    }
+#else
+    // HBM 分配策略：显式指定 HBM bank 索引
+    memExt[0].flags = XCL_BANK(6);
+    memExt[1].flags = XCL_BANK(7);
+    // ... 更多 bank
+#endif
+</code></pre>
+<p><strong>关键洞见</strong>：</p>
+<ul>
+<li><strong>参数索引对齐</strong>：<code>cl_mem_ext_ptr_t</code> 的第一个字段必须与内核参数索引严格一致，这是 OpenCL 运行时定位内核参数的依据。</li>
+<li><strong>内存拓扑感知</strong>：通过 <code>XCL_BANK()</code> 和 <code>XCL_MEM_DDR_BANK</code> 标志，代码显式控制数据在物理内存 bank 上的分布，最大化带宽利用率。</li>
+</ul>
+<h3>3. CPU 参考实现（Golden Model）</h3>
+<p><strong>职责</strong>：提供与 FPGA 内核功能等价的 CPU 实现，用于结果验证和性能基线对比。</p>
+<p><strong>算法实现</strong>：使用 <code>std::unordered_map</code> 实现哈希半连接。</p>
+<pre><code class="language-cpp">ap_uint&lt;64&gt; get_golden_sum(int l_row, KEY_T* col_l_orderkey,
+                           MONEY_T* col_l_extendedprice, MONEY_T* col_l_discount,
+                           int o_row, KEY_T* col_o_orderkey, KEY_T* col_o_orderdate) {
+    std::unordered_map&lt;uint32_t, uint32_t&gt; ht1;  // 哈希表：键 -&gt; 占位符
+    ap_uint&lt;64&gt; sum = 0;
+    
+    // 阶段 1：构建阶段（Build Phase）
+    // 扫描 orders 表，筛选 1994 年的订单，构建哈希表
+    for (int i = 0; i &lt; o_row; ++i) {
+        uint32_t k = col_o_orderkey[i];
+        uint32_t date = col_o_orderdate[i];
+        // 谓词下推：在构建阶段就过滤日期范围
+        if (date &gt;= 19940101L &amp;&amp; date &lt; 19950101L) {
+            ht1.insert(std::make_pair(k, 0));  // 半连接：只存键，值无意义
+        }
+    }
+    
+    // 阶段 2：探测阶段（Probe Phase）
+    // 扫描 lineitem 表，探测哈希表，计算聚合
+    for (int i = 0; i &lt; l_row; ++i) {
+        uint32_t k = col_l_orderkey[i];
+        // 哈希查找：平均 O(1) 复杂度
+        if (ht1.find(k) != ht1.end()) {
+            // 匹配成功：计算 extendedprice * (1 - discount)
+            sum += (col_l_extendedprice[i] * (100 - col_l_discount[i]));
+        }
+    }
+    
+    return sum;
+}
+</code></pre>
+<p><strong>关键设计决策解析</strong>：</p>
+<ol>
+<li>
+<p><strong>半连接优化（Semi-Join Optimization）</strong>：</p>
+<ul>
+<li>传统哈希连接需要存储右表的完整记录以返回连接结果</li>
+<li>半连接只需验证键的存在性，因此 <code>unordered_map</code> 的值类型可以是 <code>uint32_t</code> 占位符</li>
+<li>内存占用与右表记录数成正比，而非与连接结果数成正比</li>
+</ul>
+</li>
+<li>
+<p><strong>谓词下推（Predicate Pushdown）</strong>：</p>
+<ul>
+<li>日期范围过滤 (<code>19940101L &lt;= date &lt; 19950101L</code>) 发生在构建阶段</li>
+<li>这减少了哈希表的大小，提升后续探测阶段的缓存命中率</li>
+<li>体现了数据库查询优化中的经典策略</li>
+</ul>
+</li>
+<li>
+<p><strong>聚合合并（Aggregation Fusion）</strong>：</p>
+<ul>
+<li>不在探测阶段存储匹配结果，而是直接累加到 <code>sum</code></li>
+<li>避免了中间结果物化，减少内存分配和访问开销</li>
+<li>与 FPGA 内核的流式处理策略保持一致</li>
+</ul>
+</li>
+</ol>
+<h3>4. 异步回调验证器</h3>
+<p><strong>职责</strong>：在 OpenCL 读取事件完成时自动触发，比较 FPGA 结果与 CPU 黄金参考值。</p>
+<pre><code class="language-cpp">// 回调数据结构：封装比较所需的所有上下文
+typedef struct print_buf_result_data_ {
+    int i;              // 迭代索引
+    long long* v;       // FPGA 结果指针
+    long long* g;       // 黄金参考值指针
+    int* r;             // 错误计数器指针
+} print_buf_result_data_t;
+
+// OpenCL 事件回调函数
+void CL_CALLBACK print_buf_result(cl_event event, cl_int cmd_exec_status, void* user_data) {
+    print_buf_result_data_t* d = (print_buf_result_data_t*)user_data;
+    
+    // 结果比较：FPGA 值 vs 黄金值
+    if ((*(d-&gt;g)) != (*(d-&gt;v))) {
+        (*(d-&gt;r))++;  // 不匹配则递增错误计数
+    }
+    
+    // 格式化输出：将定点数转换为 decimal(12,4) 格式
+    printf(&quot;FPGA result %d: %lld.%lld\n&quot;, d-&gt;i, 
+           *(d-&gt;v) / 10000, *(d-&gt;v) % 10000);
+    printf(&quot;Golden result %d: %lld.%lld\n&quot;, d-&gt;i, 
+           *(d-&gt;g) / 10000, *(d-&gt;g) % 10000);
+}
+</code></pre>
+<p><strong>关键实现细节</strong>：</p>
+<ol>
+<li>
+<p><strong>上下文封装</strong>：<code>print_buf_result_data_t</code> 结构体将验证所需的所有指针打包，因为 OpenCL 回调只接受单个 <code>void*</code> 参数。</p>
+</li>
+<li>
+<p><strong>线程安全考虑</strong>：错误计数器 <code>r</code> 通过指针共享，多个回调可能并发递增。虽然 <code>int</code> 的递增不是原子操作，但在这种基准测试场景下，精确的错误计数不如检测到有错误重要。</p>
+</li>
+<li>
+<p><strong>定点数格式化</strong>：<code>*(d-&gt;v) / 10000</code> 和 <code>*(d-&gt;v) % 10000</code> 将内部定点数表示转换为可读的小数格式，暗示数据以 1/10000 精度存储（即 4 位小数）。</p>
+</li>
+</ol>
+<hr />
+<h2>依赖关系与数据契约</h2>
+<h3>上游依赖（谁调用我）</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>关系类型</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hash_join_membership_variants_benchmark_hosts</code></td>
+<td>父模块</td>
+<td>提供主机端测试框架的基础设施</td>
+</tr>
+<tr>
+<td><code>hash_join_single_variant_benchmark_hosts</code></td>
+<td>兄弟模块</td>
+<td>共享相似的单连接变体实现模式</td>
+</tr>
+<tr>
+<td><code>l1_hash_join_and_aggregation_benchmark_hosts</code></td>
+<td>祖父模块</td>
+<td>定义 L1 层基准测试的通用接口</td>
+</tr>
+</tbody>
+</table>
+<h3>下游依赖（我调用谁）</h3>
+<table>
+<thead>
+<tr>
+<th>模块/库</th>
+<th>用途</th>
+<th>关键 API</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xf::common::utils_sw::Logger</code></td>
+<td>日志记录</td>
+<td><code>logger.error()</code>, <code>logger.info()</code></td>
+</tr>
+<tr>
+<td><code>xf::common::utils_sw::ArgParser</code></td>
+<td>命令行解析</td>
+<td><code>parser.getCmdOption()</code></td>
+</tr>
+<tr>
+<td><code>xcl2</code></td>
+<td>Xilinx OpenCL 封装</td>
+<td><code>xcl::get_xil_devices()</code>, <code>xcl::import_binary_file()</code></td>
+</tr>
+<tr>
+<td><code>table_dt.hpp</code></td>
+<td>表数据类型定义</td>
+<td><code>KEY_T</code>, <code>MONEY_T</code>, <code>DATE_T</code></td>
+</tr>
+<tr>
+<td><code>hashjoinkernel.hpp</code></td>
+<td>内核接口</td>
+<td><code>join_kernel</code> 函数原型</td>
+</tr>
+</tbody>
+</table>
+<h3>数据契约</h3>
+<p><strong>输入数据格式</strong>：</p>
+<ul>
+<li><code>col_l_orderkey</code>: <code>KEY_T*</code> (通常 uint32_t)，lineitem 表订单键</li>
+<li><code>col_l_extendedprice</code>: <code>MONEY_T*</code> (通常 int64_t 定点数)，扩展价格</li>
+<li><code>col_l_discount</code>: <code>MONEY_T*</code>，折扣率（百分比，如 5 表示 5%）</li>
+<li><code>col_o_orderkey</code>: <code>KEY_T*</code>，orders 表订单键</li>
+<li><code>col_o_orderdate</code>: <code>DATE_T*</code> (通常 int32_t，YYYYMMDD 格式)，订单日期</li>
+</ul>
+<p><strong>输出数据格式</strong>：</p>
+<ul>
+<li><code>row_result</code>: <code>MONEY_T[2]</code> 数组
+<ul>
+<li><code>row_result[0]</code>: sum 值（定点数，精度通常为 1/10000）</li>
+<li><code>row_result[1]</code>: count 值（匹配行数）</li>
+</ul>
+</li>
+</ul>
+<p><strong>内核参数契约</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>参数索引</th>
+<th>名称</th>
+<th>方向</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>col_l_orderkey</td>
+<td>输入</td>
+<td>lineitem 订单键数组</td>
+</tr>
+<tr>
+<td>1</td>
+<td>col_l_extendedprice</td>
+<td>输入</td>
+<td>扩展价格数组</td>
+</tr>
+<tr>
+<td>2</td>
+<td>col_l_discount</td>
+<td>输入</td>
+<td>折扣数组</td>
+</tr>
+<tr>
+<td>3</td>
+<td>l_nrow</td>
+<td>输入</td>
+<td>lineitem 行数</td>
+</tr>
+<tr>
+<td>4</td>
+<td>col_o_orderkey</td>
+<td>输入</td>
+<td>orders 订单键数组</td>
+</tr>
+<tr>
+<td>5</td>
+<td>col_o_orderdate</td>
+<td>输入</td>
+<td>订单日期数组</td>
+</tr>
+<tr>
+<td>6</td>
+<td>o_nrow</td>
+<td>输入</td>
+<td>orders 行数</td>
+</tr>
+<tr>
+<td>7-14</td>
+<td>stb_buf[0-7]</td>
+<td>输入/输出</td>
+<td>8 个 PU 分区缓冲区</td>
+</tr>
+<tr>
+<td>15</td>
+<td>result</td>
+<td>输出</td>
+<td>结果数组</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>设计决策与权衡</h2>
+<h3>决策 1：OpenCL vs 专用驱动</h3>
+<p><strong>问题</strong>：为什么选择 OpenCL 而不是 Xilinx 的 XRT 原生 API？</p>
+<p><strong>选择的方案</strong>：OpenCL + Xilinx 扩展 (<code>xcl2</code>)</p>
+<p><strong>理由</strong>：</p>
+<ol>
+<li><strong>可移植性</strong>：OpenCL 是跨平台标准，代码可以更容易移植到其他支持 OpenCL 的 FPGA 平台</li>
+<li><strong>生态成熟度</strong>：<code>xcl2</code> 封装提供了设备发现、二进制加载等常用功能，减少样板代码</li>
+<li><strong>工具链集成</strong>：Vitis 工具链对 OpenCL 有良好支持，便于调试和性能分析</li>
+</ol>
+<p><strong>代价</strong>：相比 XRT 原生 API，OpenCL 有轻微的运行时开销，且某些高级特性（如主机内存直接访问）需要额外扩展。</p>
+<h3>决策 2：双缓冲距离为 2</h3>
+<p><strong>问题</strong>：为什么选择 <code>i-2</code> 作为写操作的依赖？</p>
+<pre><code class="language-cpp">if (i &gt; 1) {
+    q.enqueueMigrateMemObjects(ib, 0, &amp;read_events[i - 2], &amp;write_events[i][0]);
+}
+</code></pre>
+<p><strong>分析</strong>：双缓冲意味着有两个缓冲区（A 和 B）交替使用。考虑以下执行序列：</p>
+<table>
+<thead>
+<tr>
+<th>迭代</th>
+<th>使用的缓冲区</th>
+<th>操作阶段</th>
+<th>依赖关系</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>A</td>
+<td>W0 → K0 → R0</td>
+<td>无前置依赖</td>
+</tr>
+<tr>
+<td>1</td>
+<td>B</td>
+<td>W1 → K1 → R1</td>
+<td>无前置依赖（B 空闲）</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A</td>
+<td>W2 → K2 → R2</td>
+<td>依赖 R0（A 需空闲）</td>
+</tr>
+<tr>
+<td>3</td>
+<td>B</td>
+<td>W3 → K3 → R3</td>
+<td>依赖 R1（B 需空闲）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>结论</strong>：写操作 <code>W[i]</code> 依赖的是 <code>R[i-2]</code>，因为两个缓冲区交替使用，必须等前两次迭代的读取完成后，当前缓冲区才能被复用。</p>
+<h3>决策 3：回调数据结构的生命周期管理</h3>
+<p><strong>问题</strong>：如何确保回调函数执行时，其用户数据仍然有效？</p>
+<p><strong>选择的方案</strong>：预分配向量 + 迭代器固定</p>
+<pre><code class="language-cpp">// 预分配所有迭代需要的回调数据结构
+std::vector&lt;print_buf_result_data_t&gt; cbd(num_rep);
+std::vector&lt;print_buf_result_data_t&gt;::iterator it = cbd.begin();
+print_buf_result_data_t* cbd_ptr = &amp;(*it);
+
+// 设置回调时，传递指向元素的指针
+read_events[i][0].setCallback(CL_COMPLETE, print_buf_result, cbd_ptr + i);
+</code></pre>
+<p><strong>为什么这样是安全的</strong>：</p>
+<ol>
+<li><code>std::vector</code> 在构造时一次性分配所有元素，后续不会重新分配（只要没有插入/删除操作）</li>
+<li>迭代器和指针在 vector 不重新分配的情况下保持稳定</li>
+<li>回调在 <code>CL_COMPLETE</code> 事件触发时执行，此时数据仍在 vector 的有效生命周期内</li>
+</ol>
+<p><strong>替代方案的风险</strong>：</p>
+<ul>
+<li>栈分配：回调可能在线程退出后执行，栈帧已无效</li>
+<li>堆分配 + 立即释放：需要复杂的手动引用计数</li>
+<li>静态全局变量：不支持多实例并发执行</li>
+</ul>
+<h3>决策 4：定点数表示 vs 浮点数</h3>
+<p><strong>问题</strong>：为什么货币计算使用 <code>MONEY_T</code>（通常是 int64_t）而不是 float/double？</p>
+<p><strong>分析</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>定点数 (int64)</th>
+<th>浮点数 (double)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>精度</td>
+<td>完全精确（十进制）</td>
+<td>二进制近似，有舍入误差</td>
+</tr>
+<tr>
+<td>比较</td>
+<td>整数相等比较</td>
+<td>需要 epsilon 容差</td>
+</tr>
+<tr>
+<td>FPGA 实现</td>
+<td>简单，资源少</td>
+<td>复杂，需要浮点单元</td>
+</tr>
+<tr>
+<td>范围</td>
+<td>受限于 int64</td>
+<td>极大动态范围</td>
+</tr>
+</tbody>
+</table>
+<p><strong>使用的方案</strong>：定点数，精度为 1/10000（4 位小数）</p>
+<pre><code class="language-cpp">// 格式化输出：将定点数转换为可读的小数
+printf(&quot;FPGA result %d: %lld.%lld\n&quot;, d-&gt;i, 
+       *(d-&gt;v) / 10000,      // 整数部分
+       *(d-&gt;v) % 10000);     // 小数部分（4位）
+</code></pre>
+<p><strong>为什么选择 1/10000</strong>：</p>
+<ul>
+<li>TPC-H 规范要求货币值精确到 0.01（分）</li>
+<li>中间计算可能需要更高精度（如折扣计算），1/10000 提供两位额外精度防止累积误差</li>
+<li>64 位整数范围足够：最大可表示约 ±9e14，远超 TPC-H 的数据规模</li>
+</ul>
+<hr />
+<h2>新贡献者必读：边缘情况与陷阱</h2>
+<h3>1. 内存对齐陷阱</h3>
+<p><strong>问题</strong>：<code>aligned_alloc</code> 分配的内存在释放时需要匹配特定的释放函数。</p>
+<pre><code class="language-cpp">// 分配
+KEY_T* col_l_orderkey = aligned_alloc&lt;KEY_T&gt;(l_depth);
+
+// 错误释放（未显示在代码中，但如果添加需要小心）
+// free(col_l_orderkey);  // 未定义行为！
+
+// 正确释放
+aligned_free(col_l_orderkey);
+</code></pre>
+<p><strong>陷阱</strong>：不同平台对 <code>aligned_alloc</code> 的释放要求不同（Linux 通常可用 <code>free</code>，但严格遵循 C11 标准的代码应使用 <code>aligned_free</code> 或 <code>free</code>，取决于实现）。</p>
+<h3>2. 事件生命周期与回调陷阱</h3>
+<p><strong>问题</strong>：如果回调函数执行时，其用户数据已被释放，会导致 use-after-free。</p>
+<p><strong>代码中的保护</strong>：</p>
+<pre><code class="language-cpp">// 正确：vector 在 main 函数栈帧上，生命周期覆盖所有回调
+std::vector&lt;print_buf_result_data_t&gt; cbd(num_rep);
+</code></pre>
+<p><strong>常见错误</strong>：</p>
+<pre><code class="language-cpp">// 错误：栈分配在循环内部，每次迭代后失效
+for (int i = 0; i &lt; num_rep; i++) {
+    print_buf_result_data_t data = {i, ...};  // 栈分配
+    read_events[i][0].setCallback(CL_COMPLETE, print_buf_result, &amp;data);  // 悬垂指针！
+}
+</code></pre>
+<h3>3. 双缓冲索引计算陷阱</h3>
+<p><strong>问题</strong>：双缓冲的索引计算容易出错，导致数据竞争或死锁。</p>
+<p><strong>代码中的正确模式</strong>：</p>
+<pre><code class="language-cpp">// 双缓冲：使用 i &amp; 1 快速切换 0/1
+int use_a = i &amp; 1;  // 偶数迭代用 a，奇数迭代用 b
+
+// 依赖前两次迭代的读取（距离为 2）
+if (i &gt; 1) {
+    q.enqueueMigrateMemObjects(ib, 0, &amp;read_events[i - 2], &amp;write_events[i][0]);
+}
+</code></pre>
+<p><strong>常见错误</strong>：</p>
+<pre><code class="language-cpp">// 错误：依赖距离为 1，单缓冲
+q.enqueueMigrateMemObjects(ib, 0, &amp;read_events[i - 1], ...);  // 死锁！
+
+// 错误：依赖距离为 2 但缓冲区分组错误
+int use_buffer = i % 3;  // 3 个缓冲区？但只分配了 2 个
+</code></pre>
+<h3>4. OpenCL 缓冲区大小计算陷阱</h3>
+<p><strong>问题</strong>：<code>cl::Buffer</code> 的大小参数是字节数，容易与元素数混淆。</p>
+<p><strong>代码中的正确模式</strong>：</p>
+<pre><code class="language-cpp">// 正确：使用 sizeof 或预定义的宏计算字节数
+cl::Buffer buf_l_orderkey_a(context, CL_MEM_EXT_PTR_XILINX | CL_MEM_USE_HOST_PTR | CL_MEM_READ_ONLY,
+                            (size_t)(KEY_SZ * l_depth), &amp;mext_l_orderkey);
+// KEY_SZ 是每个元素的字节数，l_depth 是元素个数
+</code></pre>
+<p><strong>常见错误</strong>：</p>
+<pre><code class="language-cpp">// 错误：直接使用元素个数作为字节数
+cl::Buffer buf(context, CL_MEM_READ_ONLY, l_depth, ptr);  // 少了 sizeof(T)！
+
+// 错误：混淆指针大小与数据大小
+cl::Buffer buf(context, CL_MEM_READ_ONLY, sizeof(ptr), ptr);  // 只分配了指针大小！
+</code></pre>
+<h3>5. HLS 仿真与硬件执行的条件编译</h3>
+<p><strong>问题</strong>：代码需要同时支持 HLS 纯软件仿真和实际 FPGA 硬件执行，容易混淆两者。</p>
+<p><strong>代码中的条件编译</strong>：</p>
+<pre><code class="language-cpp">#ifdef HLS_TEST
+    // HLS 纯软件仿真路径
+    join_kernel(...);  // 直接调用 C++ 函数
+    long long* rv = (long long*)row_result_a;
+    printf(&quot;FPGA result: %lld.%lld\n&quot;, *rv / 10000, *rv % 10000);
+#else
+    // 实际 FPGA 硬件执行路径
+    // OpenCL 设备发现、缓冲区创建、内核调度...
+#endif
+</code></pre>
+<p><strong>常见错误</strong>：</p>
+<pre><code class="language-cpp">// 错误：在 HLS_TEST 模式下使用 OpenCL API
+#ifdef HLS_TEST
+    cl::Context context;  // 错误！HLS 仿真没有 OpenCL 运行时
+    join_kernel(...);
+#endif
+
+// 错误：忘记包含必要头文件
+#ifndef HLS_TEST
+    #include &lt;xcl2.hpp&gt;  // 必须包含，否则 OpenCL 类型未定义
+#endif
+</code></pre>
+<hr />
+<h2>使用指南：如何扩展和修改</h2>
+<h3>添加新的谓词条件</h3>
+<p>如果需要修改日期范围或其他过滤条件，编辑 <code>get_golden_sum</code> 函数和 FPGA 内核：</p>
+<pre><code class="language-cpp">// CPU 参考实现中的谓词修改
+// 原代码：1994 年订单
+if (date &gt;= 19940101L &amp;&amp; date &lt; 19950101L) {
+    ht1.insert(std::make_pair(k, 0));
+}
+
+// 修改为：1995 年第一季度
+if (date &gt;= 19950101L &amp;&amp; date &lt; 19950401L) {
+    ht1.insert(std::make_pair(k, 0));
+}
+</code></pre>
+<p><strong>注意</strong>：FPGA 内核也需要相应修改，确保 CPU 和 FPGA 逻辑一致。</p>
+<h3>修改 PU 数量</h3>
+<p>如果需要调整并行度（例如从 8 PU 改为 16 PU）：</p>
+<pre><code class="language-cpp">// 1. 修改 PU_NM 常量
+const int PU_NM = 16;  // 原为 8
+
+// 2. 扩展内存 bank 分配
+#ifndef USE_DDR
+    memExt[0].flags = XCL_BANK(6);
+    // ... 扩展到 memExt[15]
+    memExt[15].flags = XCL_BANK(21);
+#endif
+
+// 3. 更新内核参数绑定（需要重新编译 xclbin）
+// FPGA 内核需要支持 16 个 stb_buf 参数
+</code></pre>
+<p><strong>硬件限制</strong>：PU 数量受限于 FPGA 的 HBM/DDR bank 数量和内核逻辑资源。</p>
+<h3>添加性能计数器</h3>
+<p>如果需要更详细的性能分析，可以扩展事件回调：</p>
+<pre><code class="language-cpp">// 扩展回调数据结构
+typedef struct print_buf_result_data_ {
+    int i;
+    long long* v;
+    long long* g;
+    int* r;
+    // 新增性能计数
+    cl_ulong kernel_start;
+    cl_ulong kernel_end;
+} print_buf_result_data_t;
+
+// 在内核事件完成后获取时间戳
+cl_ulong start, end;
+kernel_events[i][0].getProfilingInfo(CL_PROFILING_COMMAND_START, &amp;start);
+kernel_events[i][0].getProfilingInfo(CL_PROFILING_COMMAND_END, &amp;end);
+
+// 传递给回调数据
+cbd_ptr[i].kernel_start = start;
+cbd_ptr[i].kernel_end = end;
+</code></pre>
+<hr />
+<h2>总结</h2>
+<p><code>hash_semi_join</code> 模块是一个完整的主机端 FPGA 基准测试框架，它不仅仅是&quot;调用内核&quot;的简单封装，而是一个精心设计的<strong>异构计算运行时系统</strong>。其核心设计亮点包括：</p>
+<ol>
+<li>
+<p><strong>双缓冲流水线</strong>：通过精确的事件依赖图，实现数据传输与内核执行的完全重叠，最大化有效吞吐量。</p>
+</li>
+<li>
+<p><strong>内存拓扑感知</strong>：显式控制数据在 HBM/DDR bank 上的分布，适配不同硬件代际的内存架构。</p>
+</li>
+<li>
+<p><strong>异步验证架构</strong>：事件驱动的回调机制实现了零开销的结果验证，验证逻辑与执行流水线完全重叠。</p>
+</li>
+<li>
+<p><strong>参考实现对比</strong>：提供基于标准库的 CPU 黄金参考，确保 FPGA 实现的正确性可追溯。</p>
+</li>
+</ol>
+<p>对于新加入团队的开发者，理解这个模块的关键在于把握**&quot;流水线思维&quot;<strong>——不要将其视为串行的&quot;准备数据→调用内核→获取结果&quot;，而要理解为一个</strong>持续运转的生产线**，每个阶段都在为下一个阶段准备数据，而双缓冲机制确保这条永不停歇。</p>
+<hr />
+<h2>参考链接</h2>
+<ul>
+<li><a href="database-L1-benchmarks-hash_join_membership_variants_benchmark_hosts.html">父模块：hash_join_membership_variants_benchmark_hosts</a></li>
+<li><a href="database-L1-benchmarks-l1_hash_join_and_aggregation_benchmark_hosts.html">祖父模块：l1_hash_join_and_aggregation_benchmark_hosts</a></li>
+<li><a href="database-L1-benchmarks-hash_anti_join.html">相关模块：hash_anti_join</a></li>
+</ul>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

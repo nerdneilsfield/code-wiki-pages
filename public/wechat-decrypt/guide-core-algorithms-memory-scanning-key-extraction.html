@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>进程内存区域枚举与密钥发现算法深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-03T00:43<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-fuzzy-contact-resolution.html" class="nv">Fuzzy Contact Resolution</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-key-validity-verification.html" class="nv">Key Validity Verification</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv on">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-mtime-based-db-cache-invalidation.html" class="nv">Mtime Based Db Cache Invalidation</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconstruction.html" class="nv">Wal Frame Reconstruction</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>进程内存区域枚举与密钥发现算法深度解析</h1>
+<h2>1. 问题陈述</h2>
+<h3>1.1 形式化定义</h3>
+<p>设目标进程 <span class="math-inline">\(P\)</span> 的虚拟地址空间为 <span class="math-inline">\(\mathcal{V} = [0, 2^{47}-1]\)</span>（Windows x64 用户模式地址空间上限）。该空间被划分为若干<strong>内存区域</strong>（Memory Regions），每个区域 <span class="math-inline">\(r_i\)</span> 由四元组描述：</p>
+<div class="math-block">\[r_i = (b_i, s_i, \sigma_i, \pi_i)\]</div>
+<p>其中：</p>
+<ul>
+<li><span class="math-inline">\(b_i \in \mathcal{V}\)</span>：基地址（Base Address）</li>
+<li><span class="math-inline">\(s_i \in \mathbb{Z}^+\)</span>：区域大小（Region Size）</li>
+<li><span class="math-inline">\(\sigma_i \in \{\text{MEM\_FREE}, \text{MEM\_RESERVE}, \text{MEM\_COMMIT}\}\)</span>：状态</li>
+<li><span class="math-inline">\(\pi_i \subseteq \Pi\)</span>：保护属性集合，<span class="math-inline">\(\Pi = \{PAGE\_NOACCESS, PAGE\_READONLY, PAGE\_READWRITE, \dots\}\)</span></li>
+</ul>
+<p><strong>问题</strong>：给定进程句柄 <span class="math-inline">\(h\)</span>，枚举所有满足约束条件的已提交可读区域：</p>
+<div class="math-block">\[\mathcal{R}^* = \{ r_i \mid \sigma_i = \text{MEM\_COMMIT} \land \pi_i \cap \Pi_{readable} \neq \emptyset \land 0 &lt; s_i &lt; S_{max} \}\]</div>
+<p>其中 <span class="math-inline">\(S_{max} = 500 \times 2^{20}\)</span> bytes（500MB 上限，排除映射文件等超大区域）。</p>
+<h3>1.2 应用背景</h3>
+<p>在 <code>wechat-decrypt</code> 项目中，此枚举是<strong>密钥发现</strong>的第一步。微信 WCDB 引擎在内存中缓存 SQLCipher 派生密钥，格式为 <code>x'&lt;hex&gt;'</code>。通过扫描可读内存区域，可定位这些密钥缓存，避免昂贵的 PBKDF2 计算（256,000 次迭代）。</p>
+<hr />
+<h2>2. 直觉与关键洞察</h2>
+<h3>2.1 朴素方法的失败</h3>
+<p><strong>方法 A：全地址空间线性扫描</strong></p>
+<ul>
+<li>以固定步长（如 4KB）遍历 <span class="math-inline">\(\mathcal{V}\)</span></li>
+<li><strong>缺陷</strong>：未分配区域导致访问违规；无法获知区域边界和保护属性</li>
+</ul>
+<p><strong>方法 B：/proc/pid/maps 风格（Linux）</strong></p>
+<ul>
+<li>Windows 无等价接口，需使用 <code>VirtualQueryEx</code></li>
+</ul>
+<h3>2.2 关键洞察：操作系统已维护元数据</h3>
+<p>Windows 内核通过<strong>虚拟地址描述符</strong>（VAD, Virtual Address Descriptor）树维护进程地址空间布局。<code>VirtualQueryEx</code> API 暴露这些元数据，允许：</p>
+<ol>
+<li><strong>跳过空闲区域</strong>：直接获知下一个已分配区域的边界</li>
+<li><strong>原子性查询</strong>：单次调用返回完整区域信息</li>
+<li><strong>权限预筛选</strong>：避免尝试读取不可读页面</li>
+</ol>
+<p>这类似于稀疏矩阵的 CSR/CSC 存储——只存储非零元素（已分配区域），而非完整的稠密矩阵。</p>
+<hr />
+<h2>3. 形式化定义</h2>
+<h3>3.1 系统模型</h3>
+<pre><code class="language-pseudocode">Type Address      = UInt64
+Type RegionSize   = UInt64
+Type MemoryState  = Enum { MEM_COMMIT = 0x1000, MEM_RESERVE = 0x2000, MEM_FREE = 0x10000 }
+Type ProtectFlags = UInt32
+
+Record MBI:        // Memory Basic Information
+    BaseAddress       : Address
+    AllocationBase    : Address
+    AllocationProtect : ProtectFlags
+    RegionSize        : RegionSize
+    State             : MemoryState
+    Protect           : ProtectFlags
+    Type              : UInt32
+
+ReadableSet = {0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80}  // PAGE_READONLY, READWRITE, etc.
+</code></pre>
+<h3>3.2 算法规范</h3>
+<p><strong>输入</strong>：进程句柄 <span class="math-inline">\(h \in \mathcal{H}\)</span></p>
+<p><strong>输出</strong>：区域列表 <span class="math-inline">\(\mathcal{L} = [(b_1, s_1), (b_2, s_2), \dots, (b_n, s_n)]\)</span></p>
+<p><strong>不变式</strong>：设当前查询地址为 <span class="math-inline">\(a\)</span>，每次迭代满足：</p>
+<p>$$a = b_{i} + s_{i} \quad \text{（严格单调递增）}$$</p>
+<p><strong>终止条件</strong>：</p>
+<ul>
+<li><span class="math-inline">\(a \geq A_{max} = 0\text{x}7FFFFFFFFFFF\)</span>（用户空间上限）</li>
+<li><code>VirtualQueryEx</code> 返回 0（错误，通常表示地址越界）</li>
+<li><span class="math-inline">\(b_{i+1} \leq b_i\)</span>（安全检测：防止无限循环）</li>
+</ul>
+<hr />
+<h2>4. 算法详解</h2>
+<h3>4.1 伪代码</h3>
+<pre><code class="language-pseudocode">Algorithm EnumRegions(h: Handle) → List[(Address, RegionSize)]
+    Input:  Process handle h
+    Output: List of (base_address, region_size) pairs
+    
+    regs ← empty list
+    addr ← 0
+    mbi ← new MBI()
+    
+    while addr &lt; MAX_ADDR do
+        // Query kernel for region information
+        result ← VirtualQueryEx(h, addr, &amp;mbi, sizeof(MBI))
+        if result = 0 then
+            break  // Error or end of address space
+        
+        // Apply filtering predicate
+        if mbi.State = MEM_COMMIT 
+           ∧ mbi.Protect ∈ READABLE 
+           ∧ 0 &lt; mbi.RegionSize &lt; SIZE_LIMIT then
+            append (mbi.BaseAddress, mbi.RegionSize) to regs
+        end if
+        
+        // Advance to next region (critical: use returned bounds)
+        next_addr ← mbi.BaseAddress + mbi.RegionSize
+        
+        // Safety check: detect wrap-around or stagnation
+        if next_addr ≤ addr then
+            break  // Prevent infinite loop
+        end if
+        
+        addr ← next_addr
+    end while
+    
+    return regs
+end Algorithm
+</code></pre>
+<h3>4.2 执行流程图</h3>
+<div class="mermaid">flowchart TD
+    Start([开始]) --> Init[初始化<br/>addr = 0<br/>regs = []]
+    Init --> LoopCond{addr < 0x7FFFFFFFFFFF?}
+    LoopCond -- 否 --> Return[返回 regs]
+    LoopCond -- 是 --> VQE[VirtualQueryEx<br/>查询内存信息]
+    VQE --> CheckResult{返回码 > 0?}
+    CheckResult -- 否 --> Return
+    CheckResult -- 是 --> Filter{MEM_COMMIT?<br/>∧ 可读?<br/>∧ 大小合法?}
+    Filter -- 是 --> Append[添加区域到 regs]
+    Filter -- 否 --> ComputeNext
+    Append --> ComputeNext[计算 next_addr =<br/>BaseAddress + RegionSize]
+    ComputeNext --> SafetyCheck{next_addr > addr?}
+    SafetyCheck -- 否 --> Return
+    SafetyCheck -- 是 --> UpdateAddr[addr = next_addr]
+    UpdateAddr --> LoopCond
+    Return --> End([结束])
+</div>
+<h3>4.3 数据结构关系</h3>
+<div class="mermaid">graph TB
+    subgraph "Windows Kernel"
+        VAD[VAD Tree<br/>虚拟地址描述符]
+    end
+    
+    subgraph "User Space"
+        API[VirtualQueryEx<br/>Kernel32.dll]
+        MBI_Struct[MBI Structure<br/>ctypes.Structure]
+        EnumAlgo[enum_regions<br/>算法实现]
+        ResultList[Region List<br/>List[(addr, size)]]
+    end
+    
+    VAD -.->|查询| API
+    API -->|填充| MBI_Struct
+    MBI_Struct -->|消费| EnumAlgo
+    EnumAlgo -->|生成| ResultList
+    
+    style VAD fill:#f9f,stroke:#333
+    style API fill:#bbf,stroke:#333
+    style EnumAlgo fill:#bfb,stroke:#333
+</div>
+<hr />
+<h2>5. 复杂度分析</h2>
+<h3>5.1 时间复杂度</h3>
+<p>设地址空间中实际存在的<strong>已分配区域</strong>数量为 <span class="math-inline">\(n\)</span>（而非理论上的最大页数）。</p>
+<p><strong>每次迭代成本</strong>：</p>
+<ul>
+<li><code>VirtualQueryEx</code>：系统调用开销 <span class="math-inline">\(T_{syscall} \approx 1-10\,\mu\text{s}\)</span></li>
+<li>条件判断与列表追加：<span class="math-inline">\(O(1)\)</span></li>
+</ul>
+<p><strong>总时间</strong>：</p>
+<div class="math-block">\[T(n) = n \cdot T_{syscall} = O(n)\]</div>
+<p>对比朴素线性扫描（步长 <span class="math-inline">\(p = 4096\)</span>）：</p>
+<p>$$T_{naive} = \frac{A_{max}}{p} \cdot T_{fault} = O(2^{35}) \quad \text{(不可行)}$$</p>
+<h3>5.2 空间复杂度</h3>
+<ul>
+<li><strong>辅助空间</strong>：单个 <code>MBI</code> 结构，<span class="math-inline">\(|\text{MBI}| = 48\)</span> bytes</li>
+<li><strong>结果存储</strong>：<span class="math-inline">\(O(n)\)</span> 个元组，每个 16 bytes（两个 uint64）</li>
+</ul>
+<div class="math-block">\[S(n) = O(n)\]</div>
+<h3>5.3 场景分析</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">场景</th>
+<th style="text-align:left">典型 <span class="math-inline">\(n\)</span></th>
+<th style="text-align:left">耗时估算</th>
+<th style="text-align:left">备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">最小进程</td>
+<td style="text-align:left">~50</td>
+<td style="text-align:left">~0.5 ms</td>
+<td style="text-align:left">仅加载基本 DLL</td>
+</tr>
+<tr>
+<td style="text-align:left">微信启动后</td>
+<td style="text-align:left">~500-2000</td>
+<td style="text-align:left">~5-20 ms</td>
+<td style="text-align:left">含大量堆、映射文件</td>
+</tr>
+<tr>
+<td style="text-align:left">极端情况</td>
+<td style="text-align:left">~10000</td>
+<td style="text-align:left">~100 ms</td>
+<td style="text-align:left">碎片化严重的长期运行进程</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2>6. 实现笔记</h2>
+<h3>6.1 实际代码与理论的差异</h3>
+<pre><code class="language-python"># 实际实现（find_all_keys.py）
+def enum_regions(h):
+    regs = []
+    addr = 0
+    mbi = MBI()
+    while addr &lt; 0x7FFFFFFFFFFF:
+        if kernel32.VirtualQueryEx(h, ctypes.c_uint64(addr), 
+                                   ctypes.byref(mbi), 
+                                   ctypes.sizeof(mbi)) == 0:
+            break
+        if (mbi.State == MEM_COMMIT and 
+            mbi.Protect in READABLE and 
+            0 &lt; mbi.RegionSize &lt; 500*1024*1024):
+            regs.append((mbi.BaseAddress, mbi.RegionSize))
+        nxt = mbi.BaseAddress + mbi.RegionSize
+        if nxt &lt;= addr:  # 关键的安全检查
+            break
+        addr = nxt
+    return regs
+</code></pre>
+<p><strong>工程妥协</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">方面</th>
+<th style="text-align:left">理论理想</th>
+<th style="text-align:left">实际实现</th>
+<th style="text-align:left">理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">地址上限</td>
+<td style="text-align:left"><span class="math-inline">\(2^{64}-1\)</span></td>
+<td style="text-align:left"><code>0x7FFFFFFFFFFF</code></td>
+<td style="text-align:left">Windows x64 用户空间实际限制</td>
+</tr>
+<tr>
+<td style="text-align:left">大小过滤</td>
+<td style="text-align:left">无</td>
+<td style="text-align:left">500 MB 上限</td>
+<td style="text-align:left">排除大文件映射，减少无效扫描</td>
+</tr>
+<tr>
+<td style="text-align:left">错误处理</td>
+<td style="text-align:left">异常机制</td>
+<td style="text-align:left">返回码检查</td>
+<td style="text-align:left">Python ctypes 的惯用模式</td>
+</tr>
+<tr>
+<td style="text-align:left">类型转换</td>
+<td style="text-align:left">隐式</td>
+<td style="text-align:left">显式 <code>c_uint64</code></td>
+<td style="text-align:left">确保 64 位地址正确传递</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2 关键工程细节</h3>
+<p><strong>地址推进策略</strong>：
+必须使用 <code>mbi.BaseAddress + mbi.RegionSize</code>，而非简单的 <code>addr += something</code>。原因：<code>VirtualQueryEx</code> 可能返回包含多个子区域的<strong>分配粒度</strong>（Allocation Granularity）信息，直接使用返回的边界确保不遗漏、不重叠。</p>
+<p><strong>安全检查的必要性</strong>：</p>
+<pre><code class="language-python">if nxt &lt;= addr: break
+</code></pre>
+<p>防御以下异常情况：</p>
+<ul>
+<li>空区域报告 <code>RegionSize = 0</code></li>
+<li>内核返回损坏数据</li>
+<li>地址空间环绕（理论上不可能，但防御性编程）</li>
+</ul>
+<hr />
+<h2>7. 比较与相关研究</h2>
+<h3>7.1 与经典算法的对比</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">特性</th>
+<th style="text-align:left">本算法</th>
+<th style="text-align:left">线性扫描</th>
+<th style="text-align:left">/proc/pid/maps 解析</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">平台</td>
+<td style="text-align:left">Windows</td>
+<td style="text-align:left">通用</td>
+<td style="text-align:left">Linux</td>
+</tr>
+<tr>
+<td style="text-align:left">系统调用次数</td>
+<td style="text-align:left"><span class="math-inline">\(O(n)\)</span></td>
+<td style="text-align:left"><span class="math-inline">\(O(2^{47}/p)\)</span></td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span>（单文件读）</td>
+</tr>
+<tr>
+<td style="text-align:left">信息完整性</td>
+<td style="text-align:left">完整（含保护属性）</td>
+<td style="text-align:left">需额外查询</td>
+<td style="text-align:left">完整</td>
+</tr>
+<tr>
+<td style="text-align:left">实时性</td>
+<td style="text-align:left">快照</td>
+<td style="text-align:left">快照</td>
+<td style="text-align:left">快照</td>
+</tr>
+<tr>
+<td style="text-align:left">特权要求</td>
+<td style="text-align:left"><code>PROCESS_QUERY_INFORMATION</code></td>
+<td style="text-align:left">相同</td>
+<td style="text-align:left"><code>ptrace</code> 或 root</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 与学术工作的联系</h3>
+<p><strong>内存取证领域</strong>：Volatility 框架的 <code>vadinfo</code>/<code>memmap</code> 插件采用类似思路，通过遍历 <code>_MMVAD</code> 结构重建地址空间布局。本算法可视为其<strong>在线、轻量版</strong>——无需完整内存转储，直接通过 API 查询。</p>
+<p><strong>形式化验证</strong>：Alglave et al. (2018) 在《The Semantics of Multicore x86 Machine Code》中讨论了虚拟地址空间的数学模型。本算法的终止性依赖于地址空间的<strong>良基性</strong>（well-foundedness）：<span class="math-inline">\((\mathcal{V}, &lt;)\)</span> 是良序集，且每次迭代严格递增。</p>
+<h3>7.3 替代方案评估</h3>
+<p><strong>方案：使用 <code>NtQueryVirtualMemory</code></strong></p>
+<ul>
+<li>更低层 NT API，功能等价</li>
+<li>优势：更稳定（非公开 API 变化风险）</li>
+<li>劣势：需手动定义未文档化结构</li>
+</ul>
+<p><strong>方案：读取 <code>/proc/PID/mem</code> 风格</strong></p>
+<ul>
+<li>Windows 无直接等价物</li>
+<li>最接近：<code>CreateFileMapping</code> + <code>MapViewOfFile</code> 物理内存（需驱动）</li>
+</ul>
+<hr />
+<h2>8. 安全性与伦理考量</h2>
+<p>本算法本身是中性的内存 introspection 工具，但在 <code>wechat-decrypt</code> 上下文中的使用涉及：</p>
+<ol>
+<li><strong>权限边界</strong>：需要 <code>SeDebugPrivilege</code> 或目标进程的所有者权限</li>
+<li><strong>最小权限原则</strong>：仅请求 <code>PROCESS_QUERY_INFORMATION | PROCESS_VM_READ</code></li>
+<li><strong>目的限制</strong>：设计用于用户解密自己的数据，非未授权访问</li>
+</ol>
+<p>从<strong>攻击面分析</strong>角度，此枚举方法是<strong>被动侦察</strong>（passive reconnaissance）的典型实例——不修改目标状态，仅收集元数据。</p>
+<hr />
+<h2>9. 总结</h2>
+<p><code>enum_regions</code> 算法展示了如何利用操作系统提供的抽象高效解决实际问题。其核心贡献在于：</p>
+<blockquote>
+<p><strong>将 <span class="math-inline">\(O(2^{47})\)</span> 的不可行搜索空间，通过内核元数据查询，压缩至 <span class="math-inline">\(O(n)\)</span> 的实际可行复杂度。</strong></p>
+</blockquote>
+<p>这一模式——&quot;利用系统已有的索引结构，而非重建&quot;——是系统编程中的常见优化策略，值得在类似场景下复用。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

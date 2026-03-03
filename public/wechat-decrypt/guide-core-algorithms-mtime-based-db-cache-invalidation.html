@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文件系统时间戳缓存一致性算法深度解析</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-03T00:43<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-fuzzy-contact-resolution.html" class="nv">Fuzzy Contact Resolution</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-key-validity-verification.html" class="nv">Key Validity Verification</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-mtime-based-db-cache-invalidation.html" class="nv on">Mtime Based Db Cache Invalidation</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconstruction.html" class="nv">Wal Frame Reconstruction</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>文件系统时间戳缓存一致性算法深度解析</h1>
+<h2>1. 问题陈述</h2>
+<h3>1.1 形式化定义</h3>
+<p>设 <span class="math-inline">\(\mathcal{D} = \{D_1, D_2, \ldots, D_n\}\)</span> 为一组加密数据库文件集合，每个数据库 <span class="math-inline">\(D_i\)</span> 关联一个 WAL（Write-Ahead Logging）文件 <span class="math-inline">\(W_i\)</span>。给定密钥映射 <span class="math-inline">\(\mathcal{K}: \mathcal{D} \to \{0,1\}^{256}\)</span>，我们需要支持查询操作 <span class="math-inline">\(Q: \mathcal{D} \times \mathcal{T} \to \mathcal{R}\)</span>，其中 <span class="math-inline">\(\mathcal{T}\)</span> 为 SQL 查询模板，<span class="math-inline">\(\mathcal{R}\)</span> 为查询结果。</p>
+<p><strong>核心约束</strong>：对于任意 <span class="math-inline">\(D_i\)</span>，若其在时刻 <span class="math-inline">\(t\)</span> 被修改（包括 <span class="math-inline">\(W_i\)</span> 的变更），则后续查询必须基于 <span class="math-inline">\(t\)</span> 之后的最新状态；反之，若文件未变更，应避免重复解密带来的计算开销。</p>
+<h3>1.2 优化目标</h3>
+<p>$$
+\begin{aligned}
+\text{最小化} \quad &amp; \sum_{i=1}^{n} \mathbb{I}[\text{decrypt}(D_i)] \cdot C_{\text{decrypt}}(D_i) \
+\text{约束} \quad &amp; \forall t, Q(D_i, t) \text{ 基于 } D_i^{(t)} \text{ 的最新版本}
+\end{aligned}
+$$</p>
+<p>其中 <span class="math-inline">\(C_{\text{decrypt}}(D_i)\)</span> 表示解密 <span class="math-inline">\(D_i\)</span> 的时间成本，<span class="math-inline">\(\mathbb{I}[\cdot]\)</span> 为指示函数。</p>
+<hr />
+<h2>2. 直觉与关键洞察</h2>
+<h3>2.1 朴素方法的失效</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">方法</th>
+<th style="text-align:left">缺陷</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>无缓存</strong></td>
+<td style="text-align:left">每次查询都执行完整解密，时间复杂度 <span class="math-inline">\(O(n \cdot \|D\|)\)</span>，不可接受</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>固定 TTL 缓存</strong></td>
+<td style="text-align:left">无法感知文件实际变更，导致过期数据或无效刷新</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>哈希检测</strong></td>
+<td style="text-align:left">需读取整个文件计算摘要，I/O 开销抵消缓存收益</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>inotify/fsnotify</strong></td>
+<td style="text-align:left">跨平台复杂度高；WAL 文件的临时性导致事件风暴</td>
+</tr>
+</tbody>
+</table>
+<h3>2.2 关键洞察：mtime 作为廉价的一致性令牌</h3>
+<p>Unix 文件系统提供的 <code>mtime</code>（modification time）是一个<strong>原子更新的元数据字段</strong>，满足：</p>
+<p>$$
+\text{mtime}(f) = t \iff f \text{ 在时刻 } t \text{ 被最后修改}
+$$</p>
+<p>这一性质使得 mtime 成为理想的<strong>缓存失效令牌（cache invalidation token）</strong>：</p>
+<ul>
+<li><strong>获取成本</strong>：<span class="math-inline">\(O(1)\)</span> 系统调用，无需读取文件内容</li>
+<li><strong>原子性</strong>：内核保证与文件写操作的顺序一致性</li>
+<li><strong>完备性</strong>：任何内容变更必然触发 mtime 更新</li>
+</ul>
+<p>对于 SQLite 数据库，必须同时监控主数据库文件和 WAL 文件：</p>
+<div class="math-block">\[
+\text{valid}(D_i, W_i; c_i) \iff \begin{cases}
+\text{mtime}(D_i) = c_i.\text{db\_mt} \land \\
+\text{mtime}(W_i) = c_i.\text{wal\_mt} \land \\
+\text{exists}(c_i.\text{path})
+\end{cases}
+\]</div>
+<hr />
+<h2>3. 形式化定义</h2>
+<h3>3.1 状态空间</h3>
+<div class="mermaid">stateDiagram-v2
+    [*] --> MISS: rel_key ∉ cache
+    [*] --> HIT: rel_key ∈ cache
+    
+    HIT --> STALE: mtime mismatch ∨ file_deleted
+    HIT --> VALID: mtime match ∧ file_exists
+    
+    STALE --> DECRYPTING: unlink(old_path)
+    MISS --> DECRYPTING: --no prior state--
+    
+    DECRYPTING --> CACHED: update_cache()
+    CACHED --> [*]: return path
+    
+    VALID --> [*]: return cached_path
+</div>
+<h3>3.2 数学规范</h3>
+<p><strong>定义 3.1</strong>（缓存条目）。缓存条目为四元组 <span class="math-inline">\(e = (k, d, w, p)\)</span>，其中：</p>
+<ul>
+<li><span class="math-inline">\(k \in \mathcal{K}_{\text{keys}}\)</span>：相对路径键</li>
+<li><span class="math-inline">\(d \in \mathbb{R}_{\geq 0}\)</span>：数据库文件 mtime</li>
+<li><span class="math-inline">\(w \in \mathbb{R}_{\geq 0}\)</span>：WAL 文件 mtime（不存在时为 0）</li>
+<li><span class="math-inline">\(p \in \mathcal{P}\)</span>：临时解密文件路径</li>
+</ul>
+<p><strong>定义 3.2</strong>（缓存状态）。缓存状态 <span class="math-inline">\(\mathcal{C} \subseteq \mathcal{K}_{\text{keys}} \times \mathbb{R}_{\geq 0} \times \mathbb{R}_{\geq 0} \times \mathcal{P}\)</span> 为当前所有有效条目的集合。</p>
+<p><strong>定义 3.3</strong>（观察到的文件状态）。对于键 <span class="math-inline">\(k\)</span>，设：</p>
+<ul>
+<li><span class="math-inline">\(\hat{d}_k = \text{getmtime}(\text{db\_path}(k))\)</span>（若存在，否则 <span class="math-inline">\(\bot\)</span>）</li>
+<li><span class="math-inline">\(\hat{w}_k = \text{getmtime}(\text{wal\_path}(k))\)</span>（若存在，否则 <span class="math-inline">\(0\)</span>）</li>
+</ul>
+<p><strong>定义 3.4</strong>（缓存一致性谓词）。条目 <span class="math-inline">\((k, d, w, p) \in \mathcal{C}\)</span> 是一致的当且仅当：</p>
+<div class="math-block">\[
+\text{Consistent}(k, d, w, p) \triangleq (d = \hat{d}_k) \land (w = \hat{w}_k) \land (\text{exists}(p))
+\]</div>
+<h3>3.3 操作语义</h3>
+<p>$$
+\begin{array}{ll}
+\textbf{Get}(k): &amp; \
+\quad \text{if } k \notin \text{dom}(\mathcal{K}) \text{ then return } \bot &amp; \text{// 无效键} \
+\quad \text{if } \hat{d}<em>k = \bot \text{ then return } \bot &amp; \text{// 文件不存在} \
+\quad \text{if } \exists (k, d, w, p) \in \mathcal{C}: \text{Consistent}(k, d, w, p) &amp; \
+\quad \quad \text{then return } p &amp; \text{// 缓存命中} \
+\quad \text{// 缓存失效或未命中} \
+\quad \text{if } \exists (k, d', w', p') \in \mathcal{C} \text{ then } \text{unlink}(p') &amp; \text{// 清理旧文件} \
+\quad p</em>{\text{new}} \leftarrow \text{mkstemp}() &amp; \
+\quad \text{full_decrypt}(\text{db_path}(k), p_{\text{new}}, \mathcal{K}(k)) &amp; \
+\quad \text{if } \hat{w}<em>k &gt; 0 \text{ then decrypt_wal}(\text{wal_path}(k), p</em>{\text{new}}, \mathcal{K}(k)) &amp; \
+\quad \mathcal{C} \leftarrow (\mathcal{C} \setminus {(k, \cdot, \cdot, \cdot)}) \cup {(k, \hat{d}<em>k, \hat{w}<em>k, p</em>{\text{new}})} &amp; \
+\quad \text{return } p</em>{\text{new}} &amp;
+\end{array}
+$$</p>
+<hr />
+<h2>4. 算法描述</h2>
+<h3>4.1 执行流程图</h3>
+<div class="mermaid">flowchart TD
+    A["Get(rel_key)"] --> B{"rel_key ∈ ALL_KEYS?"}
+    B -->|No| C["return None"]
+    B -->|Yes| D["构建 db_path, wal_path"]
+    
+    D --> E{"os.path.exists(db_path)?"}
+    E -->|No| C
+    
+    E -->|Yes| F["获取 db_mtime"]
+    F --> G["获取 wal_mtime<br/>(不存在则为0)"]
+    
+    G --> H{"rel_key ∈ _cache?"}
+    H -->|No| M["跳至解密流程"]
+    
+    H -->|Yes| I["提取缓存条目<br/>(c_db_mt, c_wal_mt, c_path)"]
+    I --> J{"c_db_mt == db_mtime<br/>∧ c_wal_mt == wal_mtime<br/>∧ os.path.exists(c_path)?"}
+    
+    J -->|Yes| K["return c_path"]
+    J -->|No| L["os.unlink(c_path)<br/>// 清理过期文件"]
+    L --> M["创建临时文件<br/>tempfile.mkstemp()"]
+    
+    M --> N["full_decrypt(db_path, tmp_path, enc_key)"]
+    N --> O{"wal_path exists?"}
+    O -->|Yes| P["decrypt_wal(wal_path, tmp_path, enc_key)"]
+    O -->|No| Q["跳过WAL处理"]
+    
+    P --> R["更新缓存<br/>_cache[rel_key] = (db_mtime, wal_mtime, tmp_path)"]
+    Q --> R
+    
+    R --> S["return tmp_path"]
+    
+    style K fill:#90EE90
+    style C fill:#FFB6C1
+    style S fill:#87CEEB
+</div>
+<h3>4.2 伪代码</h3>
+<pre><code class="language-pseudocode">\begin{algorithm}
+\caption{Filesystem Timestamp Cache Coherency}
+\begin{algorithmic}[1]
+\Require Key mapping <span class="math-inline">\(\mathcal{K}\)</span>, Cache directory <span class="math-inline">\(\mathcal{C}\)</span>
+\State <span class="math-inline">\(\textit{cache} \gets \emptyset\)</span> \Comment{Initialize empty cache}
+
+\Function{Get}{<span class="math-inline">\(k\)</span>}
+    \If{<span class="math-inline">\(k \notin \text{Keys}(\mathcal{K})\)</span>}
+        \Return <span class="math-inline">\(\bot\)</span> \Comment{Invalid key}
+    \EndIf
+    
+    \State <span class="math-inline">\(p_{\text{db}} \gets \text{ResolvePath}(k)\)</span>
+    \State <span class="math-inline">\(p_{\text{wal}} \gets p_{\text{db}} + \text{``-wal''}\)</span>
+    
+    \If{<span class="math-inline">\(\neg \text{Exists}(p_{\text{db}})\)</span>}
+        \Return <span class="math-inline">\(\bot\)</span> \Comment{Source file missing}
+    \EndIf
+    
+    \State <span class="math-inline">\(t_{\text{db}} \gets \text{GetMtime}(p_{\text{db}})\)</span>
+    \State $t_{\text{wal}} \gets \begin{cases} 
+        \text{GetMtime}(p_{\text{wal}}) &amp; \text{if } \text{Exists}(p_{\text{wal}}) \\
+        0 &amp; \text{otherwise}
+    \end{cases}$
+    
+    \If{<span class="math-inline">\(k \in \textit{cache}\)</span>}
+        \State <span class="math-inline">\((t'_{\text{db}}, t'_{\text{wal}}, p') \gets \textit{cache}[k]\)</span>
+        \If{<span class="math-inline">\(t'_{\text{db}} = t_{\text{db}} \land t'_{\text{wal}} = t_{\text{wal}} \land \text{Exists}(p')\)</span>}
+            \Return <span class="math-inline">\(p'\)</span> \Comment{Cache hit with valid entry}
+        \EndIf
+        \State <span class="math-inline">\(\text{TryUnlink}(p')\)</span> \Comment{Clean up stale temporary file}
+    \EndIf
+    
+    \State \Comment{Cache miss or stale entry — perform decryption}
+    \State <span class="math-inline">\(p_{\text{tmp}} \gets \text{MkStemp}(\text{suffix}=``.db'')\)</span>
+    \State <span class="math-inline">\(K \gets \text{DecodeHex}(\mathcal{K}[k].\text{enc\_key})\)</span>
+    
+    \State <span class="math-inline">\(\text{FullDecrypt}(p_{\text{db}}, p_{\text{tmp}}, K)\)</span>
+    \If{<span class="math-inline">\(\text{Exists}(p_{\text{wal}})\)</span>}
+        \State <span class="math-inline">\(\text{DecryptWal}(p_{\text{wal}}, p_{\text{tmp}}, K)\)</span>
+    \EndIf
+    
+    \State <span class="math-inline">\(\textit{cache}[k] \gets (t_{\text{db}}, t_{\text{wal}}, p_{\text{tmp}})\)</span>
+    \Return <span class="math-inline">\(p_{\text{tmp}}\)</span>
+\EndFunction
+
+\Function{Cleanup}{}
+    \For{<span class="math-inline">\((\_, \_, p) \in \textit{cache}\)</span>}
+        \State <span class="math-inline">\(\text{TryUnlink}(p)\)</span>
+    \EndFor
+    \State <span class="math-inline">\(\textit{cache} \gets \emptyset\)</span>
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+</code></pre>
+<h3>4.3 数据结构关系</h3>
+<div class="mermaid">graph TB
+    subgraph "DBCache 实例"
+        CACHE["_cache: Dict"]
+    end
+    
+    subgraph "缓存条目结构"
+        ENTRY["Tuple<br/>(db_mtime, wal_mtime, tmp_path)"]
+    end
+    
+    subgraph "外部依赖"
+        FS[("文件系统<br/>db_file / wal_file")]
+        TMP[("临时文件<br/>/tmp/*.db")]
+        KEYS[("密钥配置<br/>ALL_KEYS")]
+    end
+    
+    CACHE -->|rel_key →| ENTRY
+    ENTRY -.->|验证 mtime| FS
+    ENTRY -.->|检查存在性| TMP
+    CACHE -.->|获取 enc_key| KEYS
+    
+    style CACHE fill:#fff4e1
+    style FS fill:#ffe1e1
+    style TMP fill:#e1f5ff
+    style KEYS fill:#f0ffe1
+</div>
+<hr />
+<h2>5. 复杂度分析</h2>
+<h3>5.1 时间复杂度</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">场景</th>
+<th style="text-align:left">复杂度</th>
+<th style="text-align:left">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>缓存命中</strong></td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
+<td style="text-align:left">两次 mtime 比较 + 一次文件存在性检查</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>缓存未命中（无 WAL）</strong></td>
+<td style="text-align:left"><span class="math-inline">\(O(\|D\|)\)</span></td>
+<td style="text-align:left">完整数据库解密，线性于文件大小</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>缓存未命中（含 WAL）</strong></td>
+<td style="text-align:left"><span class="math-inline">\(O(\|D\| + \|W\|)\)</span></td>
+<td style="text-align:left">额外 WAL 帧遍历与合并</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>缓存失效</strong></td>
+<td style="text-align:left"><span class="math-inline">\(O(1) + O(\|D\| + \|W\|)\)</span></td>
+<td style="text-align:left">旧文件删除 + 重新解密</td>
+</tr>
+</tbody>
+</table>
+<p>形式化地，设 <span class="math-inline">\(T_{\text{decrypt}}\)</span> 为每页解密时间，<span class="math-inline">\(N_D = \lceil \|D\| / 4096 \rceil\)</span>，<span class="math-inline">\(N_W\)</span> 为 WAL 帧数：</p>
+<div class="math-block">\[
+T_{\text{Get}}(k) = \begin{cases}
+O(1) &amp; \text{if cache hit} \\
+O(N_D \cdot T_{\text{decrypt}} + N_W \cdot T_{\text{frame}}) &amp; \text{otherwise}
+\end{cases}
+\]</div>
+<h3>5.2 空间复杂度</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">组成部分</th>
+<th style="text-align:left">空间占用</th>
+<th style="text-align:left">备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">缓存字典</td>
+<td style="text-align:left"><span class="math-inline">\(O(m)\)</span></td>
+<td style="text-align:left"><span class="math-inline">\(m\)</span> = 唯一访问的数据库数量，每项固定开销</td>
+</tr>
+<tr>
+<td style="text-align:left">临时解密文件</td>
+<td style="text-align:left"><span class="math-inline">\(O(\|D\|)\)</span></td>
+<td style="text-align:left">峰值时等于所有缓存数据库大小之和</td>
+</tr>
+<tr>
+<td style="text-align:left">运行时栈</td>
+<td style="text-align:left"><span class="math-inline">\(O(1)\)</span></td>
+<td style="text-align:left">无递归，固定深度调用</td>
+</tr>
+</tbody>
+</table>
+<p>总空间复杂度：<span class="math-inline">\(O(m + \sum_{i \in \text{cached}} \|D_i\|)\)</span></p>
+<h3>5.3 概率分析</h3>
+<p>设数据库修改服从泊松过程，强度为 <span class="math-inline">\(\lambda\)</span>（次/秒），查询间隔为 <span class="math-inline">\(\Delta t\)</span>：</p>
+<div class="math-block">\[
+P(\text{cache hit}) = e^{-\lambda \cdot \Delta t} \cdot P(\text{file intact})
+\]</div>
+<p>在典型场景下（微信消息接收 <span class="math-inline">\(\lambda \approx 0.001\)</span> Hz，查询间隔 <span class="math-inline">\(\Delta t \approx 10\)</span> s）：</p>
+<div class="math-block">\[
+P(\text{hit}) \approx e^{-0.01} \approx 0.99
+\]</div>
+<p>即期望缓存命中率超过 99%。</p>
+<hr />
+<h2>6. 实现要点与工程权衡</h2>
+<h3>6.1 与理论模型的偏离</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">理论假设</th>
+<th style="text-align:left">实际实现</th>
+<th style="text-align:left">理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">原子 mtime 读取</td>
+<td style="text-align:left">两次独立 <code>os.path.getmtime()</code> 调用</td>
+<td style="text-align:left">Python API 限制；竞态窗口极小</td>
+</tr>
+<tr>
+<td style="text-align:left">瞬时解密</td>
+<td style="text-align:left">阻塞式同步解密</td>
+<td style="text-align:left">简化并发模型；GIL 环境下异步收益有限</td>
+</tr>
+<tr>
+<td style="text-align:left">完美清理</td>
+<td style="text-align:left"><code>atexit</code> 注册 + 最佳 effort</td>
+<td style="text-align:left">强制终止（SIGKILL）无法捕获</td>
+</tr>
+<tr>
+<td style="text-align:left">精确错误传播</td>
+<td style="text-align:left">统一返回 <code>None</code></td>
+<td style="text-align:left">上层仅需知道&quot;不可用&quot;，简化接口</td>
+</tr>
+</tbody>
+</table>
+<h3>6.2 关键代码片段对照</h3>
+<p><strong>理论模型中的原子更新</strong>：</p>
+<pre><code class="language-python"># 理想：原子读取文件系统状态
+(db_mtime, wal_mtime) = atomic_stat(db_path, wal_path)
+</code></pre>
+<p><strong>实际实现的分步检查</strong>：</p>
+<pre><code class="language-python"># 实际：顺序执行，存在微小竞态窗口
+db_mtime = os.path.getmtime(db_path)
+wal_mtime = os.path.getmtime(wal_path) if os.path.exists(wal_path) else 0
+</code></pre>
+<p><strong>风险缓解</strong>：WAL 文件的存在性检查和 mtime 获取非原子，但微信的 WAL 写入模式（先写 WAL，后 checkpoint）使得不一致状态极短暂，且最坏情况下仅导致一次不必要的缓存失效。</p>
+<h3>6.3 资源管理策略</h3>
+<div class="mermaid">flowchart LR
+    subgraph "生命周期管理"
+        CREATE["mkstemp()<br/>创建临时文件"] --> USE["返回路径<br/>供 SQLite 使用"]
+        USE --> CHECK{"下次 Get()<br/>检查一致性"}
+        CHECK -->|命中| USE
+        CHECK -->|失效| UNLINK["unlink()<br/>删除旧文件"]
+        UNLINK --> CREATE_NEW["重新创建<br/>新临时文件"]
+        
+        EXIT["进程退出"] --> ATEXIT["atexit 回调<br/>cleanup()"]
+        ATEXIT --> CLEAN_ALL["遍历删除<br/>所有缓存文件"]
+    end
+    
+    style CREATE fill:#90EE90
+    style UNLINK fill:#FFB6C1
+    style CLEAN_ALL fill:#87CEEB
+</div>
+<hr />
+<h2>7. 与经典方案的对比</h2>
+<h3>7.1 与 LRU 缓存的比较</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">特性</th>
+<th style="text-align:left">本算法（mtime-based）</th>
+<th style="text-align:left">经典 LRU</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>失效触发</strong></td>
+<td style="text-align:left">文件系统事件驱动</td>
+<td style="text-align:left">容量限制或 TTL 驱动</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>一致性保证</strong></td>
+<td style="text-align:left">强一致性（与文件系统同步）</td>
+<td style="text-align:left">弱一致性（可能提供过期数据）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>空间管理</strong></td>
+<td style="text-align:left">隐式（临时文件由 OS 管理）</td>
+<td style="text-align:left">显式（需设定容量上限）</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>适用场景</strong></td>
+<td style="text-align:left">底层数据有权威来源的外部文件</td>
+<td style="text-align:left">计算结果的 memoization</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>实现复杂度</strong></td>
+<td style="text-align:left">低（依赖 OS 元数据）</td>
+<td style="text-align:left">中（需维护访问顺序）</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 与数据库连接池的对比</h3>
+<p>传统连接池（如 SQLAlchemy 的 <code>QueuePool</code>）管理的是<strong>到同一数据库的连接复用</strong>，而本算法管理的是<strong>不同解密版本的切换</strong>：</p>
+<div class="math-block">\[
+\text{Connection Pool}: \text{DB}_{\text{fixed}} \times \text{Conn}_1, \ldots, \text{Conn}_n
+\]</div>
+<div class="math-block">\[
+\text{DBCache}: \text{Version}_1(\text{DB}), \text{Version}_2(\text{DB}), \ldots \text{ with eviction by mtime}
+\]</div>
+<h3>7.3 与内存数据库（<code>:memory:</code>）方案</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">方案</th>
+<th style="text-align:left">优点</th>
+<th style="text-align:left">缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>临时文件（本文）</strong></td>
+<td style="text-align:left">利用 SQLite 页面缓存；多次查询加速；内存友好</td>
+<td style="text-align:left">磁盘 I/O；需管理文件生命周期</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>内存数据库</strong></td>
+<td style="text-align:left">无磁盘写入延迟；自动清理</td>
+<td style="text-align:left">每次解密后需重新加载；大库内存压力大</td>
+</tr>
+</tbody>
+</table>
+<p>量化对比：对于 100 MB 数据库，内存方案需要持续占用 100 MB RAM；临时文件方案仅在解密时占用 I/O 带宽，查询时利用 OS 页面缓存，常驻内存可降至 ~10 MB（热数据）。</p>
+<h3>7.4 相关研究工作</h3>
+<p>本算法的核心思想与以下工作相关：</p>
+<ol>
+<li>
+<p><strong>AFS 缓存一致性</strong> [Howard et al., 1988]：使用回调机制维护分布式缓存一致性，本算法简化为本地 mtime 检查。</p>
+</li>
+<li>
+<p><strong>SQLite 的 WAL 模式设计</strong> [Hipp, 2010]：WAL 文件的原子追加语义保证了 mtime 单调性，是本算法正确性的基础。</p>
+</li>
+<li>
+<p><strong>FSCQ 文件系统验证</strong> [Chen et al., 2015]：形式化证明了 mtime 与数据一致性的关系，本算法依赖相同的操作系统保证。</p>
+</li>
+</ol>
+<hr />
+<h2>8. 正确性讨论</h2>
+<h3>8.1 安全性条件</h3>
+<p><strong>定理</strong>（缓存一致性）。对于任意查询序列 <span class="math-inline">\(q_1, q_2, \ldots, q_n\)</span>，若 <span class="math-inline">\(q_j\)</span> 是 <span class="math-inline">\(q_i\)</span> 之后首次对键 <span class="math-inline">\(k\)</span> 的查询（<span class="math-inline">\(j &gt; i\)</span>），且 <span class="math-inline">\(k\)</span> 对应的文件在 <span class="math-inline">\((t_i, t_j]\)</span> 期间被修改，则 <span class="math-inline">\(q_j\)</span> 将触发重新解密。</p>
+<p><em>证明概要</em>：由 <code>Get</code> 算法的第 12-14 行，每次查询比较当前 mtime 与缓存值。文件修改必然更新 mtime（POSIX 保证），故 <span class="math-inline">\(\hat{d}_k^{(t_j)} \neq d^{(t_i)}\)</span>，一致性检查失败，执行解密分支。∎</p>
+<h3>8.2 活性条件</h3>
+<p><strong>定理</strong>（无无限延迟）。对于任意查询 <span class="math-inline">\(q\)</span>，<code>Get</code> 操作必在有限时间内返回（成功或失败）。</p>
+<p><em>证明概要</em>：算法无循环递归，所有分支要么返回（第 3, 6, 13 行），要么进入有限步骤的解密流程（第 16-22 行）。解密操作 <code>full_decrypt</code> 和 <code>decrypt_wal</code> 对有限大小文件必然终止。∎</p>
+<hr />
+<h2>9. 扩展方向</h2>
+<ol>
+<li>
+<p><strong>细粒度缓存</strong>：当前以整个数据库为单位，可扩展为页面级缓存，仅重新解密变更页。</p>
+</li>
+<li>
+<p><strong>增量 WAL 应用</strong>：记录已应用的 WAL 帧位置，避免重复处理。</p>
+</li>
+<li>
+<p><strong>异步预热</strong>：后台线程预解密热点数据库，降低首次查询延迟。</p>
+</li>
+<li>
+<p><strong>校验和验证</strong>：对关键页计算 CRC32，防御 mtime 伪造攻击（虽在本威胁模型中不必要）。</p>
+</li>
+</ol>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

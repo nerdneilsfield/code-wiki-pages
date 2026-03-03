@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第二章：如何从内存中&quot;偷&quot;取密钥</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+:root{
+  --bg:#fff;--bg2:#f8fafc;--bg3:#f1f5f9;--bg-code:#f1f5f9;--bg-pre:#f8fafc;
+  --text:#1e293b;--text2:#475569;--text3:#64748b;
+  --primary:#2563eb;--primary-h:#1d4ed8;--primary-lt:#eff6ff;
+  --border:#e2e8f0;--shadow:rgba(0,0,0,.05);
+  --sb-w:272px;--tb-h:56px;--r:6px;--tr:.18s ease;
+}
+[data-theme=dark]{
+  --bg:#0f172a;--bg2:#1e293b;--bg3:#253047;--bg-code:#1e293b;--bg-pre:#162032;
+  --text:#e2e8f0;--text2:#cbd5e1;--text3:#94a3b8;
+  --primary:#60a5fa;--primary-h:#93c5fd;--primary-lt:#1e3a5f;
+  --border:#334155;--shadow:rgba(0,0,0,.3);
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:15px;transition:background var(--tr),color var(--tr);}
+a{color:var(--primary);text-decoration:none;}
+a:hover{text-decoration:underline;}
+.tb{position:fixed;top:0;left:0;right:0;height:var(--tb-h);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 16px;z-index:200;box-shadow:0 1px 4px var(--shadow);}
+.tb-logo{font-size:15px;font-weight:700;color:var(--primary);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-decoration:none;}
+.tb-logo:hover{opacity:.85;text-decoration:none;}
+.ib{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--r);background:var(--bg);color:var(--text);cursor:pointer;font-size:14px;transition:var(--tr);flex-shrink:0;-webkit-appearance:none;appearance:none;}
+.ib:hover{background:var(--bg3);border-color:var(--primary);}
+.ov{display:none;position:fixed;inset:0;top:var(--tb-h);background:rgba(0,0,0,.45);z-index:150;}
+.ov.on{display:block;}
+.sb{position:fixed;top:var(--tb-h);left:0;width:var(--sb-w);height:calc(100vh - var(--tb-h));background:var(--bg2);border-right:1px solid var(--border);overflow-y:auto;z-index:160;transition:transform var(--tr);padding:14px 10px 60px;}
+.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}
+.layout{display:flex;padding-top:var(--tb-h);transition:padding-left var(--tr);}
+.layout.sbon{padding-left:var(--sb-w);}
+.main{flex:1;min-width:0;display:flex;justify-content:center;}
+.cw{width:100%;max-width:1200px;padding:44px 48px;display:flex;gap:44px;align-items:flex-start;}
+article{flex:1;min-width:0;max-width:860px;}
+.toc{width:220px;flex-shrink:0;position:sticky;top:calc(var(--tb-h) + 20px);max-height:calc(100vh - var(--tb-h) - 40px);overflow-y:auto;display:none;}
+@media(min-width:1280px){.toc{display:block;}}
+.toc-h{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+.toc ul{list-style:none;}
+.toc li a{font-size:12.5px;color:var(--text3);display:block;padding:3px 0 3px 12px;border-left:2px solid transparent;transition:var(--tr);text-decoration:none;}
+.toc li a:hover{color:var(--primary);}
+.toc li.on a{color:var(--primary);border-left-color:var(--primary);}
+.toc li.h3 a{padding-left:24px;font-size:12px;}
+.nav-meta{font-size:11px;color:var(--text3);line-height:1.6;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;}
+.nav-meta b{color:var(--text2);}
+.nav-row{display:flex;align-items:center;}
+a.nv{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text2);font-size:13.5px;transition:var(--tr);text-decoration:none;}
+a.nv:hover{background:var(--bg3);color:var(--primary);}
+a.nv.on{background:var(--primary-lt);color:var(--primary);font-weight:600;}
+.nvcaret{width:24px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:none;color:var(--text3);cursor:pointer;font-size:12px;border-radius:4px;transition:transform var(--tr);flex-shrink:0;}
+.nvcaret:hover{color:var(--primary);}
+.nvcaret.open{transform:rotate(90deg);}
+.nvsub{overflow:hidden;}
+.nv-missing{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;padding:6px 10px;border-radius:var(--r);color:var(--text3);font-size:13.5px;opacity:.5;cursor:default;}
+article h1{font-size:1.9rem;font-weight:700;border-bottom:2px solid var(--border);padding-bottom:.4rem;margin-bottom:1.2rem;line-height:1.3;}
+article h2{font-size:1.45rem;font-weight:600;margin-top:2.2rem;margin-bottom:.7rem;border-bottom:1px solid var(--border);padding-bottom:.2rem;}
+article h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;margin-bottom:.5rem;}
+article h4{font-size:1rem;font-weight:600;margin-top:1.4rem;margin-bottom:.4rem;}
+article p{margin-bottom:1rem;color:var(--text2);}
+article ul,article ol{margin-bottom:1rem;padding-left:1.6rem;}
+article li{margin-bottom:.3rem;color:var(--text2);}
+article a{color:var(--primary);}
+article a:hover{text-decoration:underline;}
+article code{font-family:'JetBrains Mono',Consolas,monospace;font-size:.82em;background:var(--bg-code);padding:.15em .4em;border-radius:4px;color:var(--text);}
+article pre{background:var(--bg-pre);border:1px solid var(--border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;margin-bottom:1.2rem;}
+article pre code{background:none;padding:0;font-size:.87em;}
+article blockquote{border-left:4px solid var(--primary);padding:.5rem 1rem;margin-bottom:1rem;color:var(--text3);background:var(--primary-lt);border-radius:0 var(--r) var(--r) 0;}
+article table{width:100%;border-collapse:collapse;margin-bottom:1rem;}
+article th,article td{border:1px solid var(--border);padding:.6rem .8rem;text-align:left;}
+article th{background:var(--bg2);font-weight:600;}
+article img{max-width:100%;border-radius:var(--r);}
+.mermaid{margin:1rem 0;}
+.math-block{margin:1rem 0;overflow-x:auto;}
+.math-inline{display:inline;}
+.math-err{color:#e11d48;font-style:italic;font-size:.85em;}
+.hljs{background:transparent!important;}
+#btt{position:fixed;bottom:24px;right:24px;width:40px;height:40px;background:var(--primary);color:#fff;border:none;border-radius:50%;font-size:16px;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px var(--shadow);z-index:100;transition:var(--tr);}
+#btt:hover{background:var(--primary-h);transform:translateY(-2px);}
+#btt.on{display:flex;}
+@media(max-width:767px){.cw{padding:24px 18px;gap:0;}}
+@media(min-width:768px){.sb{transform:none;}.sb.off{transform:translateX(calc(-1 * var(--sb-w)));}}
+</style>
+</head>
+<body>
+<header class="tb">
+  <button class="ib" id="sb-toggle" title="Toggle sidebar">&#9776;</button>
+  <a href="index.html" class="tb-logo">&#128218; public</a>
+  <a href="/" id="site-home-btn" class="ib" title="Back to main site">&#127968;</a>
+  <button class="ib" id="theme-btn" title="Toggle theme">&#127769;</button>
+</header>
+<div class="ov" id="ov"></div>
+<div class="layout" id="layout">
+  <nav class="sb" id="sb">
+  <div class="nav-meta">
+    <b>Model:</b> CP-qwen-kimi-k2.5<br>
+    <b>Generated:</b> 2026-03-03T00:43<br>
+    <b>Components:</b> 50<br>
+    <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;"><a href="https://github.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#128279; Repository</a><a href="https://deepwiki.com/nerdneilsfield/wechat-decrypt" target="_blank" rel="noopener">&#127760; DeepWiki</a></div>
+  </div>
+  <div class="nav-row">
+    <a href="index.html" class="nv">Overview</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-getting-started.html" class="nv">Get Started</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-beginners-guide.html" class="nv">Beginner's Guide</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-ai-integration.html" class="nv">Ai Integration</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-data-flow.html" class="nv">Data Flow</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-finding-keys.html" class="nv on">Finding Keys</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-real-time-monitoring.html" class="nv">Real Time Monitoring</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-beginners-guide-what-and-why.html" class="nv">What And Why</a>
+    </div>
+  </div>
+  <div class="nav-row">
+    <a href="guide-build-and-organization.html" class="nv">Build & Code Organization</a>
+  </div>
+  <div class="nav-row">
+    <a href="guide-core-algorithms.html" class="nv">Core Algorithms</a>
+  </div>
+  <div class="nvsub" style="display:block">
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-fuzzy-contact-resolution.html" class="nv">Fuzzy Contact Resolution</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-key-validity-verification.html" class="nv">Key Validity Verification</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-memory-scanning-key-extraction.html" class="nv">Memory Scanning Key Extraction</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-mtime-based-db-cache-invalidation.html" class="nv">Mtime Based Db Cache Invalidation</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-sqlcipher-page-decryption.html" class="nv">Sqlcipher Page Decryption</a>
+    </div>
+    <div class="nav-row" style="padding-left:24px">
+      <a href="guide-core-algorithms-wal-frame-reconstruction.html" class="nv">Wal Frame Reconstruction</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="find_all_keys.html" class="nv">Find All Keys</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="monitor_web.html" class="nv">Monitor Web</a>
+    </div>
+  </div>
+  <div>
+    <div class="nav-row" style="padding-left:0px;">
+      <a href="mcp_server.html" class="nv">Mcp Server</a>
+    </div>
+  </div>
+  </nav>
+  <main class="main">
+    <div class="cw">
+      <article id="mc">
+<h1>第二章：如何从内存中&quot;偷&quot;取密钥</h1>
+<p>想象一下，你面前有一个保险箱，里面装着微信的所有聊天记录。这个保险箱用的是军用级别的加密——AES-256，而且钥匙是通过一种叫 PBKDF2 的算法生成的，需要迭代 256,000 次才能算出来。如果你用普通电脑暴力破解这把钥匙，可能需要几百年。</p>
+<p>但如果我们换个思路呢？如果保险箱的主人——也就是正在运行的微信程序——已经把钥匙放在桌上（内存里）了呢？</p>
+<p>这就是 <code>find_all_keys</code> 模块的核心思想：<strong>与其硬撬保险箱，不如直接拿走主人随手放在桌上的钥匙</strong>。</p>
+<h2>为什么传统方法行不通？</h2>
+<p>在深入技术细节之前，让我们先理解微信的数据库加密有多&quot;变态&quot;。</p>
+<div class="mermaid">flowchart LR
+    A[你的微信密码] -->|PBKDF2<br/>256,000次迭代| B[派生密钥]
+    B -->|+ salt| C[最终加密密钥]
+    C -->|AES-256-CBC| D[加密数据库]
+    
+    style A fill:#e1f5ff
+    style D fill:#ffe1e1
+</div>
+<p>想象你有一把万能钥匙胚子（密码），但要让它能打开特定的门，你需要把它放进一台机器里磨 256,000 次——每次打磨都会改变钥匙的形状。最后，你还要往钥匙上撒一把特殊的盐（salt），才能得到真正能开锁的钥匙。</p>
+<p>这个过程设计得如此复杂，就是为了防止有人偷走你的数据库文件后能快速破解。即使是最快的显卡，每秒也只能尝试几千次派生，想要试完所有可能性几乎是不可能的。</p>
+<h2>微信的&quot;疏忽&quot;：WCDB 的密钥缓存</h2>
+<p>但微信团队自己也需要快速访问这些数据。他们不可能每次查询聊天记录都重新计算 256,000 次 PBKDF2——那会让微信卡成 PPT。</p>
+<p>于是他们做了一个合理的工程妥协：<strong>在内存中缓存已经派生好的密钥</strong>。</p>
+<p>微信使用的数据库引擎叫 WCDB（WeChat DataBase），它是 SQLCipher 的一个封装。当微信第一次打开某个数据库时，WCDB 会完成完整的密钥派生过程，然后把结果以特定格式缓存在内存中：</p>
+<pre><code>x'1234567890abcdef...'  ← 96位十六进制字符串
+</code></pre>
+<p>这串字符就像一张贴在显示器边缘的便利贴，上面写着：&quot;数据库 X 的钥匙是……&quot;</p>
+<p>我们的任务，就是找到这张便利贴。</p>
+<h2>内存扫描：在数十亿字节中寻找线索</h2>
+<p>现在想象一下：微信进程的内存空间就像一个巨大的图书馆，有几十亿本书（字节）。我们要找的便利贴就夹在某本书的某页里，但我们不知道具体位置。</p>
+<div class="mermaid">sequenceDiagram
+    participant User as 用户
+    participant Finder as find_all_keys
+    participant WinAPI as Windows API
+    participant WeChat as 微信进程
+    
+    User->>Finder: 运行脚本
+    Finder->>WinAPI: tasklist 找微信PID
+    WinAPI-->>Finder: 返回进程ID
+    Finder->>WinAPI: OpenProcess(读取权限)
+    WinAPI-->>Finder: 进程句柄
+    
+    loop 遍历整个地址空间
+        Finder->>WinAPI: VirtualQueryEx(当前地址)
+        WinAPI-->>Finder: 内存区域信息
+        alt 区域可读且已提交
+            Finder->>WinAPI: ReadProcessMemory
+            WinAPI->>WeChat: 读取内存页
+            WeChat-->>WinAPI: 返回数据
+            WinAPI-->>Finder: 内存内容
+            Finder->>Finder: 正则匹配 x'...' 模式
+        end
+    end
+    
+    Finder->>User: 输出 all_keys.json
+</div>
+<h3>第一步：定位目标</h3>
+<p>首先，我们需要找到微信的主进程。电脑上可能同时运行着多个 <code>Weixin.exe</code>（比如小程序、视频号等子进程），我们选择<strong>内存占用最大的那个</strong>——这通常是主进程，就像在一群人中找块头最大的那个一样简单直接。</p>
+<h3>第二步：绘制地图</h3>
+<p>拿到进程 ID 后，我们需要了解这个&quot;图书馆&quot;的布局。Windows 提供一个叫 <code>VirtualQueryEx</code> 的 API，可以告诉我们：</p>
+<ul>
+<li>这块内存从哪个地址开始（书架编号）</li>
+<li>有多大（多少本书）</li>
+<li>能不能读（是否对外开放）</li>
+<li>是什么状态（是否真的存放了东西）</li>
+</ul>
+<div class="mermaid">graph TD
+    subgraph "微信进程虚拟地址空间"
+        A[0x00000000<br/>不可访问] 
+        B[0x00400000<br/>代码段<br/>只读]
+        C[0x10000000<br/>堆内存<br/>✓ 重点扫描]
+        D[0x7FFE0000<br/>系统保留<br/>跳过]
+        E[0x7FFFFFFFFFFF<br/>64位上限]
+    end
+    
+    style C fill:#90EE90
+    style A fill:#FFB6C1
+    style D fill:#FFB6C1
+</div>
+<p>我们只关心那些<strong>已提交（MEM_COMMIT）<strong>且</strong>可读</strong>的区域——这些地方才真正存放着数据。空书架和禁入区域我们直接跳过。</p>
+<h3>第三步：逐页翻阅</h3>
+<p>对于每个可读区域，我们使用 <code>ReadProcessMemory</code> 把内容读出来，然后用一个精心设计的正则表达式搜索：</p>
+<pre><code class="language-python">pattern = rb&quot;x'([0-9a-fA-F]{64,192})'&quot;
+</code></pre>
+<p>这个模式是什么意思呢？</p>
+<ul>
+<li><code>x'</code> 是 WCDB 存储十六进制数据的独特前缀，就像便利贴上的公司 Logo</li>
+<li><code>[0-9a-fA-F]</code> 表示十六进制字符（0-9, a-f, A-F）</li>
+<li><code>{64,192}</code> 限定长度在 64 到 192 个字符之间</li>
+</ul>
+<p>为什么是 64 到 192？因为我们实际发现了三种不同的存储格式：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">格式</th>
+<th style="text-align:left">长度</th>
+<th style="text-align:left">含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">标准格式</td>
+<td style="text-align:left">96</td>
+<td style="text-align:left">32字节 enc_key + 16字节 salt</td>
+</tr>
+<tr>
+<td style="text-align:left">仅密钥</td>
+<td style="text-align:left">64</td>
+<td style="text-align:left">只有 32字节 enc_key</td>
+</tr>
+<tr>
+<td style="text-align:left">超长格式</td>
+<td style="text-align:left">&gt;96</td>
+<td style="text-align:left">包含额外元数据</td>
+</tr>
+</tbody>
+</table>
+<p>这就像便利贴有时写得详细，有时写得简略，但都有那个标志性的 Logo。</p>
+<h2>验证：如何确定找到的真的是钥匙？</h2>
+<p>假设你在图书馆里找到了一张写着 <code>x'1234...'</code> 的纸条，你怎么知道这是数据库的钥匙，而不是某个用户的聊天内容恰好匹配了这个模式？</p>
+<p>这就是 <code>verify_key_for_db</code> 函数的工作——它是一把<strong>试金石</strong>。</p>
+<div class="mermaid">flowchart TD
+    A[候选密钥] --> B{格式判断}
+    B -->|96位| C[提取 enc_key + salt]
+    B -->|64位| D[逐个数据库尝试]
+    B -->|超长| E[截取前64位和后32位]
+    
+    C --> F[HMAC-SHA512 验证]
+    D --> F
+    E --> F
+    
+    F -->|验证通过| G[确认有效密钥]
+    F -->|验证失败| H[丢弃]
+    
+    style G fill:#90EE90
+    style H fill:#FFB6C1
+</div>
+<h3>密码学的巧妙验证</h3>
+<p>SQLCipher 4 的设计给了我们一个捷径。每个加密数据库的第一页都包含：</p>
+<ul>
+<li><strong>Salt</strong>：16字节的随机数，用于派生密钥</li>
+<li><strong>IV</strong>：初始化向量，用于 AES 加密</li>
+<li><strong>加密数据</strong>：实际的密文</li>
+<li><strong>HMAC</strong>：消息认证码，用于完整性校验</li>
+</ul>
+<p>正常情况下，要验证一个密钥是否正确，你需要：</p>
+<ol>
+<li>用 salt 和密钥通过 PBKDF2 派生 MAC 密钥（256,000 次迭代！）</li>
+<li>计算 HMAC-SHA512</li>
+<li>与存储的值比较</li>
+</ol>
+<p>但我们发现，SQLCipher 的 HMAC 验证只需要 <strong>2 次迭代</strong>就能派生出足够的密钥材料！这是因为 HMAC 密钥不需要像加密密钥那样强的熵。</p>
+<p>于是我们的验证流程变成了：</p>
+<div class="mermaid">sequenceDiagram
+    participant V as verify_key_for_db
+    participant DB as 数据库第一页
+    
+    V->>DB: 读取 page 1
+    DB-->>V: salt, IV, ciphertext, stored_hmac
+    
+    V->>V: salt XOR 0x3a = mac_salt
+    Note over V: 只有2次迭代的PBKDF2！
+    V->>V: PBKDF2(enc_key, mac_salt, 2) = mac_key
+    V->>V: HMAC-SHA512(ciphertext, mac_key) = computed_hmac
+    V->>V: compare(computed_hmac, stored_hmac)
+    
+    alt 匹配
+        V->>V: 密钥有效！
+    else 不匹配
+        V->>V: 密钥无效
+    end
+</div>
+<p>整个过程在微秒级完成，既快速又可靠——这是密码学级别的安全性保证，不是简单的猜测。</p>
+<h2>处理特殊情况：交叉验证的艺术</h2>
+<p>有时候，我们会遇到一些&quot;顽固&quot;的数据库——它们的 salt 没有直接出现在找到的密钥字符串里。这时候就需要一点推理能力了。</p>
+<p>WCDB 有一个特性：<strong>如果多个数据库使用相同的密码，它们会派生出相同的 enc_key</strong>。这在微信中很常见，因为所有数据库通常都用同一个主密码保护。</p>
+<p>所以当我们遇到未匹配的 salt 时，会尝试用已找到的其他密钥去验证它。这就像你有一串钥匙，虽然不知道哪把对应哪个锁，但可以一把一把试——而我们的&quot;试&quot;是微秒级的密码学验证，不是真的去开锁。</p>
+<h2>最终产出：all_keys.json</h2>
+<p>经过完整的扫描和验证流程，我们得到一个整洁的 JSON 文件：</p>
+<pre><code class="language-json">{
+  &quot;contact.db&quot;: {
+    &quot;enc_key&quot;: &quot;a1b2c3d4...&quot;,
+    &quot;salt&quot;: &quot;e5f6g7h8...&quot;
+  },
+  &quot;message_0.db&quot;: {
+    &quot;enc_key&quot;: &quot;i9j0k1l2...&quot;,
+    &quot;salt&quot;: &quot;m3n4o5p6...&quot;
+  }
+}
+</code></pre>
+<p>这个文件是整个 <code>wechat-decrypt</code> 工具链的基石。后续的实时监控、AI 查询等功能，都依赖这些从内存中提取的密钥。</p>
+<h2>安全与伦理的边界</h2>
+<p>读到这里，你可能会有一个担忧：这种技术会不会被滥用？</p>
+<p>重要的是理解几个关键点：</p>
+<ol>
+<li><strong>需要管理员权限</strong>：读取其他进程的内存需要系统最高权限，这不是普通病毒能做到的</li>
+<li><strong>需要微信正在运行</strong>：钥匙只在微信运行时存在于内存中，关机或退出后就消失了</li>
+<li><strong>只能解密自己的数据</strong>：你只能读取自己电脑上、自己账号的微信数据</li>
+</ol>
+<p>这就像你能打开自己家的保险箱，但不能因此说开锁技术是邪恶的。技术的价值在于使用者如何运用它。</p>
+<h2>动手实践</h2>
+<p>如果你想亲自体验这个过程，确保满足以下条件：</p>
+<ul>
+<li>Windows 系统（目前只支持 Windows 版微信）</li>
+<li>Python 3.10+</li>
+<li><strong>以管理员身份运行</strong> PowerShell 或 CMD</li>
+<li>微信 4.0 正在运行</li>
+</ul>
+<p>然后执行：</p>
+<pre><code class="language-bash">python -m wechat_decrypt.find_all_keys
+</code></pre>
+<p>你会看到扫描进度和找到的密钥数量。最终生成的 <code>all_keys.json</code> 就可以用于后续的数据解密了。</p>
+<h2>小结</h2>
+<p>在这一章中，我们学习了：</p>
+<ul>
+<li><strong>PBKDF2 的高成本</strong>：为什么暴力破解不可行</li>
+<li><strong>WCDB 的密钥缓存</strong>：微信为了性能而在内存中留下的&quot;破绽&quot;</li>
+<li><strong>内存扫描技术</strong>：如何在数十亿字节中找到特定的模式</li>
+<li><strong>密码学验证</strong>：用 HMAC 快速确认密钥的正确性</li>
+</ul>
+<p>下一章，我们将看看这些密钥如何被用来构建实时监控系统——让新消息像直播一样推送到你的浏览器。</p>
+
+      </article>
+      <div class="toc" id="toc">
+        <div class="toc-h">On this page</div>
+        <ul id="toc-ul"></ul>
+      </div>
+    </div>
+  </main>
+</div>
+<button id="btt" title="Back to top">&#8679;</button>
+<script>
+// Site home button — navigate to the origin root regardless of subpath
+document.getElementById('site-home-btn').href = window.location.origin + '/';
+// Theme
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});
+// Sidebar
+var sb=document.getElementById('sb'),layout=document.getElementById('layout'),ov=document.getElementById('ov');
+function isMob(){return window.innerWidth<768;}
+function sbShow(){sb.classList.remove('off');layout.classList.add('sbon');if(isMob())ov.classList.add('on');}
+function sbHide(){sb.classList.add('off');layout.classList.remove('sbon');ov.classList.remove('on');}
+if(isMob()){sbHide();}else{if(localStorage.getItem('cw-sb')==='off')sbHide();else sbShow();}
+document.getElementById('sb-toggle').addEventListener('click',function(){
+  if(sb.classList.contains('off')){sbShow();if(!isMob())localStorage.setItem('cw-sb','on');}
+  else{sbHide();if(!isMob())localStorage.setItem('cw-sb','off');}
+});
+ov.addEventListener('click',sbHide);
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else sbHide();});
+// Nav collapse — hierarchy visible by default; caret toggles manual collapse
+document.querySelectorAll('.nvcaret').forEach(function(c){
+  var key=c.getAttribute('data-nav'),sub=document.querySelector('[data-nav-sub="'+key+'"]');
+  if(!sub)return;
+  c.classList.add('open');
+  c.addEventListener('click',function(){var h=sub.style.display==='none';sub.style.display=h?'':'none';c.classList.toggle('open',h);});
+});
+// TOC
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),toc=document.getElementById('toc');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(toc)toc.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');li.className=h.tagName==='H3'?'h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.closest('li').classList.toggle('on',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+// Back to top
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+// Mermaid — startOnLoad:false + manual render with error handling + theme-aware re-render
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{
+      var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);
+      el.innerHTML=r.svg;
+    }catch(err){
+      el.innerHTML='<details open><summary style="color:#e11d48;cursor:pointer">&#9888; Mermaid error (click to expand)</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;color:var(--tx2)">'+src.replace(/</g,'&lt;')+'</pre></details>';
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+// Hybrid math rendering: KaTeX (fast, sync) for 90 % of formulas;
+// async MathJax fallback for anything KaTeX cannot handle
+// (e.g. \label/\eqref, exotic environments, custom macros).
+// Math is pre-extracted server-side into .math-block / .math-inline elements
+// containing \[...\] / \(...\) — no dollar-sign scanning needed.
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){
+    window.MathJax={
+      tex:{packages:{'[+]':['ams','newcommand']}},
+      svg:{fontCache:'global'},
+      startup:{typeset:false}
+    };
+    _mjReady=new Promise(function(res,rej){
+      var s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';
+      s.onload=function(){MathJax.startup.promise.then(res,rej);};
+      s.onerror=rej;
+      document.head.appendChild(s);
+    });
+  }
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  // Guard: DOMContentLoaded passes an Event object — fall back to DOM lookup
+  if(!root||typeof root.querySelectorAll!=='function')
+    root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;
+    var disp=el.classList.contains('math-block');
+    // Strip the \[...\] or \(...\) wrapper (each delimiter is exactly 2 chars)
+    var src=el.textContent.trim().slice(2,-2).trim();
+    el.dataset.mathSrc=src;
+    el.dataset.mathDone='1';
+    try{
+      el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});
+    }catch(e){
+      failed.push([el,disp]);
+    }
+  });
+  if(!failed.length)return;
+  // Load MathJax on demand and process elements KaTeX could not handle
+  try{
+    await _loadMathJax();
+    for(var i=0;i<failed.length;i++){
+      var el=failed[i][0],disp=failed[i][1];
+      try{
+        var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});
+        el.innerHTML='';el.appendChild(node);
+      }catch(e2){
+        el.innerHTML='<code class="math-err" title="'+
+          el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+
+          el.dataset.mathSrc+'</code>';
+      }
+    }
+  }catch(loadErr){
+    failed.forEach(function(p){
+      var el=p[0];
+      el.innerHTML='<code class="math-err">'+el.dataset.mathSrc+'</code>';
+    });
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

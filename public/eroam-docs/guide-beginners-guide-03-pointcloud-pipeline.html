@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第三章：点云处理链路——从原始数据到空间索引</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;}
+/* ── Theme overrides ── */
+:root,[data-theme=light]{
+  --bulma-scheme-main:#fff;--bulma-scheme-main-bis:#f8fafc;--bulma-scheme-main-ter:#f1f5f9;
+  --bulma-border:#e2e8f0;--bulma-border-weak:#f1f5f9;
+  --bulma-text:#1e293b;--bulma-text-weak:#64748b;--bulma-text-strong:#0f172a;
+  --bulma-link:#2563eb;--bulma-link-hover:#1d4ed8;
+  --bulma-primary:#2563eb;--bulma-primary-light:#eff6ff;
+  --bulma-code:#e11d48;--bulma-code-background:#f8fafc;
+  --bulma-pre-background:#f8fafc;
+  --cw-nav-active-bg:#eff6ff;--cw-nav-active-text:#1d4ed8;
+  --cw-nav-hover-bg:#f1f5f9;
+  --cw-meta-bg:#f8fafc;
+}
+[data-theme=dark]{
+  --bulma-scheme-main:#0f172a;--bulma-scheme-main-bis:#1e293b;--bulma-scheme-main-ter:#253047;
+  --bulma-border:#334155;--bulma-border-weak:#253047;
+  --bulma-text:#e2e8f0;--bulma-text-weak:#94a3b8;--bulma-text-strong:#f8fafc;
+  --bulma-link:#60a5fa;--bulma-link-hover:#93c5fd;
+  --bulma-primary:#60a5fa;--bulma-primary-light:#1e3a5f;
+  --bulma-code:#f472b6;--bulma-code-background:#1e293b;
+  --bulma-pre-background:#162032;
+  --cw-nav-active-bg:#1e3a5f;--cw-nav-active-text:#60a5fa;
+  --cw-nav-hover-bg:#253047;
+  --cw-meta-bg:#253047;
+}
+/* ── Navbar ── */
+.navbar{background:var(--bulma-scheme-main)!important;border-bottom:1px solid var(--bulma-border)!important;box-shadow:none!important;}
+.navbar-item,.navbar-burger{color:var(--bulma-text)!important;}
+.navbar-burger:hover{background:var(--cw-nav-hover-bg)!important;}
+/* ── Layout ── */
+.cw-wrap{display:flex;min-height:100vh;padding-top:3.25rem;}
+.cw-side{position:fixed;top:3.25rem;left:0;width:272px;height:calc(100vh - 3.25rem);overflow-y:auto;background:var(--bulma-scheme-main-bis);border-right:1px solid var(--bulma-border);padding:1rem 0.75rem 3rem;z-index:30;transition:transform .2s;}
+.cw-side.off{transform:translateX(-272px);}
+.cw-body{margin-left:272px;flex:1;min-width:0;transition:margin-left .2s;}
+.cw-body.full{margin-left:0;}
+.cw-content{max-width:900px;margin:0 auto;padding:2.5rem 2rem;}
+.cw-overlay{display:none;position:fixed;inset:0;top:3.25rem;background:rgba(0,0,0,.35);z-index:25;backdrop-filter:blur(2px);}
+.cw-overlay.on{display:block;}
+/* ── Sidebar nav ── */
+.cw-side .menu-list a{font-size:0.84rem;border-radius:6px;color:var(--bulma-text-weak);padding:0.4em 0.75em;transition:all .15s;}
+.cw-side .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+.cw-side .menu-list a.is-active{background:var(--cw-nav-active-bg)!important;color:var(--cw-nav-active-text)!important;font-weight:600;}
+.cw-side .menu-list ul{border-left:1px solid var(--bulma-border);margin-left:0.75em;padding-left:0;}
+.cw-side .menu-label{color:var(--bulma-text-weak);font-size:0.7rem;letter-spacing:0.06em;margin-top:1.2em;}
+/* ── Meta card ── */
+.cw-side .card{background:var(--cw-meta-bg);border:1px solid var(--bulma-border);box-shadow:none;border-radius:8px;margin-bottom:0.75rem;}
+.cw-side .card b{color:var(--bulma-text-weak);}
+/* ── TOC dropdown ── */
+#toc-dropdown .dropdown-content{background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);}
+#toc-dropdown .menu-list a{padding:0.3em 0.6em;border-radius:4px;font-size:0.82rem;color:var(--bulma-text-weak);}
+#toc-dropdown .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+#toc-dropdown .menu-list a.is-active{color:var(--cw-nav-active-text);font-weight:600;}
+#toc-dropdown .toc-h3 a{padding-left:1.2em;font-size:0.78rem;}
+/* ── Article content ── */
+.content{color:var(--bulma-text);line-height:1.75;}
+.content h1{font-size:1.85rem;font-weight:700;border-bottom:2px solid var(--bulma-border);padding-bottom:0.4rem;margin-bottom:1.2rem;}
+.content h2{font-size:1.4rem;font-weight:600;margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--bulma-border-weak);}
+.content h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;color:var(--bulma-text-strong);}
+.content h4{font-size:1rem;font-weight:600;color:var(--bulma-text-strong);}
+.content p,.content li{color:var(--bulma-text);font-size:0.95rem;}
+.content a{color:var(--bulma-link);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s;}
+.content a:hover{border-bottom-color:var(--bulma-link);}
+.content code{background:var(--bulma-code-background);color:var(--bulma-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.85em;font-family:'JetBrains Mono',Consolas,monospace;}
+.content pre{background:var(--bulma-pre-background);border:1px solid var(--bulma-border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;}
+.content pre code{background:none;color:inherit;padding:0;font-size:0.87em;}
+.content blockquote{border-left:3px solid var(--bulma-link);background:var(--bulma-primary-light);padding:0.75rem 1rem;border-radius:0 6px 6px 0;color:var(--bulma-text);}
+.content table{border-collapse:collapse;width:100%;}
+.content th{background:var(--bulma-scheme-main-bis);font-weight:600;text-align:left;}
+.content th,.content td{border:1px solid var(--bulma-border);padding:0.6rem 0.8rem;font-size:0.9rem;}
+.content img{border-radius:8px;max-width:100%;}
+.content hr{border:none;border-top:1px solid var(--bulma-border);margin:2rem 0;}
+/* hljs/mermaid/math overrides */
+.content pre code.hljs{background:transparent!important;}
+.content .mermaid{max-width:none;margin:1.5rem 0;padding:1rem;background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;}
+.content .math-block{overflow-x:auto;margin:1rem 0;}
+.content .math-inline{display:inline;}
+.content .math-err{color:var(--bulma-danger);font-style:italic;font-size:0.85em;}
+.content pre:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--bulma-link) 30%,transparent);}
+.hljs{background:transparent!important;}
+/* ── Back to top ── */
+#btt{position:fixed;bottom:1.5rem;right:1.5rem;z-index:100;display:none;box-shadow:0 2px 8px rgba(0,0,0,.15);width:36px;height:36px;font-size:14px;}
+#btt.on{display:inline-flex;}
+/* ── Responsive ── */
+@media(max-width:768px){
+  .cw-side{transform:translateX(-272px);}
+  .cw-side.on{transform:translateX(0);}
+  .cw-body{margin-left:0;}
+  .cw-content{padding:1.5rem 1rem;}
+}
+@media(min-width:769px){
+  .cw-side{transform:none;}
+  .cw-side.off{transform:translateX(-272px);}
+}
+</style>
+</head>
+<body>
+<nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <button class="navbar-burger" id="sb-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </button>
+    <a href="index.html" class="navbar-item has-text-link has-text-weight-bold">&#128218; code-wiki-dir</a>
+  </div>
+  <div class="navbar-end">
+    <div class="navbar-item">
+      <div class="buttons are-small">
+        <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="Repository">&#128279; Repo</a>
+        <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="DeepWiki">&#127760; DeepWiki</a>
+        <div class="dropdown is-right is-hoverable" id="toc-dropdown">
+          <div class="dropdown-trigger">
+            <button class="button is-light is-small" aria-haspopup="true" aria-controls="toc-menu" title="Table of Contents">&#128209; TOC</button>
+          </div>
+          <div class="dropdown-menu" id="toc-menu" role="menu" style="min-width:220px;">
+            <div class="dropdown-content" style="max-height:60vh;overflow-y:auto;padding:0.5rem;">
+              <ul class="menu-list" id="toc-ul" style="font-size:0.85rem;"></ul>
+            </div>
+          </div>
+        </div>
+        <a href="/" id="site-home-btn" class="button is-light is-small" title="Back to main site" aria-label="Back to main site">&#127968;</a>
+        <button class="button is-light is-small" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<div class="cw-wrap">
+  <aside class="cw-side" id="sb">
+    <div class="card" style="margin-bottom:0.75rem;">
+      <div class="card-content" style="padding:0.75rem;">
+        <p class="is-size-7"><b>Model:</b> newapi_njqq/CPCN-glm-bl</p>
+        <p class="is-size-7"><b>Generated:</b> 2026-04-19T12:34</p>
+        <p class="is-size-7"><b>Components:</b> 98</p>
+        <p class="is-size-7" style="margin-top:0.5rem">
+          <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#128279; Repository</a>
+          &middot; <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#127760; DeepWiki</a>
+        </p>
+      </div>
+    </div>
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="guide-getting-started.html">EROAM 快速上手指南</a></li>
+        <li>
+          <a href="guide-beginners-guide.html">Beginner's Guide</a>
+          <ul>
+            <li><a href="guide-beginners-guide-01-what-is-eroam.html">EROAM 是什么：项目定位与核心能力</a></li>
+            <li><a href="guide-beginners-guide-02-math-foundation.html">数值基础设施：类型系统与数学工具</a></li>
+            <li><a href="guide-beginners-guide-03-pointcloud-pipeline.html" class="is-active">第三章：点云处理链路——从原始数据到空间索引</a></li>
+            <li><a href="guide-beginners-guide-04-fast-neighbor-search.html">第四章：高性能近邻搜索——KD 树实现原理与优化</a></li>
+            <li><a href="guide-beginners-guide-05-performance-observability.html">第五章：性能可观测——计时系统与调优实践</a></li>
+            <li><a href="guide-beginners-guide-06-entry-points.html">第六章：系统入口与数据预处理——运行与部署</a></li>
+          </ul>
+        </li>
+        <li><a href="guide-build-and-organization.html">Build & Code Organization 分析报告</a></li>
+        <li>
+          <a href="guide-core-algorithms.html">Core Algorithms 核心算法</a>
+          <ul>
+            <li><a href="guide-core-algorithms-01-incremental-kd-tree-dynamic-maintenance.html">增量式KD树动态维护算法</a></li>
+            <li><a href="guide-core-algorithms-02-dynamic-plane-parameter-estimation.html">2. Dynamic Plane Parameter Estimation</a></li>
+            <li><a href="guide-core-algorithms-03-dvs-event-rosbag-preprocessing.html">DVS事件相机Rosbag数据预处理算法（eroam）</a></li>
+            <li><a href="guide-core-algorithms-04-heterogeneous-pointcloud-format-normalization.html">异构点云格式归一化转换算法 (Heterogeneous Point Cloud Format Normalization)</a></li>
+            <li><a href="guide-core-algorithms-05-slam-factor-marginalization.html">SLAM因子边缘化算法（eroam实现）深度解析</a></li>
+            <li><a href="guide-core-algorithms-06-static-keyframe-kdtree-nearest-search.html">静态关键帧KD树近邻搜索算法深度解析</a></li>
+          </ul>
+        </li>
+        <li><span style="opacity:.5;padding:0.5em 0.75em;display:block">Thirdparty Ikd-Tree</span></li>
+<li>
+  <a href="src.html">module:src</a>
+  <ul>
+<li><a href="core_types_math.html">基础类型与数学工具</a></li>
+<li>
+  <a href="pointcloud_indexing.html">点云与索引工具</a>
+  <ul>
+<li><a href="kdtree_structures.html">KD树结构与距离节点模块技术文档</a></li>
+<li><a href="pointcloud_conversion_utils.html">点云转换工具技术文档</a></li>
+<li><a href="system_timer_support.html">系统与计时支持模块技术文档</a></li>
+  </ul>
+</li>
+<li><a href="executables_and_repack.html">可执行入口与数据重打包模块</a></li>
+  </ul>
+</li>
+      </ul>
+    </aside>
+  </aside>
+  <div class="cw-overlay" id="ov"></div>
+  <main class="cw-body" id="body">
+    <div class="cw-content">
+      <article id="mc" class="cw-article content">
+<h1>第三章：点云处理链路——从原始数据到空间索引</h1>
+<p>激光雷达每秒输出数万至数十万个点，每个点携带三维坐标与反射强度。这些原始数据无法直接用于定位计算：ROS消息格式与内部处理格式不兼容，多传感器字段定义各异，高频输入存在大量空间冗余。本章追踪点云数据在 eroam 内部的完整旅程——从格式转换、降采样预处理，到 KD 树空间索引的构建——理解这一链路是掌握后续近邻搜索与建图算法的基础。</p>
+<hr />
+<h2>点云进入系统的第一站：格式适配器</h2>
+<p>想象一个国际会议的同声传译系统。不同国家的代表（ROS消息、PCL点云、各类传感器格式）说着不同的&quot;语言&quot;，而会议的核心讨论只能使用一种工作语言（内部标准格式 <code>PointType</code>）。<code>pointcloud_conversion_utils</code> 就是这个传译中心——它不是会议的决策者，但没有它，任何讨论都无法开始。</p>
+<div class="mermaid not-prose">flowchart LR
+    A[ROS PointCloud2消息] -->|PointCloud2ToCloudPtr| B(CloudPtr PointType 内部标准点云)
+    C[任意PCL格式点云] -->|ConvertToCloud| B
+    B -->|VoxelCloud| D[降采样后点云]
+    B --> E[KD树模块]
+    B --> F[里程计算法]
+    D --> E
+    D --> F
+</div>
+<p>模块设计遵循三个原则：无状态、全内联、模板化。所有接口均为纯函数，不持有全局数据，无锁开销，天然支持多线程并行。核心逻辑以 <code>inline</code> 形式置于头文件，避免函数调用开销——这对 10~100Hz 的点云处理频率至关重要。</p>
+<h3>ROS 消息的转换入口</h3>
+<p><code>PointCloud2ToCloudPtr</code> 是 ROS 生态与 eroam 内部世界的边界。它接收 <code>sensor_msgs::PointCloud2::Ptr</code> 消息指针，内部调用 PCL 的 <code>pcl::fromROSMsg</code> 完成格式映射，返回 <code>CloudPtr&lt;PointType&gt;</code> 共享指针。</p>
+<pre><code class="language-cpp">// src/lidar_utils.h:20-24
+CloudPtr PointCloud2ToCloudPtr(sensor_msgs::PointCloud2::Ptr msg);
+</code></pre>
+<p>内存管理采用共享所有权策略：函数内部申请点云内存，返回的 <code>shared_ptr</code> 由引用计数自动管理。下游的 KD 树、配准、建图模块可同时持有同一份数据，避免大内存拷贝——引用计数的微量开销在点云场景下收益远大于成本。</p>
+<p>调用契约严格：输入指针必须非空，消息必须包含 <code>x/y/z/intensity</code> 四个字段。模块放弃运行时校验以换取性能，违反契约将直接导致空指针崩溃或未捕获异常。</p>
+<h3>多传感器格式的统一出口</h3>
+<p><code>ConvertToCloud</code> 解决更广泛的异构问题。它是一个模板函数，支持任意包含 <code>x/y/z/intensity</code> 字段的 PCL 点类型转换为内部标准格式。</p>
+<pre><code class="language-cpp">// src/lidar_utils.h:34-46
+template &lt;typename PointT = FullPointType&gt;
+CloudPtr ConvertToCloud(typename pcl::PointCloud&lt;PointT&gt;::Ptr input);
+</code></pre>
+<p>默认模板参数 <code>FullPointType</code> 针对自动驾驶场景优化——这是最常见的&quot;全量点云转 XYZI 点云&quot;场景，减少 90% 调用处的参数输入。实现逻辑遍历输入点云，提取四个核心字段赋值给 <code>PointType</code> 实例，保留宽度等元数据。输入点类型必须包含四个公有成员，否则编译期报错。</p>
+<h3>冗余削减：体素降采样</h3>
+<p>高频激光雷达的相邻点存在严重空间重叠。<code>VoxelCloud</code> 基于 PCL 的 <code>VoxelGrid</code> 滤波器，将三维空间划分为边长为 <code>voxel_size</code> 的立方体网格，每个网格仅保留重心点。</p>
+<pre><code class="language-cpp">// src/lidar_utils.h:49-58
+CloudPtr VoxelCloud(CloudPtr cloud, float voxel_size = 0.1f);
+</code></pre>
+<p>默认 0.1m 针对 16/32 线激光雷达优化。时间复杂度 O(n)，降采样比例与体素大小正相关。注意：输出会丢失原始点顺序，依赖环序的算法（如按扫描线提取特征）必须使用降采样前的点云。</p>
+<hr />
+<h2>从点云到索引：空间组织的艺术</h2>
+<p>转换后的点云仍是&quot;扁平&quot;的——按存储顺序排列的点列表，查找最近邻需要 O(n) 遍历。KD 树（k-dimensional tree）将点云组织为层次化的空间划分结构，使最近邻查询降至 O(log n) 级别。<code>kdtree_structures</code> 模块为静态关键帧的批量检索场景定制实现，是 eroam 匹配阶段的核心性能支撑。</p>
+<div class="mermaid not-prose">graph TD
+    A[原始点云 CloudPtr] --> B[点云转换工具]
+    B --> C[标准格式 PointType 点云]
+    C --> D{需要降采样?}
+    D -->|是| E[VoxelCloud]
+    D -->|否| F[直接流入]
+    E --> G[KD树构建]
+    F --> G
+    G --> H[递归空间划分]
+    H --> I[平衡二叉树结构]
+    I --> J[支持近邻查询<br/>半径查询<br/>近似最近邻]
+</div>
+<h3>KD 树的核心机制</h3>
+<p>构建过程递归进行：选择当前点集方差最大的维度作为分割轴，取该维度中位数点作为节点，将剩余点划分为左右子树。这一&quot;中位数分割&quot;策略保证树的高度平衡，最坏查询复杂度稳定在 O(log n)。</p>
+<p>距离计算采用平方欧氏距离，避免开方运算。比较时只需比较距离平方值，最终返回时再取平方根——这在海量点查询中节省显著计算量。</p>
+<h3>近似最近邻与多线程查询</h3>
+<p>精确最近邻搜索在超高维或特定分布下可能退化为线性扫描。eroam 的 KD 树支持近似最近邻（ANN）模式：设定误差容忍阈值，提前终止对远距离子树的搜索，换取数量级的性能提升。这一设计针对 SLAM 的迭代优化特性——粗近似解足以驱动优化收敛，无需每步精确最优。</p>
+<p>静态关键帧的查询模式具有鲜明特征：单帧点云构建索引后，面临数万次只读查询。模块针对此批量场景优化查询接口，支持多线程并行检索。多个查询线程共享同一棵 KD 树，无锁读取，仅依赖构建阶段的只读保证。</p>
+<hr />
+<h2>数据流全景：一次点云帧的完整旅程</h2>
+<div class="mermaid not-prose">sequenceDiagram
+    participant ROS as ROS驱动
+    participant Conv as pointcloud_conversion_utils
+    participant Voxel as VoxelCloud
+    participant KD as kdtree_structures
+    participant Algo as 里程计/建图算法
+    
+    ROS->>Conv: PointCloud2消息
+    Note over Conv: PointCloud2ToCloudPtr<br/>格式转换
+    Conv->>Voxel: CloudPtr<PointType>
+    Note over Voxel: 0.1m体素降采样<br/>减少60~80%点数
+    Voxel->>KD: 降采样后点云
+    Note over KD: 递归构建KD树<br/>中位数分割保证平衡
+    KD->>Algo: 索引结构 + 查询接口
+    Note over Algo: 近邻搜索驱动<br/>ICP/NDT配准计算
+</div>
+<p>链路中的每个环节都承载明确的设计决策：转换层牺牲编译时间换取运行时零开销；降采样层以空间分辨率换取处理带宽；索引层针对静态批量查询场景定制，放弃动态更新能力以换取极致查询性能。</p>
+<hr />
+<h2>关键设计权衡回顾</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">层面</th>
+<th style="text-align:left">选择</th>
+<th style="text-align:left">代价</th>
+<th style="text-align:left">收益</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">代码组织</td>
+<td style="text-align:left">全头文件内联实现</td>
+<td style="text-align:left">编译时间增加</td>
+<td style="text-align:left">高频调用零开销</td>
+</tr>
+<tr>
+<td style="text-align:left">内存管理</td>
+<td style="text-align:left"><code>shared_ptr</code> 共享所有权</td>
+<td style="text-align:left">引用计数开销</td>
+<td style="text-align:left">避免点云大内存拷贝</td>
+</tr>
+<tr>
+<td style="text-align:left">可靠性</td>
+<td style="text-align:left">调用者契约，无运行时校验</td>
+<td style="text-align:left">空指针/异常风险</td>
+<td style="text-align:left">每帧约 0.1ms 性能提升</td>
+</tr>
+<tr>
+<td style="text-align:left">索引策略</td>
+<td style="text-align:left">静态批量查询优化</td>
+<td style="text-align:left">不支持动态增量更新</td>
+<td style="text-align:left">多线程并行、近似搜索</td>
+</tr>
+</tbody>
+</table>
+<p>理解这些权衡是阅读后续章节的基础。第四章将深入 KD 树的实现细节——递归划分的具体算法、距离节点的内存布局、以及近似搜索的误差控制机制。</p>
+
+      </article>
+    </div>
+  </main>
+</div>
+<button id="btt" class="button is-primary is-rounded" title="Back to top">&#8679;</button>
+<script>
+document.getElementById('site-home-btn').href=window.location.origin+'/';
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){
+  hljs.highlightAll();
+  document.querySelectorAll('article pre').forEach(function(pre){
+    pre.setAttribute('tabindex','0');pre.setAttribute('role','region');pre.setAttribute('aria-label','Code block');
+  });
+});
+var sb=document.getElementById('sb'),body=document.getElementById('body'),ov=document.getElementById('ov'),burger=document.getElementById('sb-toggle');
+function isMob(){return window.innerWidth<769;}
+function sbShow(){if(isMob()){sb.classList.add('on');ov.classList.add('on');}else{sb.classList.remove('off');body.classList.remove('full');}}
+function sbHide(){if(isMob()){sb.classList.remove('on');ov.classList.remove('on');}else{sb.classList.add('off');body.classList.add('full');}}
+if(!isMob()&&localStorage.getItem('cw-sb')==='off'){sb.classList.add('off');body.classList.add('full');}
+burger.addEventListener('click',function(){
+  if(isMob()){if(sb.classList.contains('on'))sbHide();else sbShow();}
+  else{if(sb.classList.contains('off')){sbShow();localStorage.setItem('cw-sb','on');}else{sbHide();localStorage.setItem('cw-sb','off');}}
+});
+ov.addEventListener('click',sbHide);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')sbHide();});
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');sb.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else{sb.classList.remove('off');body.classList.remove('full');}});
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),tocDrop=document.getElementById('toc-dropdown');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(tocDrop)tocDrop.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');
+    li.className=h.tagName==='H3'?'toc-h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.classList.toggle('is-active',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);el.innerHTML=r.svg;}
+    catch(err){el.innerHTML='<details open><summary style="color:var(--bulma-danger);cursor:pointer">&#9888; Mermaid error</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;opacity:.6">'+src.replace(/</g,'&lt;')+'</pre></details>';}
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){window.MathJax={tex:{packages:{'[+]':['ams','newcommand']}},svg:{fontCache:'global'},startup:{typeset:false}};_mjReady=new Promise(function(res,rej){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';s.onload=function(){MathJax.startup.promise.then(res,rej);};s.onerror=rej;document.head.appendChild(s);});}
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  if(!root||typeof root.querySelectorAll!=='function')root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;var disp=el.classList.contains('math-block');
+    var src=el.textContent.trim().slice(2,-2).trim();el.dataset.mathSrc=src;el.dataset.mathDone='1';
+    try{el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});}catch(e){failed.push([el,disp]);}
+  });
+  if(!failed.length)return;
+  try{await _loadMathJax();for(var i=0;i<failed.length;i++){var el=failed[i][0],disp=failed[i][1];try{var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});el.innerHTML='';el.appendChild(node);}catch(e2){el.innerHTML='<code class="math-err" title="'+el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+el.dataset.mathSrc+'</code>';}}}
+  catch(loadErr){failed.forEach(function(p){p[0].innerHTML='<code class="math-err">'+p[0].dataset.mathSrc+'</code>';});}
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

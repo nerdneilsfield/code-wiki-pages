@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>可执行入口与数据重打包模块</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;}
+/* ── Theme overrides ── */
+:root,[data-theme=light]{
+  --bulma-scheme-main:#fff;--bulma-scheme-main-bis:#f8fafc;--bulma-scheme-main-ter:#f1f5f9;
+  --bulma-border:#e2e8f0;--bulma-border-weak:#f1f5f9;
+  --bulma-text:#1e293b;--bulma-text-weak:#64748b;--bulma-text-strong:#0f172a;
+  --bulma-link:#2563eb;--bulma-link-hover:#1d4ed8;
+  --bulma-primary:#2563eb;--bulma-primary-light:#eff6ff;
+  --bulma-code:#e11d48;--bulma-code-background:#f8fafc;
+  --bulma-pre-background:#f8fafc;
+  --cw-nav-active-bg:#eff6ff;--cw-nav-active-text:#1d4ed8;
+  --cw-nav-hover-bg:#f1f5f9;
+  --cw-meta-bg:#f8fafc;
+}
+[data-theme=dark]{
+  --bulma-scheme-main:#0f172a;--bulma-scheme-main-bis:#1e293b;--bulma-scheme-main-ter:#253047;
+  --bulma-border:#334155;--bulma-border-weak:#253047;
+  --bulma-text:#e2e8f0;--bulma-text-weak:#94a3b8;--bulma-text-strong:#f8fafc;
+  --bulma-link:#60a5fa;--bulma-link-hover:#93c5fd;
+  --bulma-primary:#60a5fa;--bulma-primary-light:#1e3a5f;
+  --bulma-code:#f472b6;--bulma-code-background:#1e293b;
+  --bulma-pre-background:#162032;
+  --cw-nav-active-bg:#1e3a5f;--cw-nav-active-text:#60a5fa;
+  --cw-nav-hover-bg:#253047;
+  --cw-meta-bg:#253047;
+}
+/* ── Navbar ── */
+.navbar{background:var(--bulma-scheme-main)!important;border-bottom:1px solid var(--bulma-border)!important;box-shadow:none!important;}
+.navbar-item,.navbar-burger{color:var(--bulma-text)!important;}
+.navbar-burger:hover{background:var(--cw-nav-hover-bg)!important;}
+/* ── Layout ── */
+.cw-wrap{display:flex;min-height:100vh;padding-top:3.25rem;}
+.cw-side{position:fixed;top:3.25rem;left:0;width:272px;height:calc(100vh - 3.25rem);overflow-y:auto;background:var(--bulma-scheme-main-bis);border-right:1px solid var(--bulma-border);padding:1rem 0.75rem 3rem;z-index:30;transition:transform .2s;}
+.cw-side.off{transform:translateX(-272px);}
+.cw-body{margin-left:272px;flex:1;min-width:0;transition:margin-left .2s;}
+.cw-body.full{margin-left:0;}
+.cw-content{max-width:900px;margin:0 auto;padding:2.5rem 2rem;}
+.cw-overlay{display:none;position:fixed;inset:0;top:3.25rem;background:rgba(0,0,0,.35);z-index:25;backdrop-filter:blur(2px);}
+.cw-overlay.on{display:block;}
+/* ── Sidebar nav ── */
+.cw-side .menu-list a{font-size:0.84rem;border-radius:6px;color:var(--bulma-text-weak);padding:0.4em 0.75em;transition:all .15s;}
+.cw-side .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+.cw-side .menu-list a.is-active{background:var(--cw-nav-active-bg)!important;color:var(--cw-nav-active-text)!important;font-weight:600;}
+.cw-side .menu-list ul{border-left:1px solid var(--bulma-border);margin-left:0.75em;padding-left:0;}
+.cw-side .menu-label{color:var(--bulma-text-weak);font-size:0.7rem;letter-spacing:0.06em;margin-top:1.2em;}
+/* ── Meta card ── */
+.cw-side .card{background:var(--cw-meta-bg);border:1px solid var(--bulma-border);box-shadow:none;border-radius:8px;margin-bottom:0.75rem;}
+.cw-side .card b{color:var(--bulma-text-weak);}
+/* ── TOC dropdown ── */
+#toc-dropdown .dropdown-content{background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);}
+#toc-dropdown .menu-list a{padding:0.3em 0.6em;border-radius:4px;font-size:0.82rem;color:var(--bulma-text-weak);}
+#toc-dropdown .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+#toc-dropdown .menu-list a.is-active{color:var(--cw-nav-active-text);font-weight:600;}
+#toc-dropdown .toc-h3 a{padding-left:1.2em;font-size:0.78rem;}
+/* ── Article content ── */
+.content{color:var(--bulma-text);line-height:1.75;}
+.content h1{font-size:1.85rem;font-weight:700;border-bottom:2px solid var(--bulma-border);padding-bottom:0.4rem;margin-bottom:1.2rem;}
+.content h2{font-size:1.4rem;font-weight:600;margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--bulma-border-weak);}
+.content h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;color:var(--bulma-text-strong);}
+.content h4{font-size:1rem;font-weight:600;color:var(--bulma-text-strong);}
+.content p,.content li{color:var(--bulma-text);font-size:0.95rem;}
+.content a{color:var(--bulma-link);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s;}
+.content a:hover{border-bottom-color:var(--bulma-link);}
+.content code{background:var(--bulma-code-background);color:var(--bulma-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.85em;font-family:'JetBrains Mono',Consolas,monospace;}
+.content pre{background:var(--bulma-pre-background);border:1px solid var(--bulma-border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;}
+.content pre code{background:none;color:inherit;padding:0;font-size:0.87em;}
+.content blockquote{border-left:3px solid var(--bulma-link);background:var(--bulma-primary-light);padding:0.75rem 1rem;border-radius:0 6px 6px 0;color:var(--bulma-text);}
+.content table{border-collapse:collapse;width:100%;}
+.content th{background:var(--bulma-scheme-main-bis);font-weight:600;text-align:left;}
+.content th,.content td{border:1px solid var(--bulma-border);padding:0.6rem 0.8rem;font-size:0.9rem;}
+.content img{border-radius:8px;max-width:100%;}
+.content hr{border:none;border-top:1px solid var(--bulma-border);margin:2rem 0;}
+/* hljs/mermaid/math overrides */
+.content pre code.hljs{background:transparent!important;}
+.content .mermaid{max-width:none;margin:1.5rem 0;padding:1rem;background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;}
+.content .math-block{overflow-x:auto;margin:1rem 0;}
+.content .math-inline{display:inline;}
+.content .math-err{color:var(--bulma-danger);font-style:italic;font-size:0.85em;}
+.content pre:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--bulma-link) 30%,transparent);}
+.hljs{background:transparent!important;}
+/* ── Back to top ── */
+#btt{position:fixed;bottom:1.5rem;right:1.5rem;z-index:100;display:none;box-shadow:0 2px 8px rgba(0,0,0,.15);width:36px;height:36px;font-size:14px;}
+#btt.on{display:inline-flex;}
+/* ── Responsive ── */
+@media(max-width:768px){
+  .cw-side{transform:translateX(-272px);}
+  .cw-side.on{transform:translateX(0);}
+  .cw-body{margin-left:0;}
+  .cw-content{padding:1.5rem 1rem;}
+}
+@media(min-width:769px){
+  .cw-side{transform:none;}
+  .cw-side.off{transform:translateX(-272px);}
+}
+</style>
+</head>
+<body>
+<nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <button class="navbar-burger" id="sb-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </button>
+    <a href="index.html" class="navbar-item has-text-link has-text-weight-bold">&#128218; code-wiki-dir</a>
+  </div>
+  <div class="navbar-end">
+    <div class="navbar-item">
+      <div class="buttons are-small">
+        <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="Repository">&#128279; Repo</a>
+        <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="DeepWiki">&#127760; DeepWiki</a>
+        <div class="dropdown is-right is-hoverable" id="toc-dropdown">
+          <div class="dropdown-trigger">
+            <button class="button is-light is-small" aria-haspopup="true" aria-controls="toc-menu" title="Table of Contents">&#128209; TOC</button>
+          </div>
+          <div class="dropdown-menu" id="toc-menu" role="menu" style="min-width:220px;">
+            <div class="dropdown-content" style="max-height:60vh;overflow-y:auto;padding:0.5rem;">
+              <ul class="menu-list" id="toc-ul" style="font-size:0.85rem;"></ul>
+            </div>
+          </div>
+        </div>
+        <a href="/" id="site-home-btn" class="button is-light is-small" title="Back to main site" aria-label="Back to main site">&#127968;</a>
+        <button class="button is-light is-small" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<div class="cw-wrap">
+  <aside class="cw-side" id="sb">
+    <div class="card" style="margin-bottom:0.75rem;">
+      <div class="card-content" style="padding:0.75rem;">
+        <p class="is-size-7"><b>Model:</b> newapi_njqq/CPCN-glm-bl</p>
+        <p class="is-size-7"><b>Generated:</b> 2026-04-19T12:34</p>
+        <p class="is-size-7"><b>Components:</b> 98</p>
+        <p class="is-size-7" style="margin-top:0.5rem">
+          <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#128279; Repository</a>
+          &middot; <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#127760; DeepWiki</a>
+        </p>
+      </div>
+    </div>
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="guide-getting-started.html">EROAM 快速上手指南</a></li>
+        <li>
+          <a href="guide-beginners-guide.html">Beginner's Guide</a>
+          <ul>
+            <li><a href="guide-beginners-guide-01-what-is-eroam.html">EROAM 是什么：项目定位与核心能力</a></li>
+            <li><a href="guide-beginners-guide-02-math-foundation.html">数值基础设施：类型系统与数学工具</a></li>
+            <li><a href="guide-beginners-guide-03-pointcloud-pipeline.html">第三章：点云处理链路——从原始数据到空间索引</a></li>
+            <li><a href="guide-beginners-guide-04-fast-neighbor-search.html">第四章：高性能近邻搜索——KD 树实现原理与优化</a></li>
+            <li><a href="guide-beginners-guide-05-performance-observability.html">第五章：性能可观测——计时系统与调优实践</a></li>
+            <li><a href="guide-beginners-guide-06-entry-points.html">第六章：系统入口与数据预处理——运行与部署</a></li>
+          </ul>
+        </li>
+        <li><a href="guide-build-and-organization.html">Build & Code Organization 分析报告</a></li>
+        <li>
+          <a href="guide-core-algorithms.html">Core Algorithms 核心算法</a>
+          <ul>
+            <li><a href="guide-core-algorithms-01-incremental-kd-tree-dynamic-maintenance.html">增量式KD树动态维护算法</a></li>
+            <li><a href="guide-core-algorithms-02-dynamic-plane-parameter-estimation.html">2. Dynamic Plane Parameter Estimation</a></li>
+            <li><a href="guide-core-algorithms-03-dvs-event-rosbag-preprocessing.html">DVS事件相机Rosbag数据预处理算法（eroam）</a></li>
+            <li><a href="guide-core-algorithms-04-heterogeneous-pointcloud-format-normalization.html">异构点云格式归一化转换算法 (Heterogeneous Point Cloud Format Normalization)</a></li>
+            <li><a href="guide-core-algorithms-05-slam-factor-marginalization.html">SLAM因子边缘化算法（eroam实现）深度解析</a></li>
+            <li><a href="guide-core-algorithms-06-static-keyframe-kdtree-nearest-search.html">静态关键帧KD树近邻搜索算法深度解析</a></li>
+          </ul>
+        </li>
+        <li><span style="opacity:.5;padding:0.5em 0.75em;display:block">Thirdparty Ikd-Tree</span></li>
+<li>
+  <a href="src.html">module:src</a>
+  <ul>
+<li><a href="core_types_math.html">基础类型与数学工具</a></li>
+<li>
+  <a href="pointcloud_indexing.html">点云与索引工具</a>
+  <ul>
+<li><a href="kdtree_structures.html">KD树结构与距离节点模块技术文档</a></li>
+<li><a href="pointcloud_conversion_utils.html">点云转换工具技术文档</a></li>
+<li><a href="system_timer_support.html">系统与计时支持模块技术文档</a></li>
+  </ul>
+</li>
+<li><a href="executables_and_repack.html" class="is-active">可执行入口与数据重打包模块</a></li>
+  </ul>
+</li>
+      </ul>
+    </aside>
+  </aside>
+  <div class="cw-overlay" id="ov"></div>
+  <main class="cw-body" id="body">
+    <div class="cw-content">
+      <article id="mc" class="cw-article content">
+<h1>可执行入口与数据重打包模块</h1>
+<p>本模块包含两个独立的可执行程序：一是 EROAM 事件SLAM系统的标准启动入口，二是 DVS 事件相机rosbag数据的离线预处理工具。核心解决两个痛点：一是统一系统初始化流程，避免每次运行时重复处理日志、ROS节点、核心模块初始化逻辑；二是原始DVS数据普遍存在坏点、事件块大小不统一、用户常需截取特定时间片段等问题，将数据预处理逻辑与核心SLAM系统解耦，减少运行时的冗余计算。</p>
+<h2>概述</h2>
+<p>本模块处于整个系统的边界位置，分为两个完全独立的分支，无内部依赖：</p>
+<ol>
+<li><code>eroam_run</code> 是系统的运行时入口，仅负责初始化依赖组件和启动消息循环，不包含业务逻辑</li>
+<li><code>rosbag_repack</code> 是离线数据预处理工具，输出标准化的事件数据集，供后续SLAM系统直接使用</li>
+</ol>
+<p>二者的设计遵循严格的职责分离原则：运行时入口不包含任何数据预处理逻辑，预处理工具也不依赖核心SLAM模块的任何组件，确保两个程序可以独立编译、部署和修改。</p>
+<h2>架构说明</h2>
+<div class="mermaid not-prose">graph TD
+    M[可执行入口与数据重打包模块] --> R[eroam_run 启动入口 <br/> src/eroam_run.cpp]
+    M --> P[rosbag_repack 预处理工具 <br/> src/rosbag_repack.cpp]
+    R --> E[EROAM 核心SLAM实例]
+    E --> KD[点云与索引工具 <br/> &lbrack;point_cloud_index.md&rbrack;]
+    P --> B[isBadPixel 坏点过滤]
+    P --> S[时间切片/事件重打包]
+    P --> O[预处理后rosbag输出]
+    O --> E
+</div>
+<ul>
+<li><code>eroam_run</code> 作为启动入口，仅完成三方依赖初始化（glog、gflags、ROS），创建EROAM核心实例并启动ROS消息循环，所有业务逻辑均委托给核心SLAM模块处理</li>
+<li><code>rosbag_repack</code> 作为数据前处理工具，接收原始rosbag输入，完成坏点过滤、时间窗口截取、固定时长事件块重打包三个核心功能，输出标准化的事件数据集</li>
+<li>两个程序完全独立，无互相调用关系，仅通过预处理后的rosbag文件形成间接数据链路</li>
+</ul>
+<h2>核心设计决策</h2>
+<h3>1. 职责二分的可执行文件拆分</h3>
+<p>将启动入口和预处理工具拆分为两个独立可执行文件，而非整合为单二进制文件的不同模式：</p>
+<ul>
+<li>收益：运行时入口体积小，依赖少，启动速度快；预处理工具不需要链接SLAM核心相关的大量依赖，编译部署更灵活</li>
+<li>权衡：无法实现运行时实时坏点过滤，但坏点是传感器固有属性，离线预处理一次即可重复使用，远高于每次运行时过滤的效率，符合当前业务场景需求</li>
+<li>证据：两个主函数分别位于独立的cpp文件，无共享代码（src/eroam_run.cpp、src/rosbag_repack.cpp）</li>
+</ul>
+<h3>2. 坏点过滤的set实现</h3>
+<p>坏点查找使用<code>std::set&lt;PixelCoord&gt;</code>实现O(log n)复杂度的查询：</p>
+<ul>
+<li>收益：不需要硬编码DVS传感器分辨率，支持任意数量的坏点配置，内存占用随坏点数量线性增长，对于常见的个位数坏点场景内存效率极高</li>
+<li>权衡：如果坏点数量超过1000个，2D数组的O(1)查询性能更高，但当前DVS传感器坏点通常不超过100个，set的性能完全满足需求</li>
+<li>证据：src/rosbag_repack.cpp 行70-82 坏点转换逻辑，行27-29 <code>isBadPixel</code>实现</li>
+</ul>
+<h3>3. 嵌套循环的goto退出</h3>
+<p>使用goto语句跳出多层循环实现达到处理时长上限时的快速退出：</p>
+<ul>
+<li>收益：相比多层布尔标志位判断，代码更简洁，无额外的条件判断开销，避免标志位遗漏导致的逻辑错误</li>
+<li>权衡：goto语句不符合通用编码规范，但此处是C++中跳出多层循环的公认合理场景，且跳转目标位于同一函数尾部，无逻辑跳跃问题</li>
+<li>证据：src/rosbag_repack.cpp 行139 <code>goto finish_processing</code> 逻辑</li>
+</ul>
+<h3>4. 全栈RAII资源管理</h3>
+<p>所有资源（rosbag句柄、内存容器、ROS节点）均使用栈分配+RAII管理：</p>
+<ul>
+<li>收益：无需手动释放资源，即使出现异常也不会产生资源泄漏，代码更简洁</li>
+<li>权衡：对于超大事件数据集，栈分配的事件向量可能存在栈溢出风险，但当前默认的分段时长通常为100ms，事件数量不会超过栈容量上限</li>
+<li>证据：两个主函数中所有对象均为栈分配，无raw new/delete调用</li>
+</ul>
+<h2>内存与对象语义</h2>
+<h3>PixelCoord 结构体</h3>
+<ul>
+<li>遵循Rule of Zero，编译器自动生成的拷贝/移动/析构函数完全符合需求</li>
+<li>值语义，拷贝时执行x/y的深拷贝，无隐藏副作用</li>
+<li>自定义<code>&lt;</code>运算符用于set排序，排序逻辑为x优先，x相等时比较y，无特殊对齐要求</li>
+</ul>
+<h3>资源所有权</h3>
+<ul>
+<li>所有容器（<code>std::set&lt;PixelCoord&gt;</code>、<code>std::vector&lt;dv_ros_msgs::Event&gt;</code>）均为<code>main</code>函数独占所有，随函数退出自动释放</li>
+<li><code>isBadPixel</code>函数接收<code>const std::set&lt;PixelCoord&gt;&amp;</code>参数，为借用引用，不转移所有权，调用方需保证set在调用期间有效</li>
+<li><code>rosbag::Bag</code>实例通过RAII管理，自动在生命周期结束时关闭文件，无需手动调用close</li>
+</ul>
+<h2>错误处理</h2>
+<h3>eroam_run</h3>
+<ul>
+<li>无异常捕获逻辑，初始化失败时直接抛出未捕获异常终止程序</li>
+<li>设计意图：启动阶段失败为致命错误，直接暴露问题便于快速排查，无需容错</li>
+<li>证据：src/eroam_run.cpp 无try/catch块</li>
+</ul>
+<h3>rosbag_repack</h3>
+<ul>
+<li>仅捕获<code>rosbag::BagException</code>异常，打印错误日志后返回非零退出码</li>
+<li>异常安全等级为基本保证：所有资源均为RAII管理，出现异常时无资源泄漏，但已写入的输出bag文件可能不完整</li>
+<li>参数错误处理：坏像素列表格式不正确时直接跳过，不抛出错误，仅生成空的坏点集合</li>
+<li>证据：src/rosbag_repack.cpp 行155-162 异常处理逻辑，行70-82 坏像素列表解析逻辑</li>
+</ul>
+<h2>端到端数据流</h2>
+<h3>eroam_run 执行流程</h3>
+<ol>
+<li>接收命令行参数，初始化glog日志系统，配置日志输出格式和级别</li>
+<li>解析gflags命令行参数</li>
+<li>初始化ROS节点，创建全局NodeHandle</li>
+<li>实例化<code>eroam::EROAM</code>对象，调用<code>Init</code>方法完成核心系统初始化（依赖点云与索引工具模块的KD树、数学工具等组件）</li>
+<li>启动<code>ros::spin()</code>进入消息循环，处理所有订阅的传感器输入</li>
+<li>收到ROS关闭信号后退出循环，打印结束日志并返回0</li>
+</ol>
+<h3>rosbag_repack 执行流程</h3>
+<ol>
+<li>从ROS参数服务器加载配置：输入输出bag路径、事件话题名、分段时长、开始时间偏移、处理时长上限、坏点列表</li>
+<li>将坏点列表转换为<code>std::set&lt;PixelCoord&gt;</code>结构用于快速查询</li>
+<li>打开输入输出bag文件</li>
+<li>遍历输入bag中的所有消息：
+<ul>
+<li>首次遇到事件消息时，计算实际处理的开始和结束时间</li>
+<li>跳过开始时间之前的事件，达到结束时间时直接退出处理</li>
+<li>调用<code>isBadPixel</code>过滤坏点事件</li>
+<li>按配置的分段时长累积事件，达到时长时生成新的<code>EventArray</code>消息写入输出bag</li>
+<li>非事件话题的消息默认不写入输出（代码已注释，可按需开启）</li>
+</ul>
+</li>
+<li>处理剩余未写入的事件，关闭bag文件，输出处理统计信息</li>
+</ol>
+<h2>常见开发陷阱</h2>
+<ol>
+<li><strong>非事件话题的处理</strong>：src/rosbag_repack.cpp 行146-152 其他话题写入逻辑默认被注释，如需保留IMU、LiDAR等其他话题数据，需手动取消注释，同时确保这些消息的时间戳在处理时间窗口内</li>
+<li><strong>分段时间戳约定</strong>：重打包后的<code>EventArray</code>消息header时间戳为分段的起始时间，而非分段内第一个事件的时间，下游代码如果依赖header时间戳与第一个事件时间一致，会出现逻辑错误</li>
+<li><strong>时间偏移基准</strong>：<code>start_time_offset</code>参数是相对于bag中第一个事件的时间，而非bag文件的元数据起始时间，如果bag中前半段无事件，偏移计算逻辑会和预期不符</li>
+<li><strong>单线程运行限制</strong>：<code>eroam_run</code>使用单线程<code>ros::spin()</code>处理消息，如果事件处理耗时超过输入速率，会导致消息队列堆积，引入延迟。如需多线程处理，需替换为<code>MultiThreadedSpinner</code>，但必须先确认EROAM核心接口是线程安全的</li>
+<li><strong>坏点坐标约定</strong>：<code>PixelCoord</code>的x/y顺序与dv_ros_msgs的Event字段顺序一致，如果使用其他事件消息格式，需注意坐标顺序是否匹配，否则坏点过滤会失效</li>
+</ol>
+<h2>跨模块依赖</h2>
+<ul>
+<li>本模块唯一的外部依赖是点云与索引工具模块，仅在<code>eroam_run</code>初始化EROAM核心时使用</li>
+<li><code>rosbag_repack</code>无内部模块依赖，仅依赖ROS和rosbag相关的三方库</li>
+</ul>
+
+      </article>
+    </div>
+  </main>
+</div>
+<button id="btt" class="button is-primary is-rounded" title="Back to top">&#8679;</button>
+<script>
+document.getElementById('site-home-btn').href=window.location.origin+'/';
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){
+  hljs.highlightAll();
+  document.querySelectorAll('article pre').forEach(function(pre){
+    pre.setAttribute('tabindex','0');pre.setAttribute('role','region');pre.setAttribute('aria-label','Code block');
+  });
+});
+var sb=document.getElementById('sb'),body=document.getElementById('body'),ov=document.getElementById('ov'),burger=document.getElementById('sb-toggle');
+function isMob(){return window.innerWidth<769;}
+function sbShow(){if(isMob()){sb.classList.add('on');ov.classList.add('on');}else{sb.classList.remove('off');body.classList.remove('full');}}
+function sbHide(){if(isMob()){sb.classList.remove('on');ov.classList.remove('on');}else{sb.classList.add('off');body.classList.add('full');}}
+if(!isMob()&&localStorage.getItem('cw-sb')==='off'){sb.classList.add('off');body.classList.add('full');}
+burger.addEventListener('click',function(){
+  if(isMob()){if(sb.classList.contains('on'))sbHide();else sbShow();}
+  else{if(sb.classList.contains('off')){sbShow();localStorage.setItem('cw-sb','on');}else{sbHide();localStorage.setItem('cw-sb','off');}}
+});
+ov.addEventListener('click',sbHide);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')sbHide();});
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');sb.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else{sb.classList.remove('off');body.classList.remove('full');}});
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),tocDrop=document.getElementById('toc-dropdown');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(tocDrop)tocDrop.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');
+    li.className=h.tagName==='H3'?'toc-h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.classList.toggle('is-active',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);el.innerHTML=r.svg;}
+    catch(err){el.innerHTML='<details open><summary style="color:var(--bulma-danger);cursor:pointer">&#9888; Mermaid error</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;opacity:.6">'+src.replace(/</g,'&lt;')+'</pre></details>';}
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){window.MathJax={tex:{packages:{'[+]':['ams','newcommand']}},svg:{fontCache:'global'},startup:{typeset:false}};_mjReady=new Promise(function(res,rej){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';s.onload=function(){MathJax.startup.promise.then(res,rej);};s.onerror=rej;document.head.appendChild(s);});}
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  if(!root||typeof root.querySelectorAll!=='function')root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;var disp=el.classList.contains('math-block');
+    var src=el.textContent.trim().slice(2,-2).trim();el.dataset.mathSrc=src;el.dataset.mathDone='1';
+    try{el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});}catch(e){failed.push([el,disp]);}
+  });
+  if(!failed.length)return;
+  try{await _loadMathJax();for(var i=0;i<failed.length;i++){var el=failed[i][0],disp=failed[i][1];try{var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});el.innerHTML='';el.appendChild(node);}catch(e2){el.innerHTML='<code class="math-err" title="'+el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+el.dataset.mathSrc+'</code>';}}}
+  catch(loadErr){failed.forEach(function(p){p[0].innerHTML='<code class="math-err">'+p[0].dataset.mathSrc+'</code>';});}
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

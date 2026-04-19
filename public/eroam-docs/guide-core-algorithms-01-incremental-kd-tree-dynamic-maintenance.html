@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>增量式KD树动态维护算法</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;}
+/* ── Theme overrides ── */
+:root,[data-theme=light]{
+  --bulma-scheme-main:#fff;--bulma-scheme-main-bis:#f8fafc;--bulma-scheme-main-ter:#f1f5f9;
+  --bulma-border:#e2e8f0;--bulma-border-weak:#f1f5f9;
+  --bulma-text:#1e293b;--bulma-text-weak:#64748b;--bulma-text-strong:#0f172a;
+  --bulma-link:#2563eb;--bulma-link-hover:#1d4ed8;
+  --bulma-primary:#2563eb;--bulma-primary-light:#eff6ff;
+  --bulma-code:#e11d48;--bulma-code-background:#f8fafc;
+  --bulma-pre-background:#f8fafc;
+  --cw-nav-active-bg:#eff6ff;--cw-nav-active-text:#1d4ed8;
+  --cw-nav-hover-bg:#f1f5f9;
+  --cw-meta-bg:#f8fafc;
+}
+[data-theme=dark]{
+  --bulma-scheme-main:#0f172a;--bulma-scheme-main-bis:#1e293b;--bulma-scheme-main-ter:#253047;
+  --bulma-border:#334155;--bulma-border-weak:#253047;
+  --bulma-text:#e2e8f0;--bulma-text-weak:#94a3b8;--bulma-text-strong:#f8fafc;
+  --bulma-link:#60a5fa;--bulma-link-hover:#93c5fd;
+  --bulma-primary:#60a5fa;--bulma-primary-light:#1e3a5f;
+  --bulma-code:#f472b6;--bulma-code-background:#1e293b;
+  --bulma-pre-background:#162032;
+  --cw-nav-active-bg:#1e3a5f;--cw-nav-active-text:#60a5fa;
+  --cw-nav-hover-bg:#253047;
+  --cw-meta-bg:#253047;
+}
+/* ── Navbar ── */
+.navbar{background:var(--bulma-scheme-main)!important;border-bottom:1px solid var(--bulma-border)!important;box-shadow:none!important;}
+.navbar-item,.navbar-burger{color:var(--bulma-text)!important;}
+.navbar-burger:hover{background:var(--cw-nav-hover-bg)!important;}
+/* ── Layout ── */
+.cw-wrap{display:flex;min-height:100vh;padding-top:3.25rem;}
+.cw-side{position:fixed;top:3.25rem;left:0;width:272px;height:calc(100vh - 3.25rem);overflow-y:auto;background:var(--bulma-scheme-main-bis);border-right:1px solid var(--bulma-border);padding:1rem 0.75rem 3rem;z-index:30;transition:transform .2s;}
+.cw-side.off{transform:translateX(-272px);}
+.cw-body{margin-left:272px;flex:1;min-width:0;transition:margin-left .2s;}
+.cw-body.full{margin-left:0;}
+.cw-content{max-width:900px;margin:0 auto;padding:2.5rem 2rem;}
+.cw-overlay{display:none;position:fixed;inset:0;top:3.25rem;background:rgba(0,0,0,.35);z-index:25;backdrop-filter:blur(2px);}
+.cw-overlay.on{display:block;}
+/* ── Sidebar nav ── */
+.cw-side .menu-list a{font-size:0.84rem;border-radius:6px;color:var(--bulma-text-weak);padding:0.4em 0.75em;transition:all .15s;}
+.cw-side .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+.cw-side .menu-list a.is-active{background:var(--cw-nav-active-bg)!important;color:var(--cw-nav-active-text)!important;font-weight:600;}
+.cw-side .menu-list ul{border-left:1px solid var(--bulma-border);margin-left:0.75em;padding-left:0;}
+.cw-side .menu-label{color:var(--bulma-text-weak);font-size:0.7rem;letter-spacing:0.06em;margin-top:1.2em;}
+/* ── Meta card ── */
+.cw-side .card{background:var(--cw-meta-bg);border:1px solid var(--bulma-border);box-shadow:none;border-radius:8px;margin-bottom:0.75rem;}
+.cw-side .card b{color:var(--bulma-text-weak);}
+/* ── TOC dropdown ── */
+#toc-dropdown .dropdown-content{background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);}
+#toc-dropdown .menu-list a{padding:0.3em 0.6em;border-radius:4px;font-size:0.82rem;color:var(--bulma-text-weak);}
+#toc-dropdown .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+#toc-dropdown .menu-list a.is-active{color:var(--cw-nav-active-text);font-weight:600;}
+#toc-dropdown .toc-h3 a{padding-left:1.2em;font-size:0.78rem;}
+/* ── Article content ── */
+.content{color:var(--bulma-text);line-height:1.75;}
+.content h1{font-size:1.85rem;font-weight:700;border-bottom:2px solid var(--bulma-border);padding-bottom:0.4rem;margin-bottom:1.2rem;}
+.content h2{font-size:1.4rem;font-weight:600;margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--bulma-border-weak);}
+.content h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;color:var(--bulma-text-strong);}
+.content h4{font-size:1rem;font-weight:600;color:var(--bulma-text-strong);}
+.content p,.content li{color:var(--bulma-text);font-size:0.95rem;}
+.content a{color:var(--bulma-link);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s;}
+.content a:hover{border-bottom-color:var(--bulma-link);}
+.content code{background:var(--bulma-code-background);color:var(--bulma-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.85em;font-family:'JetBrains Mono',Consolas,monospace;}
+.content pre{background:var(--bulma-pre-background);border:1px solid var(--bulma-border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;}
+.content pre code{background:none;color:inherit;padding:0;font-size:0.87em;}
+.content blockquote{border-left:3px solid var(--bulma-link);background:var(--bulma-primary-light);padding:0.75rem 1rem;border-radius:0 6px 6px 0;color:var(--bulma-text);}
+.content table{border-collapse:collapse;width:100%;}
+.content th{background:var(--bulma-scheme-main-bis);font-weight:600;text-align:left;}
+.content th,.content td{border:1px solid var(--bulma-border);padding:0.6rem 0.8rem;font-size:0.9rem;}
+.content img{border-radius:8px;max-width:100%;}
+.content hr{border:none;border-top:1px solid var(--bulma-border);margin:2rem 0;}
+/* hljs/mermaid/math overrides */
+.content pre code.hljs{background:transparent!important;}
+.content .mermaid{max-width:none;margin:1.5rem 0;padding:1rem;background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;}
+.content .math-block{overflow-x:auto;margin:1rem 0;}
+.content .math-inline{display:inline;}
+.content .math-err{color:var(--bulma-danger);font-style:italic;font-size:0.85em;}
+.content pre:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--bulma-link) 30%,transparent);}
+.hljs{background:transparent!important;}
+/* ── Back to top ── */
+#btt{position:fixed;bottom:1.5rem;right:1.5rem;z-index:100;display:none;box-shadow:0 2px 8px rgba(0,0,0,.15);width:36px;height:36px;font-size:14px;}
+#btt.on{display:inline-flex;}
+/* ── Responsive ── */
+@media(max-width:768px){
+  .cw-side{transform:translateX(-272px);}
+  .cw-side.on{transform:translateX(0);}
+  .cw-body{margin-left:0;}
+  .cw-content{padding:1.5rem 1rem;}
+}
+@media(min-width:769px){
+  .cw-side{transform:none;}
+  .cw-side.off{transform:translateX(-272px);}
+}
+</style>
+</head>
+<body>
+<nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <button class="navbar-burger" id="sb-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </button>
+    <a href="index.html" class="navbar-item has-text-link has-text-weight-bold">&#128218; code-wiki-dir</a>
+  </div>
+  <div class="navbar-end">
+    <div class="navbar-item">
+      <div class="buttons are-small">
+        <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="Repository">&#128279; Repo</a>
+        <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="DeepWiki">&#127760; DeepWiki</a>
+        <div class="dropdown is-right is-hoverable" id="toc-dropdown">
+          <div class="dropdown-trigger">
+            <button class="button is-light is-small" aria-haspopup="true" aria-controls="toc-menu" title="Table of Contents">&#128209; TOC</button>
+          </div>
+          <div class="dropdown-menu" id="toc-menu" role="menu" style="min-width:220px;">
+            <div class="dropdown-content" style="max-height:60vh;overflow-y:auto;padding:0.5rem;">
+              <ul class="menu-list" id="toc-ul" style="font-size:0.85rem;"></ul>
+            </div>
+          </div>
+        </div>
+        <a href="/" id="site-home-btn" class="button is-light is-small" title="Back to main site" aria-label="Back to main site">&#127968;</a>
+        <button class="button is-light is-small" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<div class="cw-wrap">
+  <aside class="cw-side" id="sb">
+    <div class="card" style="margin-bottom:0.75rem;">
+      <div class="card-content" style="padding:0.75rem;">
+        <p class="is-size-7"><b>Model:</b> newapi_njqq/CPCN-glm-bl</p>
+        <p class="is-size-7"><b>Generated:</b> 2026-04-19T12:34</p>
+        <p class="is-size-7"><b>Components:</b> 98</p>
+        <p class="is-size-7" style="margin-top:0.5rem">
+          <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#128279; Repository</a>
+          &middot; <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#127760; DeepWiki</a>
+        </p>
+      </div>
+    </div>
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="guide-getting-started.html">EROAM 快速上手指南</a></li>
+        <li>
+          <a href="guide-beginners-guide.html">Beginner's Guide</a>
+          <ul>
+            <li><a href="guide-beginners-guide-01-what-is-eroam.html">EROAM 是什么：项目定位与核心能力</a></li>
+            <li><a href="guide-beginners-guide-02-math-foundation.html">数值基础设施：类型系统与数学工具</a></li>
+            <li><a href="guide-beginners-guide-03-pointcloud-pipeline.html">第三章：点云处理链路——从原始数据到空间索引</a></li>
+            <li><a href="guide-beginners-guide-04-fast-neighbor-search.html">第四章：高性能近邻搜索——KD 树实现原理与优化</a></li>
+            <li><a href="guide-beginners-guide-05-performance-observability.html">第五章：性能可观测——计时系统与调优实践</a></li>
+            <li><a href="guide-beginners-guide-06-entry-points.html">第六章：系统入口与数据预处理——运行与部署</a></li>
+          </ul>
+        </li>
+        <li><a href="guide-build-and-organization.html">Build & Code Organization 分析报告</a></li>
+        <li>
+          <a href="guide-core-algorithms.html">Core Algorithms 核心算法</a>
+          <ul>
+            <li><a href="guide-core-algorithms-01-incremental-kd-tree-dynamic-maintenance.html" class="is-active">增量式KD树动态维护算法</a></li>
+            <li><a href="guide-core-algorithms-02-dynamic-plane-parameter-estimation.html">2. Dynamic Plane Parameter Estimation</a></li>
+            <li><a href="guide-core-algorithms-03-dvs-event-rosbag-preprocessing.html">DVS事件相机Rosbag数据预处理算法（eroam）</a></li>
+            <li><a href="guide-core-algorithms-04-heterogeneous-pointcloud-format-normalization.html">异构点云格式归一化转换算法 (Heterogeneous Point Cloud Format Normalization)</a></li>
+            <li><a href="guide-core-algorithms-05-slam-factor-marginalization.html">SLAM因子边缘化算法（eroam实现）深度解析</a></li>
+            <li><a href="guide-core-algorithms-06-static-keyframe-kdtree-nearest-search.html">静态关键帧KD树近邻搜索算法深度解析</a></li>
+          </ul>
+        </li>
+        <li><span style="opacity:.5;padding:0.5em 0.75em;display:block">Thirdparty Ikd-Tree</span></li>
+<li>
+  <a href="src.html">module:src</a>
+  <ul>
+<li><a href="core_types_math.html">基础类型与数学工具</a></li>
+<li>
+  <a href="pointcloud_indexing.html">点云与索引工具</a>
+  <ul>
+<li><a href="kdtree_structures.html">KD树结构与距离节点模块技术文档</a></li>
+<li><a href="pointcloud_conversion_utils.html">点云转换工具技术文档</a></li>
+<li><a href="system_timer_support.html">系统与计时支持模块技术文档</a></li>
+  </ul>
+</li>
+<li><a href="executables_and_repack.html">可执行入口与数据重打包模块</a></li>
+  </ul>
+</li>
+      </ul>
+    </aside>
+  </aside>
+  <div class="cw-overlay" id="ov"></div>
+  <main class="cw-body" id="body">
+    <div class="cw-content">
+      <article id="mc" class="cw-article content">
+<h1>增量式KD树动态维护算法</h1>
+<h2>1. Problem Statement</h2>
+<p>动态点云处理面临一个核心矛盾：传感器以高频率产生数据流，而传统KD树构建算法假设静态输入。设点云序列为 <span class="math-inline not-prose">\(P = {p_1, p_2, \ldots, p_n}\)</span>，其中每个点 <span class="math-inline not-prose">\(p_i \in \mathbb{R}^d\)</span>（典型地 <span class="math-inline not-prose">\(d=3\)</span>）。在SLAM或激光里程计场景中，系统需要在以下操作间快速切换：</p>
+<ul>
+<li><strong>插入</strong>：新观测点 <span class="math-inline not-prose">\(p\_{new}\)</span> 加入当前地图</li>
+<li><strong>删除</strong>：过期点 <span class="math-inline not-prose">\(p\_{old}\)</span> 因视野移动或时间窗口失效而移除</li>
+<li><strong>最近邻查询</strong>：给定查询点 <span class="math-inline not-prose">\(q\)</span>，返回 <span class="math-inline not-prose">\(\arg\min\_{p \in P} |q - p|\_2\)</span></li>
+</ul>
+<p>朴素方案——每次变动后重建整棵树——时间复杂度为 <span class="math-inline not-prose">\(O(n \log n)\)</span>，无法承受 <span class="math-inline not-prose">\(n \sim 10^5\)</span> 级别的实时约束。增量式维护要求单次操作均摊 <span class="math-inline not-prose">\(O(\log n)\)</span>，同时保持树的平衡性以避免查询退化。</p>
+<h2>2. Intuition</h2>
+<p>静态KD树的最优构建策略（median splitting）在动态环境下失效：插入可能破坏平衡，删除产生空洞。关键观察在于<strong>延迟重构</strong>——并非每个操作都触发全局调整，而是累积&quot;不平衡度&quot;至阈值后局部重建。</p>
+<p>想象一个不断生长的档案柜：不是每次新增文件都重新整理全部抽屉，而是当某个抽屉溢出时，仅重组该抽屉及其相邻区域。这种<strong>局部性原理</strong>构成增量式维护的基础。</p>
+<p>具体而言，算法为每个节点维护两个计数器：</p>
+<ul>
+<li><code>TreeSize</code>：子树当前有效点数</li>
+<li><code>invalid_point_num</code>：逻辑删除但未物理清除的点数</li>
+</ul>
+<p>当 <code>invalid_point_num / TreeSize</code> 超过阈值 <span class="math-inline not-prose">\(\alpha\)</span>（典型值0.5），或子树规模偏离平衡条件，触发该子树的**重建（rebuild）**而非全局重构。</p>
+<h2>3. Formal Definition</h2>
+<p>设KD树节点 <span class="math-inline not-prose">\(v\)</span> 包含以下属性：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">属性</th>
+<th style="text-align:left">类型</th>
+<th style="text-align:left">语义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.point\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(\mathbb{R}^d \cup {\text{null}}\)</span></td>
+<td style="text-align:left">分割点坐标</td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.axis\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\({0, 1, \ldots, d-1}\)</span></td>
+<td style="text-align:left">分割维度</td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.left, v.right\)</span></td>
+<td style="text-align:left">节点指针</td>
+<td style="text-align:left">左右子树</td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.range_min, v.range_max\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(\mathbb{R}^d\)</span></td>
+<td style="text-align:left">子树包围盒</td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.tree_size\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(\mathbb{N}\)</span></td>
+<td style="text-align:left">有效点数</td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.invalid_num\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(\mathbb{N}\)</span></td>
+<td style="text-align:left">待删除点数</td>
+</tr>
+<tr>
+<td style="text-align:left"><span class="math-inline not-prose">\(v.need_push_down\)</span></td>
+<td style="text-align:left">Boolean</td>
+<td style="text-align:left">延迟删除标记</td>
+</tr>
+</tbody>
+</table>
+<p><strong>平衡条件</strong>（触发重建）：
+<div class="math-block not-prose">\[\text{rebuild}(v) \iff \frac{v.invalid_num}{v.tree_size} &gt; \alpha \quad \lor \quad \max(|v.left|, |v.right|) &gt; \beta \cdot v.tree_size\]</div></p>
+<p>其中 <span class="math-inline not-prose">\(\alpha \in (0,1)\)</span> 控制垃圾回收频率，<span class="math-inline not-prose">\(\beta \in (0.5, 1)\)</span> 控制平衡因子。</p>
+<p><strong>操作语义</strong>：</p>
+<ul>
+<li><span class="math-inline not-prose">\(\text{Insert}(T, p)\)</span>：沿分割轴下行，在叶节点附加；更新路径上所有 <span class="math-inline not-prose">\(v.tree_size \leftarrow v.tree_size + 1\)</span></li>
+<li><span class="math-inline not-prose">\(\text{Delete}(T, p, \epsilon)\)</span>：标记 <span class="math-inline not-prose">\(p\)</span> 为无效（范围删除时标记包围盒内点）；<span class="math-inline not-prose">\(v.invalid_num\)</span> 递增</li>
+<li><span class="math-inline not-prose">\(\text{Nearest}(T, q, k)\)</span>：标准KD树 <span class="math-inline not-prose">\(k\)</span>-NN搜索，跳过标记无效点</li>
+</ul>
+<p><strong>延迟删除的不变式</strong>：
+<div class="math-block not-prose">\[\forall v: v.tree_size \geq v.invalid_num \geq 0\]</div></p>
+<h2>4. Algorithm</h2>
+<h3>4.1 构建流程</h3>
+<pre><code class="language-pseudocode">procedure Build(P):
+    // P: 初始点云数组
+    if Root ≠ null then
+        DeleteTree(Root)          // 释放旧树
+    
+    StaticRoot ← new Node
+    Initialize(StaticRoot)
+    BuildTree(StaticRoot.left, 0, |P|-1, P)  // 递归构建
+    Update(StaticRoot)            // 自底向上计算属性
+    StaticRoot.tree_size ← 0      // 虚根不存储点
+    Root ← StaticRoot.left
+</code></pre>
+<div class="mermaid not-prose">flowchart TD
+    A[输入点云 P] --> B{Root存在?}
+    B -->|是| C[DeleteTree释放旧节点]
+    B -->|否| D[创建StaticRoot]
+    C --> D
+    D --> E[InitTreeNode初始化虚根]
+    E --> F[BuildTree递归构建左子树]
+    F --> G[Update自底向上更新属性]
+    G --> H[StaticRoot.tree_size置0]
+    H --> I[Root指向实际树根]
+    
+    F --> F1[按axis维度排序区间]
+    F1 --> F2[取中位数作为分割点]
+    F2 --> F3[递归构建左右子树]
+    F3 --> F4[计算range_min/max包围盒]
+</div>
+<h3>4.2 增量更新流程</h3>
+<pre><code class="language-pseudocode">procedure Update(v):
+    // 后序遍历更新，返回是否触发重建
+    if v = null then return false
+    
+    // 递归处理子树
+    rebuild_left ← Update(v.left)
+    rebuild_right ← Update(v.right)
+    
+    // 检查当前节点平衡条件
+    if v.invalid_num / v.tree_size &gt; α or BalanceFactor(v) &gt; β then
+        Rebuild(v)                // 局部重建
+        return true
+    
+    // 否则仅更新属性
+    PushDown(v)                   // 下传延迟删除
+    UpdateAttribute(v)            // 重新计算tree_size, range等
+    return false
+</code></pre>
+<div class="mermaid not-prose">flowchart TD
+    A[Update节点v] --> B{v为空?}
+    B -->|是| Z[返回false]
+    B -->|否| C[递归Update左子树]
+    C --> D[递归Update右子树]
+    D --> E{需重建?}
+    E -->|invalid_ratio > α| F[Rebuild局部重建]
+    E -->|balance > β| F
+    E -->|否| G[PushDown延迟标记]
+    F --> H[返回true]
+    G --> I[UpdateAttribute更新属性]
+    I --> J[返回false]
+</div>
+<h3>4.3 核心重建过程</h3>
+<pre><code class="language-pseudocode">procedure Rebuild(v):
+    // 收集子树所有有效点
+    P_valid ← CollectValidPoints(v)
+    
+    // 释放旧子树节点
+    DeleteSubtree(v)
+    
+    // 重新构建平衡树
+    BuildTree(v, 0, |P_valid|-1, P_valid)
+    
+procedure CollectValidPoints(v, buffer):
+    // 中序遍历收集，跳过invalid标记点
+    if v = null then return
+    PushDown(v)                   // 确保状态一致
+    CollectValidPoints(v.left, buffer)
+    if v.point.valid then
+        buffer.append(v.point)
+    CollectValidPoints(v.right, buffer)
+</code></pre>
+<h2>5. Complexity Analysis</h2>
+<h3>5.1 单次操作</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">操作</th>
+<th style="text-align:left">最坏情况</th>
+<th style="text-align:left">均摊情况</th>
+<th style="text-align:left">条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">插入</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(n)\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(\log n)\)</span></td>
+<td style="text-align:left">触发重建时退化</td>
+</tr>
+<tr>
+<td style="text-align:left">删除（标记）</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(\log n)\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(\log n)\)</span></td>
+<td style="text-align:left">仅路径遍历</td>
+</tr>
+<tr>
+<td style="text-align:left">查询</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(n^{1-1/d})\)</span></td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(\log n)\)</span></td>
+<td style="text-align:left">平衡时近似对数</td>
+</tr>
+<tr>
+<td style="text-align:left">重建</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(m \log m)\)</span></td>
+<td style="text-align:left">—</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(m\)</span> 为子树规模</td>
+</tr>
+</tbody>
+</table>
+<h3>5.2 均摊分析</h3>
+<p>设势函数 <span class="math-inline not-prose">\(\Phi(T) = c \cdot \sum\_{v} \max(0, v.invalid_num - \alpha \cdot v.tree_size)\)</span>，即所有节点超出阈值部分的加权和。</p>
+<p><strong>定理</strong>：选择 <span class="math-inline not-prose">\(\alpha = 0.5\)</span>，对于 <span class="math-inline not-prose">\(n\)</span> 次连续操作，总重建开销为 <span class="math-inline not-prose">\(O(n \log n)\)</span>。</p>
+<p><em>证明概要</em>：每次标记删除使势能增加 <span class="math-inline not-prose">\(O(\log n)\)</span>（路径上各节点计数+1）；重建规模为 <span class="math-inline not-prose">\(m\)</span> 的子树消耗 <span class="math-inline not-prose">\(O(m \log m)\)</span>，但使势能下降 <span class="math-inline not-prose">\(\Omega(m)\)</span>。由势能法，均摊每次操作 <span class="math-inline not-prose">\(O(\log n)\)</span>。∎</p>
+<h3>5.3 空间复杂度</h3>
+<ul>
+<li><strong>显式存储</strong>：<span class="math-inline not-prose">\(O(n)\)</span> 节点，每节点 <span class="math-inline not-prose">\(O(d)\)</span> 维数据 + 指针开销</li>
+<li><strong>重建缓冲</strong>：临时 <span class="math-inline not-prose">\(O(m)\)</span> 用于 <code>CollectValidPoints</code>，峰值 <span class="math-inline not-prose">\(O(n)\)</span> 但可复用</li>
+<li><strong>延迟删除</strong>：不立即释放，最大节点数 <span class="math-inline not-prose">\(n + O(\text{delete operations})\)</span></li>
+</ul>
+<h2>6. Implementation Notes</h2>
+<h3>6.1 虚根设计（Static Root）</h3>
+<p>源代码中 <code>STATIC_ROOT_NODE</code> 是一个关键工程技巧：</p>
+<pre><code class="language-cpp">STATIC_ROOT_NODE = new KD_TREE_NODE;
+// ... 构建到 left_son_ptr ...
+STATIC_ROOT_NODE-&gt;TreeSize = 0;      // 虚根无实际点
+Root_Node = STATIC_ROOT_NODE-&gt;left_son_ptr;
+</code></pre>
+<p>这使得统一处理空树与非空树场景：插入/删除操作始终从 <code>STATIC_ROOT_NODE</code> 开始，避免根节点变更的特殊判断。虚根的 <code>TreeSize=0</code> 确保其永远不会触发重建条件。</p>
+<h3>6.2 与理论的偏离</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">理论假设</th>
+<th style="text-align:left">实际代码</th>
+<th style="text-align:left">原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">精确中位数分割</td>
+<td style="text-align:left">近似中位数（nth_element）</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(n)\)</span> 快速选择 vs <span class="math-inline not-prose">\(O(n \log n)\)</span> 排序</td>
+</tr>
+<tr>
+<td style="text-align:left">立即物理删除</td>
+<td style="text-align:left">延迟标记 + 批量重建</td>
+<td style="text-align:left">减少内存分配碎片</td>
+</tr>
+<tr>
+<td style="text-align:left">固定维度 <span class="math-inline not-prose">\(d\)</span></td>
+<td style="text-align:left">模板参数 <code>PointType</code></td>
+<td style="text-align:left">编译期优化，支持PCL等库</td>
+</tr>
+<tr>
+<td style="text-align:left">全局锁</td>
+<td style="text-align:left">无显式同步</td>
+<td style="text-align:left">单线程假设，由调用者保证</td>
+</tr>
+</tbody>
+</table>
+<h3>6.3 关键代码片段分析</h3>
+<pre><code class="language-cpp">void KD_TREE&lt;PointType&gt;::Build(PointVector point_cloud){
+    if (Root_Node != nullptr){
+        delete_tree_nodes(&amp;Root_Node);   // 递归释放，防止内存泄漏
+    }
+    if (point_cloud.size() == 0) return; // 空输入快速返回
+    
+    STATIC_ROOT_NODE = new KD_TREE_NODE;
+    InitTreeNode(STATIC_ROOT_NODE);      // 零初始化所有字段
+    
+    // 核心：构建到虚根的左子树，保持接口统一
+    BuildTree(&amp;STATIC_ROOT_NODE-&gt;left_son_ptr, 0, point_cloud.size()-1, point_cloud);
+    
+    Update(STATIC_ROOT_NODE);            // 首次计算所有属性
+    STATIC_ROOT_NODE-&gt;TreeSize = 0;      // 重置虚根计数
+    Root_Node = STATIC_ROOT_NODE-&gt;left_son_ptr;  // 暴露实际树根
+}
+</code></pre>
+<p><code>BuildTree</code> 的实现（虽未完整展示）典型采用：</p>
+<pre><code class="language-cpp">// 推断实现模式
+void BuildTree(KD_TREE_NODE** node, int l, int r, PointVector&amp; points) {
+    if (l &gt; r) { *node = nullptr; return; }
+    
+    int axis = depth % 3;  // 或按方差最大维度
+    int mid = (l + r) &gt;&gt; 1;
+    nth_element(points.begin()+l, points.begin()+mid, points.begin()+r+1,
+        [axis](const%20PointType&amp;%20a,%20const%20PointType&amp;%20b) {
+            return a.data[axis] &lt; b.data[axis];
+        });
+    
+    *node = new KD_TREE_NODE;
+    (*node)-&gt;point = points[mid];
+    (*node)-&gt;axis = axis;
+    
+    BuildTree(&amp;(*node)-&gt;left_son_ptr, l, mid-1, points);
+    BuildTree(&amp;(*node)-&gt;right_son_ptr, mid+1, r, points);
+    
+    UpdateAttribute(*node);  // 计算包围盒、tree_size等
+}
+</code></pre>
+<h2>7. Comparison</h2>
+<h3>7.1 vs 经典静态KD树（Bentley, 1975）</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">维度</th>
+<th style="text-align:left">经典KD树</th>
+<th style="text-align:left">增量式KD树</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left">构建</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(n \log n)\)</span> 预处理</td>
+<td style="text-align:left">在线构建，支持空起点</td>
+</tr>
+<tr>
+<td style="text-align:left">插入</td>
+<td style="text-align:left">不支持（或退化链表）</td>
+<td style="text-align:left"><span class="math-inline not-prose">\(O(\log n)\)</span> 均摊</td>
+</tr>
+<tr>
+<td style="text-align:left">删除</td>
+<td style="text-align:left">不支持</td>
+<td style="text-align:left">延迟标记，批量回收</td>
+</tr>
+<tr>
+<td style="text-align:left">平衡保证</td>
+<td style="text-align:left">构建时静态最优</td>
+<td style="text-align:left">运行时动态维护</td>
+</tr>
+<tr>
+<td style="text-align:left">适用场景</td>
+<td style="text-align:left">静态数据库</td>
+<td style="text-align:left">流式传感器数据</td>
+</tr>
+</tbody>
+</table>
+<h3>7.2 vs 动态R树（Guttman, 1984）</h3>
+<p>R树及其变体（R*树、Hilbert R树）同样支持动态空间索引，但设计目标不同：</p>
+<ul>
+<li><strong>R树</strong>：优化磁盘页访问，最小包围盒（MBR）重叠导致查询需访问多分支</li>
+<li><strong>增量KD树</strong>：内存驻留，严格单路径遍历，最近邻查询更高效</li>
+</ul>
+<p>在 <span class="math-inline not-prose">\(k\)</span>-NN 查询密集型负载（如ICP点云配准）中，KD树结构通常优于R树 <span class="math-inline not-prose">\(2\times \sim 5\times\)</span>。</p>
+<h3>7.3 vs 其他增量KD树方案</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">方案</th>
+<th style="text-align:left">平衡策略</th>
+<th style="text-align:left">删除机制</th>
+<th style="text-align:left">典型实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>本算法（ikd-Tree）</strong></td>
+<td style="text-align:left">局部重建（size/invalid阈值）</td>
+<td style="text-align:left">延迟标记+批量重建</td>
+<td style="text-align:left">FAST-LIO2</td>
+</tr>
+<tr>
+<td style="text-align:left">libkdtree++</td>
+<td style="text-align:left">替罪羊树（Scapegoat）</td>
+<td style="text-align:left">立即重建</td>
+<td style="text-align:left">C++模板库</td>
+</tr>
+<tr>
+<td style="text-align:left">nanoflann</td>
+<td style="text-align:left">静态构建，支持增量重建</td>
+<td style="text-align:left">不支持</td>
+<td style="text-align:left">PCL兼容</td>
+</tr>
+<tr>
+<td style="text-align:left">FLANN</td>
+<td style="text-align:left">多随机KD树</td>
+<td style="text-align:left">不支持</td>
+<td style="text-align:left">近似最近邻</td>
+</tr>
+</tbody>
+</table>
+<p><strong>替罪羊树策略</strong>在 <code>libkdtree++</code> 中：当子树不平衡度超过 <span class="math-inline not-prose">\(\alpha\)</span>，重建该子树。这与本算法的双阈值（invalid_ratio + balance）策略等价，但本算法额外考虑&quot;垃圾回收&quot;维度，更适合高频删除场景（如激光雷达滑动窗口）。</p>
+<h3>7.4 局限性</h3>
+<ul>
+<li><strong>高维诅咒</strong>：<span class="math-inline not-prose">\(d &gt; 10\)</span> 时，KD树效率逼近线性扫描；本算法未引入近似机制（如LSH、PCA降维）</li>
+<li><strong>并发访问</strong>：代码无锁设计，多线程需外部同步；替罪羊树的重建可能触发长时间停顿</li>
+<li><strong>数据分布敏感</strong>：极端倾斜分布（如一条直线上的点）导致树深度失衡，尽管平衡因子 <span class="math-inline not-prose">\(\beta\)</span> 可缓解</li>
+</ul>
+
+      </article>
+    </div>
+  </main>
+</div>
+<button id="btt" class="button is-primary is-rounded" title="Back to top">&#8679;</button>
+<script>
+document.getElementById('site-home-btn').href=window.location.origin+'/';
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){
+  hljs.highlightAll();
+  document.querySelectorAll('article pre').forEach(function(pre){
+    pre.setAttribute('tabindex','0');pre.setAttribute('role','region');pre.setAttribute('aria-label','Code block');
+  });
+});
+var sb=document.getElementById('sb'),body=document.getElementById('body'),ov=document.getElementById('ov'),burger=document.getElementById('sb-toggle');
+function isMob(){return window.innerWidth<769;}
+function sbShow(){if(isMob()){sb.classList.add('on');ov.classList.add('on');}else{sb.classList.remove('off');body.classList.remove('full');}}
+function sbHide(){if(isMob()){sb.classList.remove('on');ov.classList.remove('on');}else{sb.classList.add('off');body.classList.add('full');}}
+if(!isMob()&&localStorage.getItem('cw-sb')==='off'){sb.classList.add('off');body.classList.add('full');}
+burger.addEventListener('click',function(){
+  if(isMob()){if(sb.classList.contains('on'))sbHide();else sbShow();}
+  else{if(sb.classList.contains('off')){sbShow();localStorage.setItem('cw-sb','on');}else{sbHide();localStorage.setItem('cw-sb','off');}}
+});
+ov.addEventListener('click',sbHide);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')sbHide();});
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');sb.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else{sb.classList.remove('off');body.classList.remove('full');}});
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),tocDrop=document.getElementById('toc-dropdown');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(tocDrop)tocDrop.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');
+    li.className=h.tagName==='H3'?'toc-h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.classList.toggle('is-active',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);el.innerHTML=r.svg;}
+    catch(err){el.innerHTML='<details open><summary style="color:var(--bulma-danger);cursor:pointer">&#9888; Mermaid error</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;opacity:.6">'+src.replace(/</g,'&lt;')+'</pre></details>';}
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){window.MathJax={tex:{packages:{'[+]':['ams','newcommand']}},svg:{fontCache:'global'},startup:{typeset:false}};_mjReady=new Promise(function(res,rej){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';s.onload=function(){MathJax.startup.promise.then(res,rej);};s.onerror=rej;document.head.appendChild(s);});}
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  if(!root||typeof root.querySelectorAll!=='function')root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;var disp=el.classList.contains('math-block');
+    var src=el.textContent.trim().slice(2,-2).trim();el.dataset.mathSrc=src;el.dataset.mathDone='1';
+    try{el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});}catch(e){failed.push([el,disp]);}
+  });
+  if(!failed.length)return;
+  try{await _loadMathJax();for(var i=0;i<failed.length;i++){var el=failed[i][0],disp=failed[i][1];try{var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});el.innerHTML='';el.appendChild(node);}catch(e2){el.innerHTML='<code class="math-err" title="'+el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+el.dataset.mathSrc+'</code>';}}}
+  catch(loadErr){failed.forEach(function(p){p[0].innerHTML='<code class="math-err">'+p[0].dataset.mathSrc+'</code>';});}
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>系统与计时支持模块技术文档</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;}
+/* ── Theme overrides ── */
+:root,[data-theme=light]{
+  --bulma-scheme-main:#fff;--bulma-scheme-main-bis:#f8fafc;--bulma-scheme-main-ter:#f1f5f9;
+  --bulma-border:#e2e8f0;--bulma-border-weak:#f1f5f9;
+  --bulma-text:#1e293b;--bulma-text-weak:#64748b;--bulma-text-strong:#0f172a;
+  --bulma-link:#2563eb;--bulma-link-hover:#1d4ed8;
+  --bulma-primary:#2563eb;--bulma-primary-light:#eff6ff;
+  --bulma-code:#e11d48;--bulma-code-background:#f8fafc;
+  --bulma-pre-background:#f8fafc;
+  --cw-nav-active-bg:#eff6ff;--cw-nav-active-text:#1d4ed8;
+  --cw-nav-hover-bg:#f1f5f9;
+  --cw-meta-bg:#f8fafc;
+}
+[data-theme=dark]{
+  --bulma-scheme-main:#0f172a;--bulma-scheme-main-bis:#1e293b;--bulma-scheme-main-ter:#253047;
+  --bulma-border:#334155;--bulma-border-weak:#253047;
+  --bulma-text:#e2e8f0;--bulma-text-weak:#94a3b8;--bulma-text-strong:#f8fafc;
+  --bulma-link:#60a5fa;--bulma-link-hover:#93c5fd;
+  --bulma-primary:#60a5fa;--bulma-primary-light:#1e3a5f;
+  --bulma-code:#f472b6;--bulma-code-background:#1e293b;
+  --bulma-pre-background:#162032;
+  --cw-nav-active-bg:#1e3a5f;--cw-nav-active-text:#60a5fa;
+  --cw-nav-hover-bg:#253047;
+  --cw-meta-bg:#253047;
+}
+/* ── Navbar ── */
+.navbar{background:var(--bulma-scheme-main)!important;border-bottom:1px solid var(--bulma-border)!important;box-shadow:none!important;}
+.navbar-item,.navbar-burger{color:var(--bulma-text)!important;}
+.navbar-burger:hover{background:var(--cw-nav-hover-bg)!important;}
+/* ── Layout ── */
+.cw-wrap{display:flex;min-height:100vh;padding-top:3.25rem;}
+.cw-side{position:fixed;top:3.25rem;left:0;width:272px;height:calc(100vh - 3.25rem);overflow-y:auto;background:var(--bulma-scheme-main-bis);border-right:1px solid var(--bulma-border);padding:1rem 0.75rem 3rem;z-index:30;transition:transform .2s;}
+.cw-side.off{transform:translateX(-272px);}
+.cw-body{margin-left:272px;flex:1;min-width:0;transition:margin-left .2s;}
+.cw-body.full{margin-left:0;}
+.cw-content{max-width:900px;margin:0 auto;padding:2.5rem 2rem;}
+.cw-overlay{display:none;position:fixed;inset:0;top:3.25rem;background:rgba(0,0,0,.35);z-index:25;backdrop-filter:blur(2px);}
+.cw-overlay.on{display:block;}
+/* ── Sidebar nav ── */
+.cw-side .menu-list a{font-size:0.84rem;border-radius:6px;color:var(--bulma-text-weak);padding:0.4em 0.75em;transition:all .15s;}
+.cw-side .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+.cw-side .menu-list a.is-active{background:var(--cw-nav-active-bg)!important;color:var(--cw-nav-active-text)!important;font-weight:600;}
+.cw-side .menu-list ul{border-left:1px solid var(--bulma-border);margin-left:0.75em;padding-left:0;}
+.cw-side .menu-label{color:var(--bulma-text-weak);font-size:0.7rem;letter-spacing:0.06em;margin-top:1.2em;}
+/* ── Meta card ── */
+.cw-side .card{background:var(--cw-meta-bg);border:1px solid var(--bulma-border);box-shadow:none;border-radius:8px;margin-bottom:0.75rem;}
+.cw-side .card b{color:var(--bulma-text-weak);}
+/* ── TOC dropdown ── */
+#toc-dropdown .dropdown-content{background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);}
+#toc-dropdown .menu-list a{padding:0.3em 0.6em;border-radius:4px;font-size:0.82rem;color:var(--bulma-text-weak);}
+#toc-dropdown .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+#toc-dropdown .menu-list a.is-active{color:var(--cw-nav-active-text);font-weight:600;}
+#toc-dropdown .toc-h3 a{padding-left:1.2em;font-size:0.78rem;}
+/* ── Article content ── */
+.content{color:var(--bulma-text);line-height:1.75;}
+.content h1{font-size:1.85rem;font-weight:700;border-bottom:2px solid var(--bulma-border);padding-bottom:0.4rem;margin-bottom:1.2rem;}
+.content h2{font-size:1.4rem;font-weight:600;margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--bulma-border-weak);}
+.content h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;color:var(--bulma-text-strong);}
+.content h4{font-size:1rem;font-weight:600;color:var(--bulma-text-strong);}
+.content p,.content li{color:var(--bulma-text);font-size:0.95rem;}
+.content a{color:var(--bulma-link);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s;}
+.content a:hover{border-bottom-color:var(--bulma-link);}
+.content code{background:var(--bulma-code-background);color:var(--bulma-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.85em;font-family:'JetBrains Mono',Consolas,monospace;}
+.content pre{background:var(--bulma-pre-background);border:1px solid var(--bulma-border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;}
+.content pre code{background:none;color:inherit;padding:0;font-size:0.87em;}
+.content blockquote{border-left:3px solid var(--bulma-link);background:var(--bulma-primary-light);padding:0.75rem 1rem;border-radius:0 6px 6px 0;color:var(--bulma-text);}
+.content table{border-collapse:collapse;width:100%;}
+.content th{background:var(--bulma-scheme-main-bis);font-weight:600;text-align:left;}
+.content th,.content td{border:1px solid var(--bulma-border);padding:0.6rem 0.8rem;font-size:0.9rem;}
+.content img{border-radius:8px;max-width:100%;}
+.content hr{border:none;border-top:1px solid var(--bulma-border);margin:2rem 0;}
+/* hljs/mermaid/math overrides */
+.content pre code.hljs{background:transparent!important;}
+.content .mermaid{max-width:none;margin:1.5rem 0;padding:1rem;background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;}
+.content .math-block{overflow-x:auto;margin:1rem 0;}
+.content .math-inline{display:inline;}
+.content .math-err{color:var(--bulma-danger);font-style:italic;font-size:0.85em;}
+.content pre:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--bulma-link) 30%,transparent);}
+.hljs{background:transparent!important;}
+/* ── Back to top ── */
+#btt{position:fixed;bottom:1.5rem;right:1.5rem;z-index:100;display:none;box-shadow:0 2px 8px rgba(0,0,0,.15);width:36px;height:36px;font-size:14px;}
+#btt.on{display:inline-flex;}
+/* ── Responsive ── */
+@media(max-width:768px){
+  .cw-side{transform:translateX(-272px);}
+  .cw-side.on{transform:translateX(0);}
+  .cw-body{margin-left:0;}
+  .cw-content{padding:1.5rem 1rem;}
+}
+@media(min-width:769px){
+  .cw-side{transform:none;}
+  .cw-side.off{transform:translateX(-272px);}
+}
+</style>
+</head>
+<body>
+<nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <button class="navbar-burger" id="sb-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </button>
+    <a href="index.html" class="navbar-item has-text-link has-text-weight-bold">&#128218; code-wiki-dir</a>
+  </div>
+  <div class="navbar-end">
+    <div class="navbar-item">
+      <div class="buttons are-small">
+        <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="Repository">&#128279; Repo</a>
+        <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="DeepWiki">&#127760; DeepWiki</a>
+        <div class="dropdown is-right is-hoverable" id="toc-dropdown">
+          <div class="dropdown-trigger">
+            <button class="button is-light is-small" aria-haspopup="true" aria-controls="toc-menu" title="Table of Contents">&#128209; TOC</button>
+          </div>
+          <div class="dropdown-menu" id="toc-menu" role="menu" style="min-width:220px;">
+            <div class="dropdown-content" style="max-height:60vh;overflow-y:auto;padding:0.5rem;">
+              <ul class="menu-list" id="toc-ul" style="font-size:0.85rem;"></ul>
+            </div>
+          </div>
+        </div>
+        <a href="/" id="site-home-btn" class="button is-light is-small" title="Back to main site" aria-label="Back to main site">&#127968;</a>
+        <button class="button is-light is-small" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<div class="cw-wrap">
+  <aside class="cw-side" id="sb">
+    <div class="card" style="margin-bottom:0.75rem;">
+      <div class="card-content" style="padding:0.75rem;">
+        <p class="is-size-7"><b>Model:</b> newapi_njqq/CPCN-glm-bl</p>
+        <p class="is-size-7"><b>Generated:</b> 2026-04-19T12:34</p>
+        <p class="is-size-7"><b>Components:</b> 98</p>
+        <p class="is-size-7" style="margin-top:0.5rem">
+          <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#128279; Repository</a>
+          &middot; <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#127760; DeepWiki</a>
+        </p>
+      </div>
+    </div>
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="guide-getting-started.html">EROAM 快速上手指南</a></li>
+        <li>
+          <a href="guide-beginners-guide.html">Beginner's Guide</a>
+          <ul>
+            <li><a href="guide-beginners-guide-01-what-is-eroam.html">EROAM 是什么：项目定位与核心能力</a></li>
+            <li><a href="guide-beginners-guide-02-math-foundation.html">数值基础设施：类型系统与数学工具</a></li>
+            <li><a href="guide-beginners-guide-03-pointcloud-pipeline.html">第三章：点云处理链路——从原始数据到空间索引</a></li>
+            <li><a href="guide-beginners-guide-04-fast-neighbor-search.html">第四章：高性能近邻搜索——KD 树实现原理与优化</a></li>
+            <li><a href="guide-beginners-guide-05-performance-observability.html">第五章：性能可观测——计时系统与调优实践</a></li>
+            <li><a href="guide-beginners-guide-06-entry-points.html">第六章：系统入口与数据预处理——运行与部署</a></li>
+          </ul>
+        </li>
+        <li><a href="guide-build-and-organization.html">Build & Code Organization 分析报告</a></li>
+        <li>
+          <a href="guide-core-algorithms.html">Core Algorithms 核心算法</a>
+          <ul>
+            <li><a href="guide-core-algorithms-01-incremental-kd-tree-dynamic-maintenance.html">增量式KD树动态维护算法</a></li>
+            <li><a href="guide-core-algorithms-02-dynamic-plane-parameter-estimation.html">2. Dynamic Plane Parameter Estimation</a></li>
+            <li><a href="guide-core-algorithms-03-dvs-event-rosbag-preprocessing.html">DVS事件相机Rosbag数据预处理算法（eroam）</a></li>
+            <li><a href="guide-core-algorithms-04-heterogeneous-pointcloud-format-normalization.html">异构点云格式归一化转换算法 (Heterogeneous Point Cloud Format Normalization)</a></li>
+            <li><a href="guide-core-algorithms-05-slam-factor-marginalization.html">SLAM因子边缘化算法（eroam实现）深度解析</a></li>
+            <li><a href="guide-core-algorithms-06-static-keyframe-kdtree-nearest-search.html">静态关键帧KD树近邻搜索算法深度解析</a></li>
+          </ul>
+        </li>
+        <li><span style="opacity:.5;padding:0.5em 0.75em;display:block">Thirdparty Ikd-Tree</span></li>
+<li>
+  <a href="src.html">module:src</a>
+  <ul>
+<li><a href="core_types_math.html">基础类型与数学工具</a></li>
+<li>
+  <a href="pointcloud_indexing.html">点云与索引工具</a>
+  <ul>
+<li><a href="kdtree_structures.html">KD树结构与距离节点模块技术文档</a></li>
+<li><a href="pointcloud_conversion_utils.html">点云转换工具技术文档</a></li>
+<li><a href="system_timer_support.html" class="is-active">系统与计时支持模块技术文档</a></li>
+  </ul>
+</li>
+<li><a href="executables_and_repack.html">可执行入口与数据重打包模块</a></li>
+  </ul>
+</li>
+      </ul>
+    </aside>
+  </aside>
+  <div class="cw-overlay" id="ov"></div>
+  <main class="cw-body" id="body">
+    <div class="cw-content">
+      <article id="mc" class="cw-article content">
+<h1>系统与计时支持模块技术文档</h1>
+<p>系统与计时支持模块为点云处理与SLAM系统提供统一的代码执行时间测量能力，解决了分散计时逻辑不兼容、指标无法汇总、重复实现性能统计逻辑的问题。该模块既支持单次多轮次的函数性能评估，也支持全生命周期的耗时数据收集与导出，是系统性能调优、瓶颈定位的核心基础工具，尤其为KD树结构与距离节点等高频率调用组件的性能验证提供了标准化手段。</p>
+<h2>1. 模块概述</h2>
+<p>你可以将该模块理解为性能测试工具包中的两类工具：</p>
+<ol>
+<li>一次性秒表：<code>evaluate_and_call</code> 函数用于开发阶段的微基准测试，直接输出单次多轮测试的平均耗时</li>
+<li>飞行数据记录仪：<code>Timer</code> 单态类用于生产运行时的全流程耗时采集，持久化存储所有关键操作的耗时数据，支持导出分析</li>
+</ol>
+<p>模块在整体架构中的角色是纯辅助工具层，不参与业务逻辑计算，仅负责耗时数据的采集、存储和导出。所有业务模块按需调用其接口即可，不需要感知内部实现。</p>
+<h3>1.1 架构与数据流</h3>
+<div class="mermaid not-prose">flowchart LR
+    A[业务代码] -->|开发基准测试| B[evaluate_and_call]
+    B --> C[glog日志输出]
+
+    A -->|运行时监控| D[Timer::Evaluate]
+    D --> E[静态records_存储]
+    E --> F[Timer::PrintAll]
+    E --> G[Timer::DumpIntoFile]
+    E --> H[Timer::GetMeanTime]
+    E --> I[Timer::Clear]
+    I --> J[关联ikd-Tree::clear 重置操作<br/>src/timer.h:69]
+</div>
+<h4>数据流说明</h4>
+<ul>
+<li><strong>微基准测试流</strong>：开发人员调用 <code>evaluate_and_call</code> 传入待测试函数、名称和迭代次数，函数会自动执行指定次数，统计平均耗时并直接输出到日志，无持久化存储</li>
+<li><strong>运行时监控流</strong>：业务流程中对关键操作包裹 <code>Timer::Evaluate</code> 调用，耗时数据会自动存入全局记录集合；流程结束后可通过打印、导出文件等方式获取统计结果，重置时调用 <code>Timer::Clear</code> 清空历史数据</li>
+</ul>
+<h2>2. 核心设计细节</h2>
+<h3>2.1 内存所有权模型</h3>
+<p>模块不向外部暴露任何内部资源的所有权：</p>
+<ul>
+<li><code>evaluate_and_call</code> 接受函数的转发引用，不持有函数对象所有权，所有资源由调用方管理，仅执行同步调用</li>
+<li><code>Timer</code> 类的静态 <code>records_</code> 映射表由类本身全局持有，所有 <code>TimerRecord</code> 实例存储于该映射表中，完全由 <code>Timer</code> 类管理生命周期，外部代码无法获取或修改内部记录的所有权</li>
+<li>所有字符串和向量存储均使用标准库容器自动管理内存，无手动内存分配释放操作，不存在内存泄漏风险</li>
+</ul>
+<h3>2.2 对象生命周期与值语义</h3>
+<ul>
+<li><code>Timer</code> 为纯静态单态类，没有非静态成员，遵循零规则，编译器自动生成的所有特殊成员函数均正确</li>
+<li><code>TimerRecord</code> 为简单聚合结构体，同样遵循零规则：拷贝操作会深拷贝函数名字符串和耗时向量，移动操作则会低成本转移资源所有权</li>
+<li><code>records_</code> 使用 <code>std::map</code> 存储，插入/删除操作不会失效其他元素的迭代器，且内部迭代器从不暴露给外部，无迭代器失效风险</li>
+</ul>
+<h3>2.3 错误处理策略</h3>
+<ul>
+<li>模块无自定义错误返回码，所有异常均由输入函数传播，模块本身不捕获异常</li>
+<li><code>evaluate_and_call</code> 未包含try/catch块，输入函数抛出的异常会直接传递给调用方</li>
+<li><code>Timer</code> 方法仅在内存不足时可能抛出标准库异常，此类异常属于系统致命错误，不做额外处理</li>
+<li>未定义行为场景：调用 <code>GetMeanTime</code> 时传入不存在的函数名，或调用 <code>evaluate_and_call</code> 时传入<code>times=0</code>会导致除零错误</li>
+</ul>
+<h3>2.4 Const正确性</h3>
+<ul>
+<li><code>evaluate_and_call</code> 保留输入函数的const属性，不会修改传入的函数对象</li>
+<li><code>Timer</code> 所有公共方法均为非静态方法，因为所有操作都会读写全局可变的 <code>records_</code> 映射表，无const方法</li>
+<li>无mutable成员，所有状态修改均显式通过公共方法执行</li>
+</ul>
+<h3>2.5 API契约与前置条件</h3>
+<table>
+<thead>
+<tr>
+<th>方法</th>
+<th>前置条件</th>
+<th>隐式约定</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>evaluate_and_call</code> [src/sys_utils.h:13]</td>
+<td><code>times &gt;= 1</code>，输入函数可无参调用</td>
+<td>函数执行无副作用，或多次执行副作用可接受</td>
+</tr>
+<tr>
+<td><code>Timer::Evaluate</code> [src/timer.h:30]</td>
+<td><code>func_name</code> 非空，且全局唯一标识待测量的操作</td>
+<td>同一<code>func_name</code>的所有调用会被聚合统计</td>
+</tr>
+<tr>
+<td><code>Timer::GetMeanTime</code> [src/timer.cc]</td>
+<td><code>func_name</code> 已存在于记录集合中</td>
+<td>返回值为历史所有调用的平均耗时</td>
+</tr>
+<tr>
+<td><code>Timer::Clear</code> [src/timer.h:69]</td>
+<td>无</td>
+<td>调用后会清空所有历史记录，同时自动调用Thirdparty Ikd-Tree的<code>clear</code>方法重置树状态，完成全链路重置</td>
+</tr>
+</tbody>
+</table>
+<h3>2.6 并发与线程安全</h3>
+<p><strong>模块设计为单线程使用</strong>，<code>records_</code> 映射表未加任何同步保护：</p>
+<ul>
+<li>多线程同时调用 <code>Timer::Evaluate</code> 会导致数据竞争，产生损坏的记录或程序崩溃</li>
+<li>若需在多线程场景下使用，调用方必须自行添加外部互斥锁保护所有<code>Timer</code>方法调用</li>
+<li>单线程场景下支持重入，可在被测量函数内部再次调用计时接口</li>
+</ul>
+<h3>2.7 性能架构</h3>
+<ul>
+<li><code>evaluate_and_call</code> 使用<code>std::chrono::high_resolution_clock</code> [src/sys_utils.h:17]，纳秒级精度，适合微基准测试</li>
+<li><code>Timer::Evaluate</code> 使用<code>std::chrono::steady_clock</code> [src/timer.h:32]，单调不随系统时间变更，适合长时间运行的生产环境计时</li>
+<li>单次<code>Timer::Evaluate</code>调用开销低于1微秒，仅包含两次时钟读取、一次map查找和一次vector插入，可安全用于每秒调用数千次的热点路径</li>
+<li><code>records_</code> 使用有序<code>std::map</code>存储，查询复杂度O(log n)，n为被测量的唯一函数数量（通常不超过50），性能开销可忽略</li>
+</ul>
+<h2>3. 设计权衡分析</h2>
+<table>
+<thead>
+<tr>
+<th>设计选择</th>
+<th>收益</th>
+<th>代价</th>
+<th>决策依据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>单态全局<code>Timer</code>而非实例化定时器</td>
+<td>无需在各层业务代码中传递定时器实例，全局唯一的统计结果方便汇总</td>
+<td>全局状态导致单元测试之间可能相互干扰，需要每次测试前调用<code>Clear</code>重置</td>
+<td>系统为单流水线处理架构，不需要多套独立的计时统计</td>
+</tr>
+<tr>
+<td>使用<code>steady_clock</code>而非<code>high_resolution_clock</code>做运行时计时</td>
+<td>不受NTP时间同步、系统时间修改的影响，长时间运行的统计结果准确</td>
+<td>部分平台下精度略低于高分辨率时钟</td>
+<td>系统关注的是毫秒级的操作耗时，精度损失可以忽略</td>
+</tr>
+<tr>
+<td>使用<code>std::map</code>存储记录</td>
+<td>输出结果自动按函数名排序，可读性强</td>
+<td>查找性能略低于<code>std::unordered_map</code></td>
+<td>记录数量极少，性能差异无实际影响</td>
+</tr>
+<tr>
+<td>分离<code>evaluate_and_call</code>和<code>Timer</code>两套接口</td>
+<td>基准测试和运行时监控职责分离，接口更简洁</td>
+<td>功能有一定重叠，存在少量重复代码</td>
+<td>两类场景使用时机和需求差异大，合并会导致接口臃肿</td>
+</tr>
+</tbody>
+</table>
+<h2>4. 常见用法示例</h2>
+<h3>4.1 单次微基准测试</h3>
+<pre><code class="language-cpp">#include &quot;sys_utils.h&quot;
+
+// 测试KD树单点插入性能，重复运行100次取平均
+fx::evaluate_and_call([]() {
+    kd_tree.Insert(test_point);
+}, &quot;KDTree::Insert&quot;, 100);
+// 输出示例：I0912 14:32:00.123456 1234 sys_utils.h:25] Method KDTree::Insert average call time/count: 0.23/100 ms.
+</code></pre>
+<h3>4.2 运行时全链路统计</h3>
+<pre><code class="language-cpp">#include &quot;timer.h&quot;
+
+// 业务流程中插入统计点，记录批量点云插入耗时
+eroam::common::Timer::Evaluate([&amp;]() {
+    kd_tree.Add_Points(point_cloud_batch);
+}, &quot;KDTree::Add_Points&quot;);
+
+// 运行结束后导出统计结果
+eroam::common::Timer::PrintAll();
+eroam::common::Timer::DumpIntoFile(&quot;kd_tree_performance.csv&quot;);
+double avg_batch_insert_time = eroam::common::Timer::GetMeanTime(&quot;KDTree::Add_Points&quot;);
+
+// 重置所有状态，准备下一轮测试
+eroam::common::Timer::Clear();
+</code></pre>
+<h2>5. 新开发者注意事项</h2>
+<ol>
+<li><strong>线程安全风险</strong>：不要在多线程场景下直接调用<code>Timer</code>接口，必须加外部锁，否则会出现难以排查的统计数据错误或崩溃</li>
+<li><strong>全局状态污染</strong>：每次测试或流程启动时必须调用<code>Timer::Clear()</code>，否则前一次运行的记录会污染当前统计结果</li>
+<li><strong>函数名唯一性</strong>：不同操作必须使用不同的<code>func_name</code>，否则会将不同操作的耗时混合统计，得到错误的平均结果</li>
+<li><strong>除零风险</strong>：调用<code>evaluate_and_call</code>时<code>times</code>参数必须大于0，否则会触发除零错误</li>
+<li><strong>异常传播</strong>：<code>Timer::Evaluate</code>不会捕获被测量函数抛出的异常，异常会直接向上传递，不会影响计时记录的完整性</li>
+<li><strong>Clear隐含操作</strong>：<code>Timer::Clear</code>会自动重置ikd-Tree状态，若仅需要清空计时记录不要调用该接口，避免业务状态被意外重置</li>
+</ol>
+
+      </article>
+    </div>
+  </main>
+</div>
+<button id="btt" class="button is-primary is-rounded" title="Back to top">&#8679;</button>
+<script>
+document.getElementById('site-home-btn').href=window.location.origin+'/';
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){
+  hljs.highlightAll();
+  document.querySelectorAll('article pre').forEach(function(pre){
+    pre.setAttribute('tabindex','0');pre.setAttribute('role','region');pre.setAttribute('aria-label','Code block');
+  });
+});
+var sb=document.getElementById('sb'),body=document.getElementById('body'),ov=document.getElementById('ov'),burger=document.getElementById('sb-toggle');
+function isMob(){return window.innerWidth<769;}
+function sbShow(){if(isMob()){sb.classList.add('on');ov.classList.add('on');}else{sb.classList.remove('off');body.classList.remove('full');}}
+function sbHide(){if(isMob()){sb.classList.remove('on');ov.classList.remove('on');}else{sb.classList.add('off');body.classList.add('full');}}
+if(!isMob()&&localStorage.getItem('cw-sb')==='off'){sb.classList.add('off');body.classList.add('full');}
+burger.addEventListener('click',function(){
+  if(isMob()){if(sb.classList.contains('on'))sbHide();else sbShow();}
+  else{if(sb.classList.contains('off')){sbShow();localStorage.setItem('cw-sb','on');}else{sbHide();localStorage.setItem('cw-sb','off');}}
+});
+ov.addEventListener('click',sbHide);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')sbHide();});
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');sb.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else{sb.classList.remove('off');body.classList.remove('full');}});
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),tocDrop=document.getElementById('toc-dropdown');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(tocDrop)tocDrop.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');
+    li.className=h.tagName==='H3'?'toc-h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.classList.toggle('is-active',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);el.innerHTML=r.svg;}
+    catch(err){el.innerHTML='<details open><summary style="color:var(--bulma-danger);cursor:pointer">&#9888; Mermaid error</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;opacity:.6">'+src.replace(/</g,'&lt;')+'</pre></details>';}
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){window.MathJax={tex:{packages:{'[+]':['ams','newcommand']}},svg:{fontCache:'global'},startup:{typeset:false}};_mjReady=new Promise(function(res,rej){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';s.onload=function(){MathJax.startup.promise.then(res,rej);};s.onerror=rej;document.head.appendChild(s);});}
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  if(!root||typeof root.querySelectorAll!=='function')root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;var disp=el.classList.contains('math-block');
+    var src=el.textContent.trim().slice(2,-2).trim();el.dataset.mathSrc=src;el.dataset.mathDone='1';
+    try{el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});}catch(e){failed.push([el,disp]);}
+  });
+  if(!failed.length)return;
+  try{await _loadMathJax();for(var i=0;i<failed.length;i++){var el=failed[i][0],disp=failed[i][1];try{var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});el.innerHTML='';el.appendChild(node);}catch(e2){el.innerHTML='<code class="math-err" title="'+el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+el.dataset.mathSrc+'</code>';}}}
+  catch(loadErr){failed.forEach(function(p){p[0].innerHTML='<code class="math-err">'+p[0].dataset.mathSrc+'</code>';});}
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>

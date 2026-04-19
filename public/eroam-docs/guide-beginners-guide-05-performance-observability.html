@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>第五章：性能可观测——计时系统与调优实践</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@1.0.4/css/bulma.min.css">
+<link id="hljs-css" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11.9.0/dist/mermaid.min.js"></script>
+<script>(function(){var t=localStorage.getItem('cw-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);if(t==='dark'){document.getElementById('hljs-css').href='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';}})();</script>
+<style>
+body{font-family:'Inter',system-ui,-apple-system,sans-serif;}
+/* ── Theme overrides ── */
+:root,[data-theme=light]{
+  --bulma-scheme-main:#fff;--bulma-scheme-main-bis:#f8fafc;--bulma-scheme-main-ter:#f1f5f9;
+  --bulma-border:#e2e8f0;--bulma-border-weak:#f1f5f9;
+  --bulma-text:#1e293b;--bulma-text-weak:#64748b;--bulma-text-strong:#0f172a;
+  --bulma-link:#2563eb;--bulma-link-hover:#1d4ed8;
+  --bulma-primary:#2563eb;--bulma-primary-light:#eff6ff;
+  --bulma-code:#e11d48;--bulma-code-background:#f8fafc;
+  --bulma-pre-background:#f8fafc;
+  --cw-nav-active-bg:#eff6ff;--cw-nav-active-text:#1d4ed8;
+  --cw-nav-hover-bg:#f1f5f9;
+  --cw-meta-bg:#f8fafc;
+}
+[data-theme=dark]{
+  --bulma-scheme-main:#0f172a;--bulma-scheme-main-bis:#1e293b;--bulma-scheme-main-ter:#253047;
+  --bulma-border:#334155;--bulma-border-weak:#253047;
+  --bulma-text:#e2e8f0;--bulma-text-weak:#94a3b8;--bulma-text-strong:#f8fafc;
+  --bulma-link:#60a5fa;--bulma-link-hover:#93c5fd;
+  --bulma-primary:#60a5fa;--bulma-primary-light:#1e3a5f;
+  --bulma-code:#f472b6;--bulma-code-background:#1e293b;
+  --bulma-pre-background:#162032;
+  --cw-nav-active-bg:#1e3a5f;--cw-nav-active-text:#60a5fa;
+  --cw-nav-hover-bg:#253047;
+  --cw-meta-bg:#253047;
+}
+/* ── Navbar ── */
+.navbar{background:var(--bulma-scheme-main)!important;border-bottom:1px solid var(--bulma-border)!important;box-shadow:none!important;}
+.navbar-item,.navbar-burger{color:var(--bulma-text)!important;}
+.navbar-burger:hover{background:var(--cw-nav-hover-bg)!important;}
+/* ── Layout ── */
+.cw-wrap{display:flex;min-height:100vh;padding-top:3.25rem;}
+.cw-side{position:fixed;top:3.25rem;left:0;width:272px;height:calc(100vh - 3.25rem);overflow-y:auto;background:var(--bulma-scheme-main-bis);border-right:1px solid var(--bulma-border);padding:1rem 0.75rem 3rem;z-index:30;transition:transform .2s;}
+.cw-side.off{transform:translateX(-272px);}
+.cw-body{margin-left:272px;flex:1;min-width:0;transition:margin-left .2s;}
+.cw-body.full{margin-left:0;}
+.cw-content{max-width:900px;margin:0 auto;padding:2.5rem 2rem;}
+.cw-overlay{display:none;position:fixed;inset:0;top:3.25rem;background:rgba(0,0,0,.35);z-index:25;backdrop-filter:blur(2px);}
+.cw-overlay.on{display:block;}
+/* ── Sidebar nav ── */
+.cw-side .menu-list a{font-size:0.84rem;border-radius:6px;color:var(--bulma-text-weak);padding:0.4em 0.75em;transition:all .15s;}
+.cw-side .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+.cw-side .menu-list a.is-active{background:var(--cw-nav-active-bg)!important;color:var(--cw-nav-active-text)!important;font-weight:600;}
+.cw-side .menu-list ul{border-left:1px solid var(--bulma-border);margin-left:0.75em;padding-left:0;}
+.cw-side .menu-label{color:var(--bulma-text-weak);font-size:0.7rem;letter-spacing:0.06em;margin-top:1.2em;}
+/* ── Meta card ── */
+.cw-side .card{background:var(--cw-meta-bg);border:1px solid var(--bulma-border);box-shadow:none;border-radius:8px;margin-bottom:0.75rem;}
+.cw-side .card b{color:var(--bulma-text-weak);}
+/* ── TOC dropdown ── */
+#toc-dropdown .dropdown-content{background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);}
+#toc-dropdown .menu-list a{padding:0.3em 0.6em;border-radius:4px;font-size:0.82rem;color:var(--bulma-text-weak);}
+#toc-dropdown .menu-list a:hover{background:var(--cw-nav-hover-bg);color:var(--bulma-text);}
+#toc-dropdown .menu-list a.is-active{color:var(--cw-nav-active-text);font-weight:600;}
+#toc-dropdown .toc-h3 a{padding-left:1.2em;font-size:0.78rem;}
+/* ── Article content ── */
+.content{color:var(--bulma-text);line-height:1.75;}
+.content h1{font-size:1.85rem;font-weight:700;border-bottom:2px solid var(--bulma-border);padding-bottom:0.4rem;margin-bottom:1.2rem;}
+.content h2{font-size:1.4rem;font-weight:600;margin-top:2.4rem;padding-top:1.2rem;border-top:1px solid var(--bulma-border-weak);}
+.content h3{font-size:1.15rem;font-weight:600;margin-top:1.8rem;color:var(--bulma-text-strong);}
+.content h4{font-size:1rem;font-weight:600;color:var(--bulma-text-strong);}
+.content p,.content li{color:var(--bulma-text);font-size:0.95rem;}
+.content a{color:var(--bulma-link);text-decoration:none;border-bottom:1px solid transparent;transition:border-color .15s;}
+.content a:hover{border-bottom-color:var(--bulma-link);}
+.content code{background:var(--bulma-code-background);color:var(--bulma-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.85em;font-family:'JetBrains Mono',Consolas,monospace;}
+.content pre{background:var(--bulma-pre-background);border:1px solid var(--bulma-border);border-radius:8px;padding:1rem 1.2rem;overflow-x:auto;}
+.content pre code{background:none;color:inherit;padding:0;font-size:0.87em;}
+.content blockquote{border-left:3px solid var(--bulma-link);background:var(--bulma-primary-light);padding:0.75rem 1rem;border-radius:0 6px 6px 0;color:var(--bulma-text);}
+.content table{border-collapse:collapse;width:100%;}
+.content th{background:var(--bulma-scheme-main-bis);font-weight:600;text-align:left;}
+.content th,.content td{border:1px solid var(--bulma-border);padding:0.6rem 0.8rem;font-size:0.9rem;}
+.content img{border-radius:8px;max-width:100%;}
+.content hr{border:none;border-top:1px solid var(--bulma-border);margin:2rem 0;}
+/* hljs/mermaid/math overrides */
+.content pre code.hljs{background:transparent!important;}
+.content .mermaid{max-width:none;margin:1.5rem 0;padding:1rem;background:var(--bulma-scheme-main);border:1px solid var(--bulma-border);border-radius:8px;}
+.content .math-block{overflow-x:auto;margin:1rem 0;}
+.content .math-inline{display:inline;}
+.content .math-err{color:var(--bulma-danger);font-style:italic;font-size:0.85em;}
+.content pre:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--bulma-link) 30%,transparent);}
+.hljs{background:transparent!important;}
+/* ── Back to top ── */
+#btt{position:fixed;bottom:1.5rem;right:1.5rem;z-index:100;display:none;box-shadow:0 2px 8px rgba(0,0,0,.15);width:36px;height:36px;font-size:14px;}
+#btt.on{display:inline-flex;}
+/* ── Responsive ── */
+@media(max-width:768px){
+  .cw-side{transform:translateX(-272px);}
+  .cw-side.on{transform:translateX(0);}
+  .cw-body{margin-left:0;}
+  .cw-content{padding:1.5rem 1rem;}
+}
+@media(min-width:769px){
+  .cw-side{transform:none;}
+  .cw-side.off{transform:translateX(-272px);}
+}
+</style>
+</head>
+<body>
+<nav class="navbar is-fixed-top has-shadow" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <button class="navbar-burger" id="sb-toggle" aria-label="Toggle sidebar" aria-expanded="false">
+      <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+    </button>
+    <a href="index.html" class="navbar-item has-text-link has-text-weight-bold">&#128218; code-wiki-dir</a>
+  </div>
+  <div class="navbar-end">
+    <div class="navbar-item">
+      <div class="buttons are-small">
+        <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="Repository">&#128279; Repo</a>
+        <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener" class="button is-light is-small" title="DeepWiki">&#127760; DeepWiki</a>
+        <div class="dropdown is-right is-hoverable" id="toc-dropdown">
+          <div class="dropdown-trigger">
+            <button class="button is-light is-small" aria-haspopup="true" aria-controls="toc-menu" title="Table of Contents">&#128209; TOC</button>
+          </div>
+          <div class="dropdown-menu" id="toc-menu" role="menu" style="min-width:220px;">
+            <div class="dropdown-content" style="max-height:60vh;overflow-y:auto;padding:0.5rem;">
+              <ul class="menu-list" id="toc-ul" style="font-size:0.85rem;"></ul>
+            </div>
+          </div>
+        </div>
+        <a href="/" id="site-home-btn" class="button is-light is-small" title="Back to main site" aria-label="Back to main site">&#127968;</a>
+        <button class="button is-light is-small" id="theme-btn" title="Toggle theme" aria-label="Toggle theme">&#127769;</button>
+      </div>
+    </div>
+  </div>
+</nav>
+<div class="cw-wrap">
+  <aside class="cw-side" id="sb">
+    <div class="card" style="margin-bottom:0.75rem;">
+      <div class="card-content" style="padding:0.75rem;">
+        <p class="is-size-7"><b>Model:</b> newapi_njqq/CPCN-glm-bl</p>
+        <p class="is-size-7"><b>Generated:</b> 2026-04-19T12:34</p>
+        <p class="is-size-7"><b>Components:</b> 98</p>
+        <p class="is-size-7" style="margin-top:0.5rem">
+          <a href="https://github.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#128279; Repository</a>
+          &middot; <a href="https://deepwiki.com/ShanghaiTechRCLab-PointCloud-Group/eroam" target="_blank" rel="noopener">&#127760; DeepWiki</a>
+        </p>
+      </div>
+    </div>
+    <aside class="menu">
+      <ul class="menu-list">
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="guide-getting-started.html">EROAM 快速上手指南</a></li>
+        <li>
+          <a href="guide-beginners-guide.html">Beginner's Guide</a>
+          <ul>
+            <li><a href="guide-beginners-guide-01-what-is-eroam.html">EROAM 是什么：项目定位与核心能力</a></li>
+            <li><a href="guide-beginners-guide-02-math-foundation.html">数值基础设施：类型系统与数学工具</a></li>
+            <li><a href="guide-beginners-guide-03-pointcloud-pipeline.html">第三章：点云处理链路——从原始数据到空间索引</a></li>
+            <li><a href="guide-beginners-guide-04-fast-neighbor-search.html">第四章：高性能近邻搜索——KD 树实现原理与优化</a></li>
+            <li><a href="guide-beginners-guide-05-performance-observability.html" class="is-active">第五章：性能可观测——计时系统与调优实践</a></li>
+            <li><a href="guide-beginners-guide-06-entry-points.html">第六章：系统入口与数据预处理——运行与部署</a></li>
+          </ul>
+        </li>
+        <li><a href="guide-build-and-organization.html">Build & Code Organization 分析报告</a></li>
+        <li>
+          <a href="guide-core-algorithms.html">Core Algorithms 核心算法</a>
+          <ul>
+            <li><a href="guide-core-algorithms-01-incremental-kd-tree-dynamic-maintenance.html">增量式KD树动态维护算法</a></li>
+            <li><a href="guide-core-algorithms-02-dynamic-plane-parameter-estimation.html">2. Dynamic Plane Parameter Estimation</a></li>
+            <li><a href="guide-core-algorithms-03-dvs-event-rosbag-preprocessing.html">DVS事件相机Rosbag数据预处理算法（eroam）</a></li>
+            <li><a href="guide-core-algorithms-04-heterogeneous-pointcloud-format-normalization.html">异构点云格式归一化转换算法 (Heterogeneous Point Cloud Format Normalization)</a></li>
+            <li><a href="guide-core-algorithms-05-slam-factor-marginalization.html">SLAM因子边缘化算法（eroam实现）深度解析</a></li>
+            <li><a href="guide-core-algorithms-06-static-keyframe-kdtree-nearest-search.html">静态关键帧KD树近邻搜索算法深度解析</a></li>
+          </ul>
+        </li>
+        <li><span style="opacity:.5;padding:0.5em 0.75em;display:block">Thirdparty Ikd-Tree</span></li>
+<li>
+  <a href="src.html">module:src</a>
+  <ul>
+<li><a href="core_types_math.html">基础类型与数学工具</a></li>
+<li>
+  <a href="pointcloud_indexing.html">点云与索引工具</a>
+  <ul>
+<li><a href="kdtree_structures.html">KD树结构与距离节点模块技术文档</a></li>
+<li><a href="pointcloud_conversion_utils.html">点云转换工具技术文档</a></li>
+<li><a href="system_timer_support.html">系统与计时支持模块技术文档</a></li>
+  </ul>
+</li>
+<li><a href="executables_and_repack.html">可执行入口与数据重打包模块</a></li>
+  </ul>
+</li>
+      </ul>
+    </aside>
+  </aside>
+  <div class="cw-overlay" id="ov"></div>
+  <main class="cw-body" id="body">
+    <div class="cw-content">
+      <article id="mc" class="cw-article content">
+<h1>第五章：性能可观测——计时系统与调优实践</h1>
+<blockquote>
+<p>本章学习目标：掌握 <code>evaluate_and_call</code> 进行微基准测试，以及 <code>Timer</code> 单态类进行生产环境全流程耗时采集与分析。</p>
+</blockquote>
+<hr />
+<h2>5.1 为什么需要统一的计时系统</h2>
+<p>性能调优的第一步是测量。没有精确的数据，优化就变成了盲目的猜测。</p>
+<p>在 eroam 的早期开发中，计时代码散落在各处：有的模块用 <code>std::clock</code>，有的用 <code>ros::Time</code>，有的直接打印 <code>ROS_INFO</code>。这种碎片化的做法带来了三个问题：测量精度不一致导致数据无法横向对比；重复实现性能统计逻辑浪费开发时间；最关键的是，生产环境的真实耗时与开发阶段的基准测试结果往往对不上——你优化了代码，却不知道在实际运行中有没有效果。</p>
+<p><code>system_timer_support</code> 模块的设计目标就是解决这些痛点。它提供两套互补的接口：一套用于开发阶段的微基准测试，另一套用于生产环境的全流程监控。两者共享相同的时间测量精度，但针对不同的使用场景做了优化。</p>
+<hr />
+<h2>5.2 微基准测试：<code>evaluate_and_call</code></h2>
+<p>开发阶段需要回答的问题是：这个函数到底有多快？<code>evaluate_and_call</code> 就是为此设计的。</p>
+<p>它的工作方式很直接：接收一个可调用对象、一个标识名称、一个迭代次数，然后执行指定次数，计算平均耗时并输出到日志。这类似于 Python 的 <code>timeit</code> 模块，或者 Google Benchmark 的简化版本。</p>
+<pre><code class="language-cpp">// 来自 src/sys_utils.h，第13行起
+template &lt;typename Func&gt;
+void evaluate_and_call(Func&amp;&amp; func, const std::string&amp; func_name, uint32_t times) {
+    auto t1 = std::chrono::high_resolution_clock::now();
+    for (uint32_t i = 0; i &lt; times; ++i) {
+        func();
+    }
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto dt = std::chrono::duration_cast&lt;std::chrono::duration&lt;double, std::milli&gt;&gt;(t2 - t1);
+    // 输出平均耗时和调用次数
+}
+</code></pre>
+<h3>5.2.1 设计权衡：为什么不用外部基准测试库</h3>
+<p>你可能会问：为什么不直接用 Google Benchmark 或 Hayai？这些库功能更丰富，统计也更专业。</p>
+<p><code>evaluate_and_call</code> 的存在是为了降低使用门槛。引入外部依赖意味着额外的编译配置、版本兼容性问题，以及学习成本。对于 eroam 的核心开发场景——快速验证 KD 树操作、点云转换等函数的耗时——这个 20 行左右的模板函数已经够用。它用 <code>std::chrono::high_resolution_clock</code> 保证纳秒级精度，用模板转发引用避免函数对象拷贝，用 <code>glog</code> 直接输出结果到日志系统，无需额外配置。</p>
+<p>代价是功能受限：没有自动统计方差、没有 CPU 缓存预热、没有防止编译器优化的技巧。如果你需要 publication-quality 的基准测试数据，仍然应该使用专业工具。但对于日常开发中的&quot;这个改动让代码变快还是变慢&quot;，<code>evaluate_and_call</code> 足够高效。</p>
+<h3>5.2.2 使用场景与注意事项</h3>
+<p>典型的使用场景是验证 KD 树操作的性能。假设你想知道单点插入的耗时：</p>
+<pre><code class="language-cpp">#include &quot;sys_utils.h&quot;
+
+// 测试 KD 树单点插入，重复 100 次取平均
+fx::evaluate_and_call([]() {
+    kd_tree.Insert(test_point);
+}, &quot;KDTree::Insert&quot;, 100);
+</code></pre>
+<p>输出示例：</p>
+<pre><code>I0912 14:32:00.123456 1234 sys_utils.h:25] Method KDTree::Insert average call time/count: 0.23/100 ms.
+</code></pre>
+<p><strong>关键前置条件</strong>：<code>times</code> 必须大于等于 1。传入 0 会导致除零错误，这是模块未显式检查的一个边界情况。</p>
+<p><strong>副作用假设</strong>：<code>evaluate_and_call</code> 假设被测函数执行多次是安全的。如果你的函数会修改全局状态（比如真的往 KD 树里插入数据），多次执行会累积副作用。此时应该使用纯测试数据，或在 lambda 中包裹重置逻辑。</p>
+<hr />
+<h2>5.3 生产环境监控：<code>Timer</code> 单态类</h2>
+<p>微基准测试回答&quot;能有多快&quot;，生产监控回答&quot;实际有多快&quot;。两者的差异在于：生产环境有真实的数据分布、真实的内存压力、真实的线程竞争。</p>
+<p><code>Timer</code> 类的设计类似于飞机上的&quot;飞行数据记录仪&quot;（black box）。它在系统运行期间静默记录所有关键操作的耗时，不输出任何日志，直到你主动查询或导出。这种设计避免了日志洪水对性能的影响，同时保留了完整的统计信息。</p>
+<h3>5.3.1 架构与数据流</h3>
+<div class="mermaid not-prose">flowchart TD
+    subgraph 业务代码层
+        A[SLAM主循环] -->|包裹关键操作| B[Timer::Evaluate]
+        C[点云预处理] -->|包裹关键操作| B
+        D[KD树查询] -->|包裹关键操作| B
+    end
+    
+    B -->|写入| E[静态records_: std::map<std::string, TimerRecord>]
+    
+    subgraph 数据消费
+        E -->|读取| F[Timer::PrintAll<br/>控制台输出]
+        E -->|读取| G[Timer::DumpIntoFile<br/>CSV导出]
+        E -->|读取| H[Timer::GetMeanTime<br/>程序化查询]
+    end
+    
+    I[Timer::Clear] -->|清空| E
+    I -->|联动重置| J[ikd-Tree::clear]
+</div>
+<p><strong>数据流说明</strong>：</p>
+<ul>
+<li>业务流程中的任意位置调用 <code>Timer::Evaluate(func, name)</code>，耗时数据自动存入全局 <code>records_</code> 映射表</li>
+<li>映射表以函数名为键，<code>TimerRecord</code> 结构体为值，后者包含函数名字符串和耗时向量</li>
+<li>流程结束后，通过 <code>PrintAll</code>、<code>DumpIntoFile</code> 或 <code>GetMeanTime</code> 获取统计结果</li>
+<li><code>Clear</code> 方法清空所有记录，同时自动调用 ikd-Tree 的 <code>clear</code> 方法，完成全链路状态重置</li>
+</ul>
+<h3>5.3.2 单态设计：便利与陷阱</h3>
+<p><code>Timer</code> 是一个纯静态类——没有实例，所有方法都是静态的，所有数据都是静态的。这种设计消除了&quot;把定时器实例传到哪一层&quot;的问题。在 eroam 的单流水线架构中，全局唯一的统计结果正好满足需求。</p>
+<p>代价是测试隔离困难。单元测试 A 写入的记录会残留到单元测试 B，导致统计结果污染。解决方案是在每个测试用例开始时调用 <code>Timer::Clear()</code>，但这引入了另一个陷阱：<code>Clear</code> 会联动重置 ikd-Tree 状态。如果你只想清空计时记录而保留树结构，不能直接调用 <code>Clear</code>。</p>
+<h3>5.3.3 时钟选择：<code>steady_clock</code> 的保守主义</h3>
+<p><code>Timer::Evaluate</code> 使用 <code>std::chrono::steady_clock</code> 而非 <code>high_resolution_clock</code>。这是一个刻意的保守选择。</p>
+<p><code>high_resolution_clock</code> 在某些平台上等价于系统实时时钟，会受到 NTP 同步、用户手动调时的影响。想象你的 SLAM 系统运行了 2 小时，期间系统时间被回调了 1 分钟——用实时时钟计算出的耗时会出现负数或异常大的值。<code>steady_clock</code> 保证单调递增，不受系统时间变更干扰，代价是部分平台下精度略低。</p>
+<p>对于 eroam 关注的毫秒级操作耗时，这种精度损失可以忽略。稳定性优先于极致精度。</p>
+<h3>5.3.4 线程安全：显式的单线程假设</h3>
+<p><strong><code>Timer</code> 不是线程安全的</strong>。<code>records_</code> 映射表没有任何同步保护，多线程并发调用 <code>Evaluate</code> 会导致数据竞争，表现为统计数值错乱或程序崩溃。</p>
+<p>这个设计选择基于 eroam 的架构现实：核心 SLAM 流程是单线程顺序执行的，KD 树的并行查询在内部管理自己的线程池，不需要外部计时介入。如果你的扩展代码确实需要多线程计时，必须自行添加互斥锁保护所有 <code>Timer</code> 方法调用。</p>
+<p>单线程场景下支持重入。你可以在被测量的函数内部再次调用 <code>Timer::Evaluate</code>，嵌套计时会正常记录到各自的键名下。</p>
+<h3>5.3.5 使用示例：完整的监控流程</h3>
+<pre><code class="language-cpp">#include &quot;timer.h&quot;
+
+void ProcessFrame(const PointCloud&amp; cloud) {
+    // 记录点云预处理耗时
+    eroam::common::Timer::Evaluate([&amp;]() {
+        auto downsampled = VoxelDownsample(cloud);
+        auto deskewed = DeskewByIMU(downsampled);
+        return deskewed;
+    }, &quot;PreprocessFrame&quot;);
+    
+    // 记录 KD 树批量插入耗时
+    eroam::common::Timer::Evaluate([&amp;]() {
+        kd_tree.Add_Points(deskewed);
+    }, &quot;KDTree::Add_Points&quot;);
+    
+    // 记录近邻查询耗时
+    std::vector&lt;int&gt; indices;
+    eroam::common::Timer::Evaluate([&amp;]() {
+        kd_tree.Nearest_Search(query_point, 5, indices);
+    }, &quot;KDTree::Nearest_Search&quot;);
+}
+
+// 运行结束后导出分析
+void DumpPerformanceReport() {
+    // 控制台打印所有统计结果
+    eroam::common::Timer::PrintAll();
+    
+    // 导出为 CSV，便于用 Python/R 分析
+    eroam::common::Timer::DumpIntoFile(&quot;session_performance.csv&quot;);
+    
+    // 程序化获取特定指标
+    double avg_preprocess = 
+        eroam::common::Timer::GetMeanTime(&quot;PreprocessFrame&quot;);
+    
+    // 准备下一轮测试
+    eroam::common::Timer::Clear();  // 注意：这会同时清空 KD 树！
+}
+</code></pre>
+<hr />
+<h2>5.4 两套接口的对比与选择</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">维度</th>
+<th style="text-align:left"><code>evaluate_and_call</code></th>
+<th style="text-align:left"><code>Timer</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><strong>使用阶段</strong></td>
+<td style="text-align:left">开发、单元测试</td>
+<td style="text-align:left">生产运行、系统集成测试</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>输出时机</strong></td>
+<td style="text-align:left">立即输出到日志</td>
+<td style="text-align:left">延迟查询，按需导出</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>持久化</strong></td>
+<td style="text-align:left">无，仅单次打印</td>
+<td style="text-align:left">全局存储，支持多轮统计</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>时钟类型</strong></td>
+<td style="text-align:left"><code>high_resolution_clock</code></td>
+<td style="text-align:left"><code>steady_clock</code></td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>典型调用频率</strong></td>
+<td style="text-align:left">一次性，百次迭代</td>
+<td style="text-align:left">每帧调用，持续运行</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>线程安全</strong></td>
+<td style="text-align:left">安全（单次调用内部循环）</td>
+<td style="text-align:left">不安全，需调用方保证单线程</td>
+</tr>
+<tr>
+<td style="text-align:left"><strong>重置机制</strong></td>
+<td style="text-align:left">无状态，无需重置</td>
+<td style="text-align:left"><code>Clear</code> 联动重置 ikd-Tree</td>
+</tr>
+</tbody>
+</table>
+<p>选择依据很简单：如果你在写代码、做优化、验证改动效果，用 <code>evaluate_and_call</code>；如果你在跑完整数据集、分析系统瓶颈、生成性能报告，用 <code>Timer</code>。</p>
+<hr />
+<h2>5.5 性能调优实践：从数据到行动</h2>
+<p>有了计时数据，如何指导优化？以下是 eroam 开发中的典型流程。</p>
+<h3>5.5.1 识别热点</h3>
+<p>首先用 <code>Timer</code> 跑完一个典型数据集，导出 CSV 后用简单脚本分析：</p>
+<pre><code class="language-python">import pandas as pd
+df = pd.read_csv('session_performance.csv')
+print(df.groupby('operation')['time_ms'].agg(['mean', 'std', 'count']))
+</code></pre>
+<p>寻找两个信号：平均耗时占比高的操作，以及标准差异常大的操作。前者是优化收益最大的目标，后者往往暗示着缓存未命中、内存分配抖动或分支预测失败。</p>
+<h3>5.5.2 微基准验证假设</h3>
+<p>假设你发现 <code>KDTree::Add_Points</code> 占用了 40% 的总时间，怀疑是点云排序开销导致。写一个隔离的基准测试：</p>
+<pre><code class="language-cpp">// 测试不同批次大小的插入性能
+for (int batch_size : {100, 500, 1000, 5000}) {
+    auto batch = GenerateRandomPoints(batch_size);
+    fx::evaluate_and_call([&amp;]() {
+        test_tree.Add_Points(batch);
+    }, &quot;Add_Points_&quot; + std::to_string(batch_size), 100);
+}
+</code></pre>
+<p>如果数据显示批次越大、单点平均耗时越低，说明你的假设正确——批量处理摊平了固定开销。反之则需要寻找其他原因。</p>
+<h3>5.5.3 回归测试防止退化</h3>
+<p>性能优化最怕&quot;进两步退一步&quot;。将关键指标的基准测试加入 CI 流程，每次提交自动对比：</p>
+<pre><code class="language-cpp">// 在测试套件中
+TEST(PerformanceRegression, KDTreeInsert) {
+    // 建立基线环境
+    SetupStandardTree();
+    
+    fx::evaluate_and_call([]() {
+        StandardInsertWorkload();
+    }, &quot;KDTree_Regression_Test&quot;, 1000);
+    
+    // 解析日志或捕获输出，断言平均耗时 &lt; 阈值
+    // 实际实现可能需要重定向 glog 输出
+}
+</code></pre>
+<hr />
+<h2>5.6 常见陷阱与排查</h2>
+<p><strong>症状：统计数据明显偏离预期</strong></p>
+<p>检查函数名是否唯一。<code>Timer</code> 以字符串为键聚合数据，两个不同操作使用相同名称会导致统计混合。建议采用 <code>Module::Class::Method</code> 的命名规范。</p>
+<p><strong>症状：<code>GetMeanTime</code> 崩溃或返回异常值</strong></p>
+<p>确认该函数名已被记录过。<code>GetMeanTime</code> 对不存在的键没有保护，直接访问会导致未定义行为。生产代码应先确保测量代码被执行，或添加存在性检查（当前 API 未直接提供，需自行封装）。</p>
+<p><strong>症状：<code>Clear</code> 后 KD 树行为异常</strong></p>
+<p><code>Timer::Clear</code> 的设计意图是全链路重置，它会自动调用 <code>ikd_tree.clear()</code>。如果你只想清空计时记录而保留树结构，目前模块没有提供单独的接口。这是设计上的耦合，需要在架构层面接受。</p>
+<p><strong>症状：多线程场景下统计错乱</strong></p>
+<p>如前所述，<code>Timer</code> 不是线程安全的。如果必须在多线程环境使用，封装一个线程安全的包装类：</p>
+<pre><code class="language-cpp">class ThreadSafeTimer {
+    static std::mutex mtx_;
+public:
+    template&lt;typename Func&gt;
+    static void Evaluate(Func&amp;&amp; func, const std::string&amp; name) {
+        std::lock_guard&lt;std::mutex&gt; lock(mtx_);
+        eroam::common::Timer::Evaluate(std::forward&lt;Func&gt;(func), name);
+    }
+    // 同理封装其他方法...
+};
+</code></pre>
+<p>注意这会引入锁竞争开销，高频调用的测量点可能成为新的瓶颈。</p>
+<hr />
+<h2>5.7 本章小结</h2>
+<p>性能可观测性建立在两个工具之上：<code>evaluate_and_call</code> 用于开发阶段的快速验证，<code>Timer</code> 用于生产环境的持续监控。两者分工明确，但共享相同的设计哲学——最小侵入、最低开销、最简接口。</p>
+<p>关键记住三点：始终调用 <code>Clear</code> 隔离测试运行，始终保证函数名全局唯一，始终确认你的线程模型与 <code>Timer</code> 的单线程假设兼容。有了可靠的测量数据，优化就不再是猜测，而是有方向的工程实践。</p>
+<hr />
+<h2>5.8 延伸阅读</h2>
+<ul>
+<li><code>src/sys_utils.h</code>：<code>evaluate_and_call</code> 的完整实现</li>
+<li><code>src/timer.h</code> / <code>src/timer.cc</code>：<code>Timer</code> 类定义与实现</li>
+<li><code>thirdparty_ikd_tree.md</code>：KD 树模块，计时系统的主要用户之一</li>
+<li>Google Benchmark 文档：当 <code>evaluate_and_call</code> 无法满足需求时的升级路径</li>
+</ul>
+
+      </article>
+    </div>
+  </main>
+</div>
+<button id="btt" class="button is-primary is-rounded" title="Back to top">&#8679;</button>
+<script>
+document.getElementById('site-home-btn').href=window.location.origin+'/';
+var html=document.documentElement,themeBtn=document.getElementById('theme-btn');
+function curTheme(){return html.getAttribute('data-theme')||(window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');}
+var _hljsBase='https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+function setTheme(t){html.setAttribute('data-theme',t);localStorage.setItem('cw-theme',t);themeBtn.innerHTML=t==='dark'?'&#9728;&#65039;':'&#127769;';document.getElementById('hljs-css').href=_hljsBase+(t==='dark'?'github-dark':'github')+'.min.css';}
+setTheme(curTheme());
+themeBtn.addEventListener('click',function(){setTheme(curTheme()==='dark'?'light':'dark');});
+document.addEventListener('DOMContentLoaded',function(){
+  hljs.highlightAll();
+  document.querySelectorAll('article pre').forEach(function(pre){
+    pre.setAttribute('tabindex','0');pre.setAttribute('role','region');pre.setAttribute('aria-label','Code block');
+  });
+});
+var sb=document.getElementById('sb'),body=document.getElementById('body'),ov=document.getElementById('ov'),burger=document.getElementById('sb-toggle');
+function isMob(){return window.innerWidth<769;}
+function sbShow(){if(isMob()){sb.classList.add('on');ov.classList.add('on');}else{sb.classList.remove('off');body.classList.remove('full');}}
+function sbHide(){if(isMob()){sb.classList.remove('on');ov.classList.remove('on');}else{sb.classList.add('off');body.classList.add('full');}}
+if(!isMob()&&localStorage.getItem('cw-sb')==='off'){sb.classList.add('off');body.classList.add('full');}
+burger.addEventListener('click',function(){
+  if(isMob()){if(sb.classList.contains('on'))sbHide();else sbShow();}
+  else{if(sb.classList.contains('off')){sbShow();localStorage.setItem('cw-sb','on');}else{sbHide();localStorage.setItem('cw-sb','off');}}
+});
+ov.addEventListener('click',sbHide);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')sbHide();});
+window.addEventListener('resize',function(){if(!isMob()){ov.classList.remove('on');sb.classList.remove('on');if(localStorage.getItem('cw-sb')!=='off')sbShow();}else{sb.classList.remove('off');body.classList.remove('full');}});
+(function(){
+  var mc=document.getElementById('mc'),ul=document.getElementById('toc-ul'),tocDrop=document.getElementById('toc-dropdown');
+  if(!mc||!ul)return;
+  var hs=mc.querySelectorAll('h2,h3');
+  if(hs.length<2){if(tocDrop)tocDrop.style.display='none';return;}
+  hs.forEach(function(h,i){
+    if(!h.id)h.id='h-'+i;
+    var li=document.createElement('li');
+    li.className=h.tagName==='H3'?'toc-h3':'';
+    var a=document.createElement('a');a.href='#'+h.id;a.textContent=h.textContent;
+    li.appendChild(a);ul.appendChild(li);
+  });
+  var obs=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){var a=ul.querySelector('a[href="#'+e.target.id+'"]');if(a)a.classList.toggle('is-active',e.isIntersecting);});
+  },{rootMargin:'-15% 0% -75% 0%'});
+  hs.forEach(function(h){obs.observe(h);});
+})();
+var btt=document.getElementById('btt');
+window.addEventListener('scroll',function(){btt.classList.toggle('on',window.scrollY>300);});
+btt.addEventListener('click',function(){window.scrollTo({top:0,behavior:'smooth'});});
+async function cwRenderMermaid(){
+  var theme=document.documentElement.getAttribute('data-theme')==='dark'?'dark':'default';
+  mermaid.initialize({startOnLoad:false,theme:theme,themeVariables:{primaryColor:'#2563eb',lineColor:'#64748b'},flowchart:{htmlLabels:true,curve:'basis'},sequence:{mirrorActors:false,useMaxWidth:true}});
+  var els=document.querySelectorAll('.mermaid');
+  for(var i=0;i<els.length;i++){
+    var el=els[i];
+    var src=el.getAttribute('data-mermaid-src');
+    if(!src){src=el.textContent.trim();el.setAttribute('data-mermaid-src',src);}
+    else{el.textContent=src;}
+    try{var r=await mermaid.render('mermaid-'+Date.now()+'-'+i,src);el.innerHTML=r.svg;}
+    catch(err){el.innerHTML='<details open><summary style="color:var(--bulma-danger);cursor:pointer">&#9888; Mermaid error</summary><pre style="font-size:12px;margin-top:8px;white-space:pre-wrap">'+err.message+'</pre><pre style="font-size:11px;opacity:.6">'+src.replace(/</g,'&lt;')+'</pre></details>';}
+  }
+}
+document.addEventListener('DOMContentLoaded',cwRenderMermaid);
+themeBtn.addEventListener('click',function(){setTimeout(cwRenderMermaid,50);});
+var _mjReady=null;
+function _loadMathJax(){
+  if(!_mjReady){window.MathJax={tex:{packages:{'[+]':['ams','newcommand']}},svg:{fontCache:'global'},startup:{typeset:false}};_mjReady=new Promise(function(res,rej){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js';s.onload=function(){MathJax.startup.promise.then(res,rej);};s.onerror=rej;document.head.appendChild(s);});}
+  return _mjReady;
+}
+async function cwRenderMath(root){
+  if(typeof katex==='undefined')return;
+  if(!root||typeof root.querySelectorAll!=='function')root=document.getElementById('mc')||document.body;
+  var failed=[];
+  root.querySelectorAll('.math-block,.math-inline').forEach(function(el){
+    if(el.dataset.mathDone)return;var disp=el.classList.contains('math-block');
+    var src=el.textContent.trim().slice(2,-2).trim();el.dataset.mathSrc=src;el.dataset.mathDone='1';
+    try{el.innerHTML=katex.renderToString(src,{displayMode:disp,throwOnError:true,output:'html'});}catch(e){failed.push([el,disp]);}
+  });
+  if(!failed.length)return;
+  try{await _loadMathJax();for(var i=0;i<failed.length;i++){var el=failed[i][0],disp=failed[i][1];try{var node=await MathJax.tex2svgPromise(el.dataset.mathSrc,{display:disp});el.innerHTML='';el.appendChild(node);}catch(e2){el.innerHTML='<code class="math-err" title="'+el.dataset.mathSrc.replace(/"/g,'&#34;')+'">'+el.dataset.mathSrc+'</code>';}}}
+  catch(loadErr){failed.forEach(function(p){p[0].innerHTML='<code class="math-err">'+p[0].dataset.mathSrc+'</code>';});}
+}
+document.addEventListener('DOMContentLoaded',cwRenderMath);
+</script>
+</body>
+</html>
